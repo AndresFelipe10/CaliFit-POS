@@ -52,10 +52,11 @@ class SaleController extends Controller
 
         // Search by invoice number or customer name
         if ($search = $request->input('search')) {
-            $query->where(function ($q) use ($search) {
-                $q->where('invoice_number', 'like', "%{$search}%")
-                  ->orWhereHas('customer', function ($cq) use ($search) {
-                      $cq->where('name', 'like', "%{$search}%");
+            $escaped = addcslashes(trim((string) $search), '%_\\');
+            $query->where(function ($q) use ($escaped) {
+                $q->where('invoice_number', 'like', "%{$escaped}%")
+                  ->orWhereHas('customer', function ($cq) use ($escaped) {
+                      $cq->where('name', 'like', "%{$escaped}%");
                   });
             });
         }

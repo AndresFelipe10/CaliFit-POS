@@ -260,10 +260,10 @@ class ExpenseService
 
         // Búsqueda por número de factura o descripción
         if (!empty($filters['search'])) {
-            $search = '%' . trim($filters['search']) . '%';
-            $query->where(function ($q) use ($search) {
-                $q->where('invoice_number', 'LIKE', $search)
-                    ->orWhere('description', 'LIKE', $search);
+            $escaped = addcslashes(trim((string) $filters['search']), '%_\\');
+            $query->where(function ($q) use ($escaped) {
+                $q->where('invoice_number', 'LIKE', "%{$escaped}%")
+                    ->orWhere('description', 'LIKE', "%{$escaped}%");
             });
         }
     }

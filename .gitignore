@@ -65,3 +65,5 @@ desktop.ini
 
 # Security audit artifacts
 /security-audit/
+
+.obsidian/

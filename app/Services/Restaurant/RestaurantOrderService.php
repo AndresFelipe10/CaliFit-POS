@@ -229,25 +229,36 @@ class RestaurantOrderService
     public function cancelEmptyOrder(RestaurantOrder $order): RestaurantOrder
     {
         return DB::transaction(function () use ($order) {
-            if ($order->status !== 'open') {
+            $lockedOrder = RestaurantOrder::where('business_id', $order->business_id)
+                ->lockForUpdate()
+                ->findOrFail($order->id);
+
+            $lockedTable = null;
+            if ($lockedOrder->table_id) {
+                $lockedTable = RestaurantTable::where('business_id', $lockedOrder->business_id)
+                    ->lockForUpdate()
+                    ->find($lockedOrder->table_id);
+            }
+
+            if ($lockedOrder->status !== 'open') {
                 throw ValidationException::withMessages([
                     'order' => 'Solo se pueden cancelar comandas en estado abierto.',
                 ]);
             }
 
-            if ($order->items()->count() > 0) {
+            if ($lockedOrder->items()->count() > 0) {
                 throw ValidationException::withMessages([
                     'order' => 'No se puede cancelar una comanda que contiene platos registrados. Anule o elimine los consumos primero.',
                 ]);
             }
 
-            $order->update(['status' => 'cancelled']);
+            $lockedOrder->update(['status' => 'cancelled']);
 
-            if ($order->table_id && $order->table) {
-                $order->table->update(['status' => 'available']);
+            if ($lockedTable) {
+                $lockedTable->update(['status' => 'available']);
             }
 
-            return $order->fresh();
+            return $lockedOrder->fresh();
         });
     }
 
@@ -289,6 +300,18 @@ class RestaurantOrderService
         return DB::transaction(function () use ($order, $item, $reason, $admin, $quantityToRemove) {
             $lockedItem = RestaurantOrderItem::lockForUpdate()->findOrFail($item->id);
             $lockedOrder = RestaurantOrder::lockForUpdate()->findOrFail($order->id);
+
+            if (! $lockedOrder->canBeModified()) {
+                throw ValidationException::withMessages([
+                    'order' => 'No se pueden eliminar platos de una comanda que ya fue cobrada, facturada o anulada.',
+                ]);
+            }
+
+            if ($lockedItem->isCancelled()) {
+                throw ValidationException::withMessages([
+                    'item' => 'Este ítem ya ha sido cancelado previamente.',
+                ]);
+            }
 
             $currentQty = (int) $lockedItem->quantity;
             $qtyToRemove = $quantityToRemove !== null ? (int) $quantityToRemove : $currentQty;
@@ -371,6 +394,12 @@ class RestaurantOrderService
 
         return DB::transaction(function () use ($order, $reason, $admin) {
             $lockedOrder = RestaurantOrder::lockForUpdate()->findOrFail($order->id);
+
+            if (! $lockedOrder->canBeModified()) {
+                throw ValidationException::withMessages([
+                    'order' => 'No se puede anular una comanda que ya fue cobrada, facturada o anulada.',
+                ]);
+            }
 
             // Revertir inventario de todos los ítems activos y marcarlos como anulados
             $activeItems = $lockedOrder->items()

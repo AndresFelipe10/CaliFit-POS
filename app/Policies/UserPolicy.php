@@ -43,7 +43,14 @@ class UserPolicy
      */
     public function deactivate(User $user, User $model): bool
     {
-        // Admin cannot deactivate themselves from their active business
-        return $user->isCurrentAdmin() && $user->id !== $model->id;
+        if (! $user->isCurrentAdmin() || $user->id === $model->id) {
+            return false;
+        }
+
+        $businessId = session('current_business_id');
+
+        return $model->businesses()
+            ->where('businesses.id', $businessId)
+            ->exists();
     }
 }

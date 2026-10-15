@@ -262,4 +262,12 @@ class InventoryIntelligenceTest extends TestCase
         $response->assertStatus(200);
         $response->assertSee('Panel Inteligente de Inventario');
     }
+
+    public function test_classifies_fractional_stock_correctly_as_low_stock_and_not_out_of_stock(): void
+    {
+        $this->assertEquals(
+            InventoryIntelligenceService::STATUS_LOW_STOCK,
+            $this->service->classify(0.5, 1.0)
+        );
+    }
 }

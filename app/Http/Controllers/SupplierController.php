@@ -22,12 +22,13 @@ class SupplierController extends Controller
         $query = Supplier::query();
 
         if ($search = $request->input('search')) {
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('identification_number', 'like', "%{$search}%")
-                  ->orWhere('contact_name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%")
-                  ->orWhere('phone', 'like', "%{$search}%");
+            $escaped = addcslashes(trim((string) $search), '%_\\');
+            $query->where(function ($q) use ($escaped) {
+                $q->where('name', 'like', "%{$escaped}%")
+                  ->orWhere('identification_number', 'like', "%{$escaped}%")
+                  ->orWhere('contact_name', 'like', "%{$escaped}%")
+                  ->orWhere('email', 'like', "%{$escaped}%")
+                  ->orWhere('phone', 'like', "%{$escaped}%");
             });
         }
 

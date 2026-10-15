@@ -15,11 +15,11 @@ class InventoryIntelligenceService
     /**
      * Deterministically classify inventory status based on stock and min_stock.
      *
-     * @param int $stock
-     * @param int $minStock
+     * @param float|int $stock
+     * @param float|int $minStock
      * @return string
      */
-    public function classify(int $stock, int $minStock): string
+    public function classify(float|int $stock, float|int $minStock): string
     {
         if ($stock <= 0) {
             return self::STATUS_OUT_OF_STOCK;
@@ -40,8 +40,8 @@ class InventoryIntelligenceService
      */
     public function calculateReplenishment(Product $product): array
     {
-        $stock = (int) $product->stock;
-        $minStock = (int) $product->min_stock;
+        $stock = (float) $product->stock;
+        $minStock = (float) $product->min_stock;
         $costPrice = (float) $product->cost_price;
 
         $status = $this->classify($stock, $minStock);
@@ -55,8 +55,17 @@ class InventoryIntelligenceService
             ];
         }
 
-        $deficit = max(0, $minStock - $stock);
-        $suggestedQty = max($minStock, ($minStock * 2) - $stock);
+        $deficit = round(max(0, $minStock - $stock), 3);
+        $suggestedQty = round(max($minStock, ($minStock * 2) - $stock), 3);
+
+        if (fmod($deficit, 1.0) === 0.0) {
+            $deficit = (int) $deficit;
+        }
+
+        if (fmod($suggestedQty, 1.0) === 0.0) {
+            $suggestedQty = (int) $suggestedQty;
+        }
+
         $estimatedCost = round($suggestedQty * $costPrice, 2);
 
         return [
@@ -81,10 +90,10 @@ class InventoryIntelligenceService
             ->with('category');
 
         if (!empty($filters['search'])) {
-            $search = $filters['search'];
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('sku', 'like', "%{$search}%");
+            $escaped = addcslashes(trim((string) $filters['search']), '%_\\');
+            $query->where(function ($q) use ($escaped) {
+                $q->where('name', 'like', "%{$escaped}%")
+                  ->orWhere('sku', 'like', "%{$escaped}%");
             });
         }
 
@@ -149,9 +158,9 @@ class InventoryIntelligenceService
 
         $sortedProducts = $enrichedProducts->sortBy(function ($product) use ($statusWeight) {
             return sprintf(
-                '%d-%06d-%s',
+                '%d-%08d-%s',
                 $statusWeight[$product->inventory_status] ?? 9,
-                max(0, $product->stock),
+                (int) round(max(0, (float) $product->stock) * 1000),
                 $product->name
             );
         })->values();

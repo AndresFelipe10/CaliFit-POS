@@ -22,9 +22,10 @@ class CategoryController extends Controller
         $query = Category::withCount('products');
 
         if ($search = $request->input('search')) {
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%");
+            $escaped = addcslashes(trim((string) $search), '%_\\');
+            $query->where(function ($q) use ($escaped) {
+                $q->where('name', 'like', "%{$escaped}%")
+                  ->orWhere('description', 'like', "%{$escaped}%");
             });
         }
 

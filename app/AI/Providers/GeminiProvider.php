@@ -18,14 +18,14 @@ class GeminiProvider implements AiProviderInterface
 
     public function __construct(
         ?string $apiKey = null,
-        string $model = 'gemini-flash-lite-latest',
-        string $baseUrl = 'https://generativelanguage.googleapis.com/v1beta',
-        int $timeout = 10
+        ?string $model = null,
+        ?string $baseUrl = null,
+        ?int $timeout = null
     ) {
         $this->apiKey = $apiKey ?? config('ai.providers.gemini.api_key');
-        $this->model = $model ?? config('ai.providers.gemini.model', 'gemini-flash-lite-latest');
-        $this->baseUrl = $baseUrl ?? config('ai.providers.gemini.base_url', 'https://generativelanguage.googleapis.com/v1beta');
-        $this->timeout = $timeout ?: (int) config('ai.timeout', 10);
+        $this->model = $model ?: (config('ai.providers.gemini.model') ?: 'gemini-flash-lite-latest');
+        $this->baseUrl = $baseUrl ?: (config('ai.providers.gemini.base_url') ?: 'https://generativelanguage.googleapis.com/v1beta');
+        $this->timeout = $timeout ?: ((int) config('ai.timeout', 10) ?: 10);
     }
 
     /**

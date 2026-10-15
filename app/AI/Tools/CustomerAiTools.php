@@ -14,12 +14,13 @@ class CustomerAiTools
     {
         $query = Customer::where('business_id', $businessId)->where('is_active', true);
 
-        if (!empty($filters['search'])) {
-            $search = $filters['search'];
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%")
-                  ->orWhere('phone', 'like', "%{$search}%");
+        if (!empty($filters['search']) && is_string($filters['search'])) {
+            $escaped = addcslashes(trim($filters['search']), '%_\\');
+            $query->where(function ($q) use ($escaped) {
+                $q->where('name', 'like', "%{$escaped}%")
+                  ->orWhere('email', 'like', "%{$escaped}%")
+                  ->orWhere('phone', 'like', "%{$escaped}%")
+                  ->orWhere('document', 'like', "%{$escaped}%");
             });
         }
 

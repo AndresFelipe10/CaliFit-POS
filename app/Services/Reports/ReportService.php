@@ -122,16 +122,16 @@ class ReportService
         }
 
         if (!empty($filters['search'])) {
-            $search = $filters['search'];
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('sku', 'like', "%{$search}%");
+            $escaped = addcslashes(trim((string) $filters['search']), '%_\\');
+            $query->where(function ($q) use ($escaped) {
+                $q->where('name', 'like', "%{$escaped}%")
+                  ->orWhere('sku', 'like', "%{$escaped}%");
             });
         }
 
         $products = $query->orderBy('name')->get();
 
-        $totalUnits = 0;
+        $totalUnits = 0.0;
         $totalCostValuation = 0.0;
         $totalRetailValuation = 0.0;
 
@@ -140,7 +140,7 @@ class ReportService
             &$totalCostValuation,
             &$totalRetailValuation
         ) {
-            $stock = max(0, (int) $product->stock);
+            $stock = max(0.0, (float) $product->stock);
             $costPrice = (float) $product->cost_price;
             $salePrice = (float) $product->sale_price;
 
@@ -160,6 +160,10 @@ class ReportService
 
             return $product;
         });
+
+        if (fmod($totalUnits, 1.0) === 0.0) {
+            $totalUnits = (int) $totalUnits;
+        }
 
         $totalPotentialProfit = round($totalRetailValuation - $totalCostValuation, 2);
         $potentialMarginPercent = $totalRetailValuation > 0

@@ -77,7 +77,7 @@ class InventoryController extends Controller
             $movement = $inventoryService->registerMovement(
                 product: (int) $request->product_id,
                 type: $request->type,
-                quantity: (int) $request->quantity,
+                quantity: (float) $request->quantity,
                 reason: $request->reason,
                 userId: $request->user()->id
             );

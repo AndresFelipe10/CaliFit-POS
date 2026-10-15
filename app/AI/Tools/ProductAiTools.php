@@ -16,11 +16,11 @@ class ProductAiTools
             ->where('is_active', true)
             ->with('category');
 
-        if (!empty($filters['search'])) {
-            $search = $filters['search'];
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('sku', 'like', "%{$search}%");
+        if (!empty($filters['search']) && is_string($filters['search'])) {
+            $escaped = addcslashes(trim($filters['search']), '%_\\');
+            $query->where(function ($q) use ($escaped) {
+                $q->where('name', 'like', "%{$escaped}%")
+                  ->orWhere('sku', 'like', "%{$escaped}%");
             });
         }
 

@@ -27,13 +27,14 @@ class SaleAiTools
             $periodLabel = "el día de hoy";
         }
 
-        $sales = Sale::where('business_id', $businessId)
+        $aggregates = Sale::where('business_id', $businessId)
             ->where('status', 'completed')
             ->whereBetween('sale_date', [$dateFrom, $dateTo])
-            ->get();
+            ->selectRaw('COUNT(*) as aggregate_count, COALESCE(SUM(total), 0) as aggregate_total')
+            ->first();
 
-        $totalRevenue = (float) $sales->sum('total');
-        $count = $sales->count();
+        $count = (int) ($aggregates->aggregate_count ?? 0);
+        $totalRevenue = (float) ($aggregates->aggregate_total ?? 0);
         $avgTicket = $count > 0 ? round($totalRevenue / $count, 2) : 0.0;
 
         return new AiQueryResult(
@@ -55,8 +56,27 @@ class SaleAiTools
      */
     public function byPeriod(int $businessId, array $filters = []): AiQueryResult
     {
-        $dateFrom = !empty($filters['date_from']) ? Carbon::parse($filters['date_from'])->startOfDay() : Carbon::now()->startOfMonth();
-        $dateTo = !empty($filters['date_to']) ? Carbon::parse($filters['date_to'])->endOfDay() : Carbon::now()->endOfDay();
+        $dateFrom = Carbon::now()->startOfMonth();
+        if (!empty($filters['date_from']) && is_string($filters['date_from'])) {
+            try {
+                $dateFrom = Carbon::parse($filters['date_from'])->startOfDay();
+            } catch (\Throwable) {
+                $dateFrom = Carbon::now()->startOfMonth();
+            }
+        }
+
+        $dateTo = Carbon::now()->endOfDay();
+        if (!empty($filters['date_to']) && is_string($filters['date_to'])) {
+            try {
+                $dateTo = Carbon::parse($filters['date_to'])->endOfDay();
+            } catch (\Throwable) {
+                $dateTo = Carbon::now()->endOfDay();
+            }
+        }
+
+        if ($dateFrom->gt($dateTo)) {
+            [$dateFrom, $dateTo] = [$dateTo->copy()->startOfDay(), $dateFrom->copy()->endOfDay()];
+        }
 
         $sales = Sale::where('business_id', $businessId)
             ->where('status', 'completed')
@@ -101,12 +121,13 @@ class SaleAiTools
             ->where('sales.business_id', $businessId)
             ->where('sales.status', 'completed')
             ->select(
+                'products.id',
                 'products.name',
                 'products.sku',
                 DB::raw('SUM(sale_details.quantity) as total_quantity'),
                 DB::raw('SUM(sale_details.subtotal) as total_revenue')
             )
-            ->groupBy('products.name', 'products.sku')
+            ->groupBy('products.id', 'products.name', 'products.sku')
             ->orderByDesc('total_quantity')
             ->limit($limit)
             ->get();

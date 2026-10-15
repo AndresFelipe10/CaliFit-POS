@@ -94,4 +94,13 @@ class UserAuthorizationRegressionTest extends TestCase
         $currentRole = $this->businessA->users()->where('users.id', $this->adminA->id)->first()->pivot->role_id;
         $this->assertEquals($this->employeeRole->id, $currentRole);
     }
+
+    public function test_cross_tenant_user_deactivation_is_blocked_with_403(): void
+    {
+        $response = $this->actingAs($this->adminA)
+            ->withSession(['current_business_id' => $this->businessA->id])
+            ->post("/users/{$this->userB->id}/toggle-active");
+
+        $response->assertStatus(403);
+    }
 }

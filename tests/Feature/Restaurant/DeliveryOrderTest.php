@@ -453,5 +453,99 @@ class DeliveryOrderTest extends TestCase
         $response->assertSee(route('restaurant.orders.show', $order) . '#cobrar');
         $response->assertSee('btn-settle-order');
     }
+
+    public function test_create_delivery_view_renders_dual_customer_lookup_with_tenant_customers(): void
+    {
+        $customerA = Customer::create([
+            'business_id' => $this->restaurantA->id,
+            'name' => 'Carlos Vives',
+            'phone' => '3151234567',
+            'document' => '111222333',
+            'address' => 'Calle 10 # 5-20',
+            'is_active' => true,
+        ]);
+
+        $customerB = Customer::create([
+            'business_id' => $this->restaurantB->id,
+            'name' => 'Shakira Mebarak',
+            'phone' => '3189998877',
+            'document' => '999888777',
+            'address' => 'Carrera 50 # 80-10',
+            'is_active' => true,
+        ]);
+
+        $response = $this->actingAs($this->employeeA)
+            ->withSession(['current_business_id' => $this->restaurantA->id])
+            ->get(route('restaurant.orders.create-delivery'));
+
+        $response->assertOk();
+
+        // 1. Validar que la vista renderice tanto el buscador predictivo como el selector desplegable
+        $response->assertSee('id="customer_search_input"', false);
+        $response->assertSee('id="customer_select_dropdown"', false);
+        $response->assertSee('-- O selecciona directamente de la lista de clientes --');
+
+        // 2. Validar que los clientes del tenant actual se listen con sus atributos ergonómicos
+        $response->assertSee('Carlos Vives');
+        $response->assertSee('value="' . $customerA->id . '"', false);
+        $response->assertSee('data-name="Carlos Vives"', false);
+        $response->assertSee('data-phone="3151234567"', false);
+        $response->assertSee('data-document="111222333"', false);
+        $response->assertSee('data-address="Calle 10 # 5-20"', false);
+
+        // 3. Validar aislamiento multi-tenant: clientes de otro negocio NUNCA se exponen en el dropdown
+        $response->assertDontSee('Shakira Mebarak');
+        $response->assertDontSee('data-name="Shakira Mebarak"', false);
+        $response->assertDontSee('3189998877');
+        $response->assertDontSee('999888777');
+        $response->assertDontSee('Carrera 50 # 80-10');
+    }
+
+    public function test_delivery_order_creation_with_dropdown_selected_customer_persists_correctly(): void
+    {
+        $customer = Customer::create([
+            'business_id' => $this->restaurantA->id,
+            'name' => 'Diana Marcela Trujillo',
+            'phone' => '3123456789',
+            'document' => '52111222',
+            'address' => 'Carrera 66 # 9-40',
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($this->employeeA);
+
+        $payload = [
+            'order_type' => 'delivery',
+            'customer_id' => $customer->id,
+            'customer_name' => $customer->name,
+            'delivery_phone' => $customer->phone,
+            'delivery_address' => $customer->address,
+            'delivery_fee' => 4500.00,
+            'items' => [
+                [
+                    'product_id' => $this->dish1->id,
+                    'quantity' => 2,
+                ],
+            ],
+        ];
+
+        $response = $this->post(route('restaurant.orders.store-delivery'), $payload);
+
+        $response->assertRedirect(route('restaurant.orders.deliveries'));
+
+        $order = RestaurantOrder::where('customer_id', $customer->id)
+            ->where('business_id', $this->restaurantA->id)
+            ->first();
+
+        $this->assertNotNull($order);
+        $this->assertEquals('delivery', $order->order_type);
+        $this->assertEquals($customer->id, $order->customer_id);
+        $this->assertEquals('Diana Marcela Trujillo', $order->customer_name);
+        $this->assertEquals('3123456789', $order->delivery_phone);
+        $this->assertEquals('Carrera 66 # 9-40', $order->delivery_address);
+        $this->assertEquals(4500.00, (float) $order->delivery_fee);
+        $this->assertEquals(50000.00, (float) $order->subtotal);
+        $this->assertEquals(54500.00, (float) $order->total);
+    }
 }
 

@@ -283,4 +283,30 @@ class InventoryMovementTest extends TestCase
 
         $this->assertEquals(1, $movementCount);
     }
+
+    public function test_inventory_movement_preserves_fractional_quantity(): void
+    {
+        $response = $this->actingAs($this->adminUser)
+            ->withSession(['current_business_id' => $this->businessA->id])
+            ->post(route('inventory.store'), [
+                'product_id' => $this->productA->id,
+                'type' => 'entry',
+                'quantity' => '1.5',
+                'reason' => 'Ingreso fraccionario',
+            ]);
+
+        $response->assertRedirect(route('inventory.index'));
+
+        $this->productA->refresh();
+        $this->assertEquals(11.5, (float) $this->productA->stock);
+
+        $this->assertDatabaseHas('inventory_movements', [
+            'business_id' => $this->businessA->id,
+            'product_id' => $this->productA->id,
+            'type' => 'entry',
+            'quantity' => 1.5,
+            'previous_stock' => 10,
+            'new_stock' => 11.5,
+        ]);
+    }
 }

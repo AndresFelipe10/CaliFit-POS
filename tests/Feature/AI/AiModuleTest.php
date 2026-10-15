@@ -272,4 +272,38 @@ class AiModuleTest extends TestCase
             $this->assertNotEmpty($response->json('summary'));
         }
     }
+
+    public function test_query_starting_with_greeting_executes_real_intent(): void
+    {
+        $this->fakeProvider->setNextIntent(AiIntent::COUNT_CUSTOMERS);
+
+        $response = $this->actingAs($this->adminUserA)
+            ->withSession(['current_business_id' => $this->businessA->id])
+            ->postJson('/ai/ask', ['query' => 'Hola, ¿cuántos clientes tenemos?']);
+
+        $response->assertStatus(200);
+        $response->assertJson([
+            'intent' => AiIntent::COUNT_CUSTOMERS,
+            'success' => true,
+        ]);
+        $this->assertNotEquals('greeting', $response->json('intent'));
+    }
+
+    public function test_sales_by_period_with_invalid_date_does_not_throw_500(): void
+    {
+        $this->fakeProvider->setNextIntent(AiIntent::SALES_BY_PERIOD, [
+            'date_from' => 'fecha-invalida',
+            'date_to' => 'otra-fecha-invalida',
+        ]);
+
+        $response = $this->actingAs($this->adminUserA)
+            ->withSession(['current_business_id' => $this->businessA->id])
+            ->postJson('/ai/ask', ['query' => 'ventas del periodo']);
+
+        $response->assertStatus(200);
+        $response->assertJson([
+            'intent' => AiIntent::SALES_BY_PERIOD,
+            'success' => true,
+        ]);
+    }
 }

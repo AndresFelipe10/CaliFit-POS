@@ -23,10 +23,11 @@ class ProductController extends Controller
         $query = Product::with('category');
 
         if ($search = $request->input('search')) {
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('sku', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%");
+            $escaped = addcslashes(trim((string) $search), '%_\\');
+            $query->where(function ($q) use ($escaped) {
+                $q->where('name', 'like', "%{$escaped}%")
+                  ->orWhere('sku', 'like', "%{$escaped}%")
+                  ->orWhere('description', 'like', "%{$escaped}%");
             });
         }
 

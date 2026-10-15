@@ -239,7 +239,11 @@ class BusinessController extends Controller
 
         $admin = $business->users()
             ->wherePivot('role_id', $adminRole?->id)
-            ->first();
+            ->wherePivot('is_active', true)
+            ->first()
+            ?? $business->users()
+                ->wherePivot('role_id', $adminRole?->id)
+                ->first();
 
         if (! $admin) {
             return back()->withErrors(['error' => 'No se encontró un usuario administrador para este negocio.']);

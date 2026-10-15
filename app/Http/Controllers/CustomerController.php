@@ -58,12 +58,13 @@ class CustomerController extends Controller
         $query = Customer::withCount('sales');
 
         if ($search = $request->input('search')) {
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('document', 'like', "%{$search}%")
-                  ->orWhere('identification_number', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%")
-                  ->orWhere('phone', 'like', "%{$search}%");
+            $escaped = addcslashes(trim((string) $search), '%_\\');
+            $query->where(function ($q) use ($escaped) {
+                $q->where('name', 'like', "%{$escaped}%")
+                  ->orWhere('document', 'like', "%{$escaped}%")
+                  ->orWhere('identification_number', 'like', "%{$escaped}%")
+                  ->orWhere('email', 'like', "%{$escaped}%")
+                  ->orWhere('phone', 'like', "%{$escaped}%");
             });
         }
 

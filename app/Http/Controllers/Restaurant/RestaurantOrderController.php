@@ -18,6 +18,7 @@ use App\Services\Restaurant\RestaurantOrderService;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
 
@@ -32,18 +33,18 @@ class RestaurantOrderController extends Controller
 
         $todayBogota = now('America/Bogota');
         $todayDate = $todayBogota->toDateString();
-        $todayStartUtc = (clone $todayBogota)->startOfDay()->utc();
-        $todayEndUtc = (clone $todayBogota)->endOfDay()->utc();
+        $todayStart = (clone $todayBogota)->startOfDay();
+        $todayEnd = (clone $todayBogota)->endOfDay();
 
         // 1. Comandas del día (Hoy en zona horaria America/Bogota)
         $todayOrders = RestaurantOrder::with(['table', 'user', 'items', 'customer'])
-            ->whereBetween('created_at', [$todayStartUtc, $todayEndUtc])
+            ->whereBetween('created_at', [$todayStart, $todayEnd])
             ->latest()
             ->get();
 
         // 2. Comandas anteriores a hoy con filtros opcionales
         $pastQuery = RestaurantOrder::with(['table', 'user', 'items', 'customer'])
-            ->where('created_at', '<', $todayStartUtc);
+            ->where('created_at', '<', $todayStart);
 
         if ($search = trim((string) $request->input('search', ''))) {
             $escaped = str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $search);
@@ -61,13 +62,13 @@ class RestaurantOrderController extends Controller
         }
 
         if ($dateFrom = $request->input('date_from')) {
-            $dateFromUtc = Carbon::parse($dateFrom, 'America/Bogota')->startOfDay()->utc();
-            $pastQuery->where('created_at', '>=', $dateFromUtc);
+            $dateFromBogota = Carbon::parse($dateFrom, 'America/Bogota')->startOfDay();
+            $pastQuery->where('created_at', '>=', $dateFromBogota);
         }
 
         if ($dateTo = $request->input('date_to')) {
-            $dateToUtc = Carbon::parse($dateTo, 'America/Bogota')->endOfDay()->utc();
-            $pastQuery->where('created_at', '<=', $dateToUtc);
+            $dateToBogota = Carbon::parse($dateTo, 'America/Bogota')->endOfDay();
+            $pastQuery->where('created_at', '<=', $dateToBogota);
         }
 
         $pastOrders = $pastQuery->latest()->paginate(15, ['*'], 'past_page')->withQueryString();
@@ -203,12 +204,19 @@ class RestaurantOrderController extends Controller
     {
         Gate::authorize('create', RestaurantOrder::class);
 
+        $businessId = session('current_business_id') ?? auth()->user()?->business_id ?? $request->user()?->business_id;
+
         $products = Product::where('is_active', true)
             ->with('category')
             ->orderBy('name')
             ->get();
 
-        return view('restaurant.orders.create-delivery', compact('products'));
+        $customers = Customer::where('business_id', $businessId)
+            ->where('is_active', true)
+            ->orderBy('name', 'asc')
+            ->get(['id', 'name', 'phone', 'document', 'address']);
+
+        return view('restaurant.orders.create-delivery', compact('products', 'customers'));
     }
 
     /**
@@ -286,18 +294,27 @@ class RestaurantOrderController extends Controller
     {
         Gate::authorize('view', $order);
 
-        if (! in_array($order->status, ['closed', 'cancelled'], true)) {
-            $order->update(['status' => 'billed']);
+        DB::transaction(function () use ($order) {
+            $lockedOrder = RestaurantOrder::where('business_id', $order->business_id)
+                ->lockForUpdate()
+                ->findOrFail($order->id);
 
-            if ($order->table_id) {
-                $table = RestaurantTable::where('business_id', $order->business_id)->find($order->table_id);
-                if ($table) {
-                    $table->update(['status' => 'billed']);
+            if (! in_array($lockedOrder->status, ['closed', 'cancelled'], true)) {
+                $lockedOrder->update(['status' => 'billed']);
+
+                if ($lockedOrder->table_id) {
+                    $table = RestaurantTable::where('business_id', $lockedOrder->business_id)
+                        ->lockForUpdate()
+                        ->find($lockedOrder->table_id);
+
+                    if ($table) {
+                        $table->update(['status' => 'billed']);
+                    }
                 }
             }
-        }
+        });
 
-        $order->load(['items.product', 'user', 'table', 'business']);
+        $order->refresh()->load(['items.product', 'user', 'table', 'business']);
 
         return view('restaurant.orders.pre-bill-ticket', compact('order'));
     }

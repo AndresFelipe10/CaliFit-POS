@@ -28,13 +28,20 @@ class InventoryAiTools
             );
         }
 
-        $data = $products->map(fn($p) => [
-            'name' => $p->name,
-            'sku' => $p->sku,
-            'stock' => $p->stock,
-            'min_stock' => $p->min_stock,
-            'deficit' => max(0, $p->min_stock - $p->stock),
-        ])->toArray();
+        $data = $products->map(function ($p) {
+            $deficit = round(max(0, (float) $p->min_stock - (float) $p->stock), 3);
+            if (fmod($deficit, 1.0) === 0.0) {
+                $deficit = (int) $deficit;
+            }
+
+            return [
+                'name' => $p->name,
+                'sku' => $p->sku,
+                'stock' => $p->stock,
+                'min_stock' => $p->min_stock,
+                'deficit' => $deficit,
+            ];
+        })->toArray();
 
         return new AiQueryResult(
             intent: 'low_stock_products',
@@ -86,15 +93,19 @@ class InventoryAiTools
             ->where('is_active', true)
             ->get();
 
-        $totalUnits = 0;
+        $totalUnits = 0.0;
         $totalCost = 0.0;
         $totalRetail = 0.0;
 
         foreach ($products as $p) {
-            $stock = max(0, (int) $p->stock);
+            $stock = max(0.0, (float) $p->stock);
             $totalUnits += $stock;
             $totalCost += ($stock * (float) $p->cost_price);
             $totalRetail += ($stock * (float) $p->sale_price);
+        }
+
+        if (fmod($totalUnits, 1.0) === 0.0) {
+            $totalUnits = (int) $totalUnits;
         }
 
         $potentialProfit = $totalRetail - $totalCost;

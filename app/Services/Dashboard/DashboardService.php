@@ -151,12 +151,13 @@ class DashboardService
 
         // Métricas Financieras: Exclusivas para Administradores
         if ($isAdmin) {
-            $monthExpenses = Expense::where('business_id', $businessId)
+            $expenseAggregates = Expense::where('business_id', $businessId)
                 ->whereBetween('issue_date', [$startOfMonth->toDateString(), $endOfMonth->toDateString()])
-                ->get();
+                ->selectRaw('COALESCE(SUM(amount), 0) as total_amount, COALESCE(SUM(CASE WHEN status = \'pending\' THEN amount ELSE 0 END), 0) as pending_amount')
+                ->first();
 
-            $monthExpensesTotal = (float) $monthExpenses->sum('amount');
-            $monthExpensesPending = (float) $monthExpenses->where('status', 'pending')->sum('amount');
+            $monthExpensesTotal = (float) ($expenseAggregates->total_amount ?? 0);
+            $monthExpensesPending = (float) ($expenseAggregates->pending_amount ?? 0);
             $estimatedNetProfit = round($monthSalesTotal - $monthExpensesTotal, 2);
 
             return array_merge($baseMetrics, [

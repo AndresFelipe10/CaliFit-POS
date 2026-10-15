@@ -73,6 +73,7 @@ class AiQueryService
         } catch (AiProviderException | Throwable $e) {
             // Sanitizar mensaje eliminando query strings, URLs y tokens
             $sanitizedMessage = preg_replace('/(\?|&)(key|apiKey|api_key|token)=[^&\s]+/i', '$1$2=[REDACTED]', $e->getMessage());
+            $sanitizedMessage = preg_replace('/AIza[0-9A-Za-z\-_]{10,}/', '[REDACTED]', $sanitizedMessage);
             $sanitizedMessage = preg_replace('/https?:\/\/[^\s]+/i', '[URL]', $sanitizedMessage);
 
             Log::warning("Falla en proveedor de IA: {$sanitizedMessage}", [
@@ -104,17 +105,33 @@ class AiQueryService
         }
 
         // 4. Despacho a herramienta de solo lectura inyectando FORZOSAMENTE el $businessId de Laravel
-        return match ($intent) {
-            AiIntent::LIST_CUSTOMERS => $this->customerTools->list($businessId, $filters),
-            AiIntent::COUNT_CUSTOMERS => $this->customerTools->count($businessId),
-            AiIntent::LIST_PRODUCTS => $this->productTools->list($businessId, $filters),
-            AiIntent::LOW_STOCK_PRODUCTS => $this->inventoryTools->lowStock($businessId),
-            AiIntent::OUT_OF_STOCK_PRODUCTS => $this->inventoryTools->outOfStock($businessId),
-            AiIntent::INVENTORY_SUMMARY => $this->inventoryTools->summary($businessId),
-            AiIntent::SALES_SUMMARY => $this->saleTools->summary($businessId, $filters),
-            AiIntent::SALES_BY_PERIOD => $this->saleTools->byPeriod($businessId, $filters),
-            AiIntent::TOP_SELLING_PRODUCTS => $this->saleTools->topSelling($businessId, $filters),
-        };
+        try {
+            return match ($intent) {
+                AiIntent::LIST_CUSTOMERS => $this->customerTools->list($businessId, $filters),
+                AiIntent::COUNT_CUSTOMERS => $this->customerTools->count($businessId),
+                AiIntent::LIST_PRODUCTS => $this->productTools->list($businessId, $filters),
+                AiIntent::LOW_STOCK_PRODUCTS => $this->inventoryTools->lowStock($businessId),
+                AiIntent::OUT_OF_STOCK_PRODUCTS => $this->inventoryTools->outOfStock($businessId),
+                AiIntent::INVENTORY_SUMMARY => $this->inventoryTools->summary($businessId),
+                AiIntent::SALES_SUMMARY => $this->saleTools->summary($businessId, $filters),
+                AiIntent::SALES_BY_PERIOD => $this->saleTools->byPeriod($businessId, $filters),
+                AiIntent::TOP_SELLING_PRODUCTS => $this->saleTools->topSelling($businessId, $filters),
+            };
+        } catch (Throwable $e) {
+            Log::warning("Falla al ejecutar herramienta de IA para intent '{$intent}': " . $e->getMessage(), [
+                'business_id' => $businessId,
+                'intent' => $intent,
+                'filters' => $filters,
+            ]);
+
+            return new AiQueryResult(
+                intent: $intent,
+                summary: 'Ocurrió un error al procesar los filtros de la consulta. Por favor, intenta formular tu pregunta de otra manera.',
+                data: [],
+                meta: ['error' => 'tool_execution_failed'],
+                isSuccess: false
+            );
+        }
     }
 
     /**
@@ -144,7 +161,7 @@ class AiQueryService
             return true;
         }
 
-        return (bool) preg_match('/^(hola|buenos\s*d[ií]as|buenas\s*tardes|buenas\s*noches|saludos)\b/i', $normalized);
+        return (bool) preg_match('/^(hola|buenas|buenos\s*d[ií]as|buenas\s*tardes|buenas\s*noches|saludos|qu[eé]\s*tal)(\s+(c[oó]mo\s+est[aá]s|asistente|equipo|buen\s+d[ií]a))?$/iu', $normalized);
     }
 }
 

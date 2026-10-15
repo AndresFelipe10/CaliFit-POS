@@ -8,6 +8,8 @@ use App\Exceptions\Sales\InvalidSalePaymentException;
 use App\Models\Business;
 use App\Models\InventoryMovement;
 use App\Models\Product;
+use App\Models\RestaurantOrder;
+use App\Models\RestaurantTable;
 use App\Models\Sale;
 use App\Models\SaleDetail;
 use App\Models\SalePayment;
@@ -40,6 +42,18 @@ class SaleService
     public function processSale(array $data, int $businessId, int $userId): Sale
     {
         return DB::transaction(function () use ($data, $businessId, $userId) {
+            $restaurantOrder = null;
+            if (! empty($data['restaurant_order_id'])) {
+                $restaurantOrder = RestaurantOrder::withoutGlobalScopes()
+                    ->where('business_id', $businessId)
+                    ->lockForUpdate()
+                    ->find($data['restaurant_order_id']);
+
+                if (! $restaurantOrder || $restaurantOrder->status === 'closed' || $restaurantOrder->status === 'cancelled' || $restaurantOrder->sale_id !== null) {
+                    throw new InvalidSaleItemException('La comanda seleccionada ya fue cobrada, facturada o anulada.');
+                }
+            }
+
             $business = Business::withoutGlobalScopes()->find($businessId);
             $isRestaurantSale = ($business && $business->isRestaurant())
                 || !empty($data['restaurant_order_id'])
@@ -310,28 +324,21 @@ class SaleService
             }
 
             // Close linked restaurant order and free table if applicable
-            if (! empty($data['restaurant_order_id'])) {
-                $restaurantOrder = \App\Models\RestaurantOrder::withoutGlobalScopes()
-                    ->where('business_id', $businessId)
-                    ->lockForUpdate()
-                    ->find($data['restaurant_order_id']);
+            if ($restaurantOrder) {
+                $restaurantOrder->update([
+                    'status' => 'closed',
+                    'sale_id' => $sale->id,
+                    'closed_at' => now(),
+                ]);
 
-                if ($restaurantOrder) {
-                    $restaurantOrder->update([
-                        'status' => 'closed',
-                        'sale_id' => $sale->id,
-                        'closed_at' => now(),
-                    ]);
+                if ($restaurantOrder->table_id) {
+                    $table = RestaurantTable::withoutGlobalScopes()
+                        ->where('business_id', $businessId)
+                        ->lockForUpdate()
+                        ->find($restaurantOrder->table_id);
 
-                    if ($restaurantOrder->table_id) {
-                        $table = \App\Models\RestaurantTable::withoutGlobalScopes()
-                            ->where('business_id', $businessId)
-                            ->lockForUpdate()
-                            ->find($restaurantOrder->table_id);
-
-                        if ($table) {
-                            $table->update(['status' => 'available']);
-                        }
+                    if ($table) {
+                        $table->update(['status' => 'available']);
                     }
                 }
             }
@@ -350,15 +357,24 @@ class SaleService
     public function cancelSale(Sale $sale, int $userId): Sale
     {
         return DB::transaction(function () use ($sale, $userId) {
-            $sale->load('details.product');
+            $lockedSale = Sale::withoutGlobalScopes()
+                ->where('business_id', $sale->business_id)
+                ->lockForUpdate()
+                ->findOrFail($sale->id);
 
-            $business = Business::withoutGlobalScopes()->find($sale->business_id);
+            if ($lockedSale->status === 'cancelled') {
+                return $lockedSale->load(['details.product', 'customer', 'user']);
+            }
+
+            $lockedSale->load('details.product');
+
+            $business = Business::withoutGlobalScopes()->find($lockedSale->business_id);
             $isRestaurantSale = ($business && $business->isRestaurant())
-                || !empty($sale->restaurant_order_id)
-                || ($sale->order_type !== null && $sale->order_type !== 'direct');
+                || !empty($lockedSale->restaurant_order_id)
+                || ($lockedSale->order_type !== null && $lockedSale->order_type !== 'direct');
 
             // Restaurar existencias para retail y para productos de mercancía (standard) en restaurantes
-            foreach ($sale->details as $detail) {
+            foreach ($lockedSale->details as $detail) {
                 $product = $detail->product ?? Product::withoutGlobalScopes()->find($detail->product_id);
                 $shouldRestoreStock = ! $isRestaurantSale || ($product && $product->isStandard());
                 if ($shouldRestoreStock) {
@@ -366,16 +382,16 @@ class SaleService
                         product: $detail->product_id,
                         type: InventoryMovement::TYPE_ENTRY,
                         quantity: $detail->quantity,
-                        reason: "Anulación venta #{$sale->invoice_number}",
+                        reason: "Anulación venta #{$lockedSale->invoice_number}",
                         userId: $userId,
-                        saleId: $sale->id,
+                        saleId: $lockedSale->id,
                     );
                 }
             }
 
-            $sale->update(['status' => 'cancelled']);
+            $lockedSale->update(['status' => 'cancelled']);
 
-            return $sale->fresh(['details.product', 'customer', 'user']);
+            return $lockedSale->fresh(['details.product', 'customer', 'user']);
         });
     }
 
@@ -390,7 +406,7 @@ class SaleService
         $lastSale = Sale::withoutGlobalScopes()
             ->where('business_id', $businessId)
             ->where('invoice_number', 'like', $prefix . '%')
-            ->orderByDesc('invoice_number')
+            ->orderByRaw('LENGTH(invoice_number) DESC, invoice_number DESC')
             ->lockForUpdate()
             ->first();
 
