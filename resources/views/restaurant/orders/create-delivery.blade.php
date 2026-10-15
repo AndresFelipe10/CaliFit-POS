@@ -43,35 +43,8 @@
 
                     <input type="hidden" name="customer_id" id="customer_id" value="{{ old('customer_id') }}">
 
-                    {{-- Buscador y Autocompletado de Cliente Frecuente --}}
-                    <div class="mb-3 p-2 bg-white rounded-3 border">
-                        <div class="d-flex justify-content-between align-items-center mb-1">
-                            <label for="customer_search_input" class="form-label small fw-bold text-primary mb-0">
-                                <i class="bi bi-search me-1"></i> Buscar Cliente Frecuente (Nombre, Documento o Teléfono)
-                            </label>
-                            <button type="button" class="btn btn-link btn-sm text-muted text-decoration-none py-0 px-1 d-none" id="btn_clear_customer">
-                                <i class="bi bi-x-circle me-1"></i> Limpiar / Nuevo cliente manual
-                            </button>
-                        </div>
-                        <div class="position-relative">
-                            <div class="input-group input-group-sm">
-                                <span class="input-group-text bg-light text-muted border-end-0">
-                                    <i class="bi bi-person-search"></i>
-                                </span>
-                                <input type="text" 
-                                       id="customer_search_input" 
-                                       class="form-control border-start-0" 
-                                       placeholder="Escribe al menos 3 caracteres para buscar clientes registrados..." 
-                                       autocomplete="off">
-                            </div>
-                            <div id="customer_search_results" class="list-group position-absolute w-100 shadow-lg border rounded-3 overflow-auto d-none" style="max-height: 220px; z-index: 1060; top: 100%; left: 0; background: #fff;"></div>
-                        </div>
-                        <div id="selected_customer_badge" class="mt-2 d-none">
-                            <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle px-2 py-1">
-                                <i class="bi bi-check-circle-fill me-1"></i> Cliente vinculado: <span id="selected_customer_name_label" class="fw-bold"></span>
-                            </span>
-                        </div>
-                    </div>
+                    {{-- Buscador y Autocompletado de Cliente Frecuente (Selector Dual Ergonómico) --}}
+                    <x-customer-lookup :customers="$customers" :selected-id="old('customer_id')" />
 
                     <div class="row g-3">
                         <div class="col-12 col-md-6">
@@ -524,9 +497,10 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // Autocompletado reactivo de clientes frecuentes
+    // Autocompletado reactivo y selector dual de clientes frecuentes
     const customerSearchInput = document.getElementById('customer_search_input');
     const customerSearchResults = document.getElementById('customer_search_results');
+    const customerSelectDropdown = document.getElementById('customer_select_dropdown');
     const btnClearCustomer = document.getElementById('btn_clear_customer');
     const customerIdInput = document.getElementById('customer_id');
     const customerNameInput = document.getElementById('customer_name');
@@ -551,6 +525,47 @@ document.addEventListener('DOMContentLoaded', function () {
                 item.querySelectorAll('.text-white').forEach(el => {
                     el.classList.remove('text-white');
                 });
+            }
+        });
+    }
+
+    // Sincronización del Selector Desplegable Complementario
+    if (customerSelectDropdown) {
+        customerSelectDropdown.addEventListener('change', function () {
+            const selectedOpt = this.options[this.selectedIndex];
+            const customerId = this.value;
+
+            if (customerId && selectedOpt) {
+                const name = selectedOpt.dataset.name || '';
+                const phone = selectedOpt.dataset.phone || '';
+                const address = selectedOpt.dataset.address || '';
+
+                if (customerIdInput) customerIdInput.value = customerId;
+                if (customerNameInput) customerNameInput.value = name;
+                if (deliveryPhoneInput && phone) deliveryPhoneInput.value = phone;
+                if (deliveryAddress && address) deliveryAddress.value = address;
+
+                if (customerSearchInput) customerSearchInput.value = name;
+                if (selectedCustomerNameLabel) selectedCustomerNameLabel.textContent = name;
+                if (selectedCustomerBadge) selectedCustomerBadge.classList.remove('d-none');
+                if (btnClearCustomer) btnClearCustomer.classList.remove('d-none');
+                if (customerSearchResults) customerSearchResults.classList.add('d-none');
+                highlightedCustomerIndex = -1;
+
+                // Foco al siguiente campo lógico según ergonomía POS
+                if (deliveryAddress && !deliveryAddress.value) {
+                    deliveryAddress.focus();
+                } else if (deliveryPhoneInput && !deliveryPhoneInput.value) {
+                    deliveryPhoneInput.focus();
+                }
+            } else {
+                // Opción vacía seleccionada: limpiar customer_id y permitir ingreso manual
+                if (customerIdInput) customerIdInput.value = '';
+                if (customerSearchInput) customerSearchInput.value = '';
+                if (selectedCustomerBadge) selectedCustomerBadge.classList.add('d-none');
+                if (btnClearCustomer) btnClearCustomer.classList.add('d-none');
+                if (customerSearchResults) customerSearchResults.classList.add('d-none');
+                highlightedCustomerIndex = -1;
             }
         });
     }
@@ -686,6 +701,11 @@ document.addEventListener('DOMContentLoaded', function () {
                                 if (selectedCustomerBadge) selectedCustomerBadge.classList.remove('d-none');
                                 if (btnClearCustomer) btnClearCustomer.classList.remove('d-none');
 
+                                // Sincronizar selector desplegable complementario
+                                if (customerSelectDropdown) {
+                                    customerSelectDropdown.value = cust.id;
+                                }
+
                                 customerSearchResults.classList.add('d-none');
                                 highlightedCustomerIndex = -1;
 
@@ -718,6 +738,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (deliveryAddress) deliveryAddress.value = '';
                 if (customerSearchInput) customerSearchInput.value = '';
 
+                // Resetear selector desplegable
+                if (customerSelectDropdown) {
+                    customerSelectDropdown.value = '';
+                }
+
                 if (selectedCustomerBadge) selectedCustomerBadge.classList.add('d-none');
                 btnClearCustomer.classList.add('d-none');
                 customerSearchResults.classList.add('d-none');
@@ -732,6 +757,18 @@ document.addEventListener('DOMContentLoaded', function () {
                 customerSearchResults.classList.add('d-none');
             }
         });
+    }
+
+    // Sincronización inicial si hay un cliente preseleccionado (ej. tras error de validación)
+    if (customerIdInput && customerIdInput.value && customerSelectDropdown) {
+        customerSelectDropdown.value = customerIdInput.value;
+        const opt = customerSelectDropdown.options[customerSelectDropdown.selectedIndex];
+        if (opt && opt.value) {
+            if (selectedCustomerNameLabel) selectedCustomerNameLabel.textContent = opt.dataset.name || '';
+            if (selectedCustomerBadge) selectedCustomerBadge.classList.remove('d-none');
+            if (btnClearCustomer) btnClearCustomer.classList.remove('d-none');
+            if (customerSearchInput && !customerSearchInput.value) customerSearchInput.value = opt.dataset.name || '';
+        }
     }
 });
 </script>
