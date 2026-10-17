@@ -2,11 +2,15 @@
 
 namespace App\Services\Restaurant;
 
+use App\Models\Customer;
 use App\Models\InventoryMovement;
 use App\Models\Product;
 use App\Models\RestaurantOrder;
 use App\Models\RestaurantOrderItem;
 use App\Models\RestaurantTable;
+use App\Models\Sale;
+use App\Models\SaleDetail;
+use App\Models\SalePayment;
 use App\Models\User;
 use App\Services\Inventory\InventoryService;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -69,14 +73,30 @@ class RestaurantOrderService
      */
     public function addItemsToOrder(RestaurantOrder $order, array $itemsData): Collection
     {
+        if (! $order->canBeModified()) {
+            throw ValidationException::withMessages([
+                'order' => 'No se pueden agregar platos a una comanda que ya ha sido cerrada y facturada.',
+            ]);
+        }
+
         return DB::transaction(function () use ($order, $itemsData) {
+            $lockedOrder = RestaurantOrder::where('business_id', $order->business_id)
+                ->lockForUpdate()
+                ->findOrFail($order->id);
+
+            if (! $lockedOrder->canBeModified()) {
+                throw ValidationException::withMessages([
+                    'order' => 'No se pueden agregar platos a una comanda que ya ha sido cerrada y facturada.',
+                ]);
+            }
+
             // Determinar tanda (batch_number)
-            $hasPrintedItems = $order->items()
+            $hasPrintedItems = $lockedOrder->items()
                 ->where('printed_to_kitchen', true)
                 ->where('status', '!=', 'cancelled')
                 ->exists();
 
-            $maxBatch = (int) ($order->items()->max('batch_number') ?? 0);
+            $maxBatch = (int) ($lockedOrder->items()->max('batch_number') ?? 0);
 
             if ($hasPrintedItems) {
                 $batchNumber = max(1, $maxBatch + 1);
@@ -102,15 +122,37 @@ class RestaurantOrderService
                     'unit_price' => $unitPrice,
                     'subtotal' => $subtotal,
                     'notes' => ! empty($itemData['notes']) ? trim($itemData['notes']) : null,
-                    'status' => 'pending',
-                    'printed_to_kitchen' => false,
+                    'status' => 'kitchen',
+                    'printed_to_kitchen' => true,
                     'batch_number' => $batchNumber,
                 ]);
 
                 $createdItems->push($orderItem);
             }
 
-            $order->recalculateTotals();
+            // Si la comanda tenía pre-cuenta emitida, limpiar marcador y reactivar en cocina
+            $orderUpdates = [];
+            if (! empty($lockedOrder->precount_printed_at)) {
+                $orderUpdates['precount_printed_at'] = null;
+            }
+            if (in_array($lockedOrder->status, ['open', 'precount'], true) || empty($lockedOrder->status)) {
+                $orderUpdates['status'] = 'in_kitchen';
+            }
+            if (! empty($orderUpdates)) {
+                $lockedOrder->update($orderUpdates);
+            }
+
+            if ($lockedOrder->table_id) {
+                $table = RestaurantTable::where('business_id', $lockedOrder->business_id)
+                    ->lockForUpdate()
+                    ->find($lockedOrder->table_id);
+                if ($table && $table->status !== 'occupied') {
+                    $table->update(['status' => 'occupied']);
+                }
+            }
+
+            $lockedOrder->recalculateTotals();
+            $order->refresh();
 
             return $createdItems;
         });
@@ -297,6 +339,12 @@ class RestaurantOrderService
             ]);
         }
 
+        if ($item->isPaid()) {
+            throw ValidationException::withMessages([
+                'item' => 'No se puede eliminar ni reducir un plato que ya ha sido pagado y facturado.',
+            ]);
+        }
+
         return DB::transaction(function () use ($order, $item, $reason, $admin, $quantityToRemove) {
             $lockedItem = RestaurantOrderItem::lockForUpdate()->findOrFail($item->id);
             $lockedOrder = RestaurantOrder::lockForUpdate()->findOrFail($order->id);
@@ -310,6 +358,12 @@ class RestaurantOrderService
             if ($lockedItem->isCancelled()) {
                 throw ValidationException::withMessages([
                     'item' => 'Este ítem ya ha sido cancelado previamente.',
+                ]);
+            }
+
+            if ($lockedItem->isPaid()) {
+                throw ValidationException::withMessages([
+                    'item' => 'No se puede eliminar ni reducir un plato que ya ha sido pagado y facturado.',
                 ]);
             }
 
@@ -392,12 +446,24 @@ class RestaurantOrderService
             ]);
         }
 
+        if ($order->hasPartialPayments() || $order->paidAmount() > 0) {
+            throw ValidationException::withMessages([
+                'order' => 'No se puede anular una comanda que tiene platos ya pagados y facturados.',
+            ]);
+        }
+
         return DB::transaction(function () use ($order, $reason, $admin) {
             $lockedOrder = RestaurantOrder::lockForUpdate()->findOrFail($order->id);
 
             if (! $lockedOrder->canBeModified()) {
                 throw ValidationException::withMessages([
                     'order' => 'No se puede anular una comanda que ya fue cobrada, facturada o anulada.',
+                ]);
+            }
+
+            if ($lockedOrder->hasPartialPayments() || $lockedOrder->paidAmount() > 0) {
+                throw ValidationException::withMessages([
+                    'order' => 'No se puede anular una comanda que tiene platos ya pagados y facturados.',
                 ]);
             }
 
@@ -462,7 +528,7 @@ class RestaurantOrderService
             ]);
         }
 
-        if (! $order->canBeModified() || $order->status === 'billed') {
+        if (! $order->canBeModified()) {
             throw ValidationException::withMessages([
                 'order' => 'No se puede cambiar de mesa una comanda que ya fue cobrada, facturada o anulada.',
             ]);
@@ -485,7 +551,7 @@ class RestaurantOrderService
                 ->lockForUpdate()
                 ->findOrFail($order->id);
 
-            if (! $lockedOrder->canBeModified() || $lockedOrder->status === 'billed') {
+            if (! $lockedOrder->canBeModified()) {
                 throw ValidationException::withMessages([
                     'order' => 'No se puede cambiar de mesa una comanda que ya fue cobrada, facturada o anulada.',
                 ]);
@@ -562,4 +628,637 @@ class RestaurantOrderService
 
         return $prefix . str_pad((string) $nextNumber, 4, '0', STR_PAD_LEFT);
     }
+
+    /**
+     * Settle individual items ordered at a table (Split Bill), generate partial receipt/invoice, and evaluate table closure.
+     *
+     * @param RestaurantOrder $order
+     * @param array<int> $selectedItemIds
+     * @param string $paymentMethod
+     * @param float $amountReceived
+     * @param string|null $reference
+     * @param User $user
+     * @return array
+     *
+     * @throws ValidationException
+     */
+    /**
+     * Settle individual items ordered at a table (Split Bill), generate partial receipt/invoice, and evaluate table closure.
+     * Full parity with standard billing (customer, discounts, tip 10%, INC 8%, multi-payments, and notes).
+     *
+     * @param RestaurantOrder $order
+     * @param array $selectedItemIds
+     * @param string|array|null $paymentMethod
+     * @param float $amountReceived
+     * @param string|null $reference
+     * @param User|null $user
+     * @param array $data
+     * @return array
+     *
+     * @throws ValidationException
+     */
+    public function paySplitItems(
+        RestaurantOrder $order,
+        array $selectedItemIds = [],
+        string|array|null $paymentMethod = null,
+        float $amountReceived = 0.0,
+        ?string $reference = null,
+        ?User $user = null,
+        array $data = []
+    ): array {
+        // Normalización de argumentos para compatibilidad dual (antiguo vs nuevo contrato)
+        if (! empty($data)) {
+            $input = $data;
+        } elseif (! empty($selectedItemIds) && isset($selectedItemIds['items'])) {
+            $input = $selectedItemIds;
+        } else {
+            $input = [
+                'items' => $selectedItemIds,
+                'payment_method' => is_string($paymentMethod) ? $paymentMethod : 'cash',
+                'cash_received' => $amountReceived,
+                'reference' => $reference,
+            ];
+        }
+
+        if (empty($input['items']) && ! empty($selectedItemIds) && is_array($selectedItemIds) && array_is_list($selectedItemIds)) {
+            $input['items'] = $selectedItemIds;
+        }
+
+        $user = $user ?? auth()->user();
+        if (! $user) {
+            throw new \RuntimeException('No hay un usuario autenticado para registrar el cobro.');
+        }
+
+        $rawItemIds = (array) ($input['items'] ?? []);
+        if (empty($rawItemIds)) {
+            throw ValidationException::withMessages([
+                'items' => 'Debe seleccionar al menos un plato para liquidar.',
+            ]);
+        }
+
+        return DB::transaction(function () use ($order, $input, $rawItemIds, $user) {
+            // 1. Multi-Tenant y Bloqueo Pesimista de la Orden
+            $lockedOrder = RestaurantOrder::where('business_id', $order->business_id)
+                ->lockForUpdate()
+                ->findOrFail($order->id);
+
+            if (! in_array($lockedOrder->status, ['open', 'in_kitchen', 'dispatched', 'delivered', 'billed'], true)) {
+                throw ValidationException::withMessages([
+                    'order' => 'La comanda ya se encuentra cerrada o anulada.',
+                ]);
+            }
+
+            // 2. Bloquear y validar los ítems seleccionados
+            $itemIds = array_values(array_unique($rawItemIds));
+            $lockedItems = RestaurantOrderItem::where('business_id', $lockedOrder->business_id)
+                ->where('order_id', $lockedOrder->id)
+                ->whereIn('id', $itemIds)
+                ->lockForUpdate()
+                ->get();
+
+            if ($lockedItems->count() !== count($itemIds)) {
+                throw ValidationException::withMessages([
+                    'items' => 'Uno o más platos seleccionados no pertenecen a esta comanda o al negocio.',
+                ]);
+            }
+
+            foreach ($lockedItems as $item) {
+                if ($item->payment_status !== 'pending') {
+                    throw ValidationException::withMessages([
+                        'items' => "El plato '{$item->product?->name}' ya fue pagado previamente.",
+                    ]);
+                }
+                if ($item->status === 'cancelled') {
+                    throw ValidationException::withMessages([
+                        'items' => "El plato '{$item->product?->name}' se encuentra anulado y no puede cobrarse.",
+                    ]);
+                }
+            }
+
+            // 3. Cálculo Financiero Autoritativo con Descuento, Propina (10%) e INC (8%)
+            $subtotal = round((float) $lockedItems->sum('subtotal'), 2);
+
+            if ($subtotal <= 0) {
+                throw ValidationException::withMessages([
+                    'items' => 'El total de los consumos seleccionados debe ser mayor a cero.',
+                ]);
+            }
+
+            $discountPercentage = max(0, min(100, (float) ($input['discount_percentage'] ?? 0)));
+            $discountAmount = round($subtotal * ($discountPercentage / 100), 2);
+            $baseAjustada = max(0, round($subtotal - $discountAmount, 2));
+
+            $includeTip = filter_var($input['include_tip'] ?? false, FILTER_VALIDATE_BOOLEAN);
+            $includeTax = filter_var($input['include_tax'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+            $tipAmount = $includeTip ? round($baseAjustada * 0.10, 2) : 0.00;
+            $taxAmount = $includeTax ? round($baseAjustada * 0.08, 2) : 0.00;
+
+            $totalToSettle = round($baseAjustada + $tipAmount + $taxAmount, 2);
+
+            // 4. Normalización y Validación de Medios de Pago (Soporte Mixto)
+            $payments = [];
+            if (! empty($input['payments']) && is_array($input['payments'])) {
+                foreach ($input['payments'] as $p) {
+                    $rawMethod = $p['method'] ?? 'cash';
+                    $method = in_array($rawMethod, ['nequi', 'daviplata'], true) ? 'transfer' : $rawMethod;
+                    $amount = isset($p['amount']) && $p['amount'] !== null && $p['amount'] !== ''
+                        ? round((float) $p['amount'], 2)
+                        : $totalToSettle;
+
+                    if ($amount <= 0) {
+                        continue;
+                    }
+
+                    $isCash = ($method === 'cash');
+                    $received = $p['received'] ?? $p['cash_received'] ?? null;
+                    $cashReceived = $isCash
+                        ? ($received !== null && $received !== '' ? round((float) $received, 2) : $amount)
+                        : $amount;
+                    $changeGiven = $isCash ? max(0.00, round($cashReceived - $amount, 2)) : 0.00;
+
+                    if ($isCash && $cashReceived < $amount) {
+                        throw ValidationException::withMessages([
+                            'payments' => 'El efectivo recibido no puede ser inferior al monto asignado en este método de pago.',
+                        ]);
+                    }
+
+                    $payments[] = [
+                        'raw_method' => $rawMethod,
+                        'method' => $method,
+                        'amount' => $amount,
+                        'reference' => ! empty($p['reference']) ? strip_tags(trim((string) $p['reference'])) : null,
+                        'cash_received' => $cashReceived,
+                        'change_given' => $changeGiven,
+                    ];
+                }
+            } elseif (! empty($input['payment_method'])) {
+                $rawMethod = $input['payment_method'];
+                $method = in_array($rawMethod, ['nequi', 'daviplata'], true) ? 'transfer' : $rawMethod;
+                $amount = isset($input['amount']) ? round((float) $input['amount'], 2) : $totalToSettle;
+                $received = $input['cash_received'] ?? null;
+                $cashReceived = $method === 'cash'
+                    ? ($received !== null && $received !== '' ? round((float) $received, 2) : $amount)
+                    : $amount;
+                $changeGiven = $method === 'cash' ? max(0.00, round($cashReceived - $amount, 2)) : 0.00;
+
+                if ($method === 'cash' && $cashReceived < $amount) {
+                    throw ValidationException::withMessages([
+                        'payments' => 'El efectivo recibido no puede ser inferior al monto asignado.',
+                    ]);
+                }
+
+                $payments[] = [
+                    'raw_method' => $rawMethod,
+                    'method' => $method,
+                    'amount' => $amount,
+                    'reference' => ! empty($input['reference']) ? strip_tags(trim((string) $input['reference'])) : null,
+                    'cash_received' => $cashReceived,
+                    'change_given' => $changeGiven,
+                ];
+            }
+
+            if (empty($payments)) {
+                throw ValidationException::withMessages([
+                    'payments' => 'Debe registrar al menos un método de pago válido.',
+                ]);
+            }
+
+            $sumPayments = round(array_sum(array_column($payments, 'amount')), 2);
+            if (abs($sumPayments - $totalToSettle) > 0.05) {
+                throw ValidationException::withMessages([
+                    'payments' => 'El total de los métodos de pago ($' . number_format($sumPayments, 0, ',', '.') . ') debe ser igual al total a liquidar ($' . number_format($totalToSettle, 0, ',', '.') . ').',
+                ]);
+            }
+
+            // 5. Resolución de Cliente y Datos de Facturación
+            $customerId = $input['customer_id'] ?? null;
+            $customerName = null;
+            $customerDocument = null;
+
+            if ($customerId) {
+                $customer = Customer::where('business_id', $lockedOrder->business_id)->find($customerId);
+                if ($customer) {
+                    $customerName = $customer->name;
+                    $customerDocument = $customer->document ?? $customer->identification_number;
+                }
+            }
+
+            if (! $customerName) {
+                $customerName = $lockedOrder->customer_name ?? 'Consumidor Final';
+                $customerDocument = $lockedOrder->customer_document ?? '222222222222';
+            }
+
+            // 6. Registro de Venta (Sale)
+            $invoiceNumber = $this->generateInvoiceNumber($lockedOrder->business_id);
+            $derivedPaymentMethod = count($payments) > 1 ? 'mixed' : $payments[0]['method'];
+
+            $notes = ! empty($input['notes'])
+                ? strip_tags(trim((string) $input['notes']))
+                : "Pago parcial de platos en comanda {$lockedOrder->order_number}";
+
+            $sale = Sale::create([
+                'business_id' => $lockedOrder->business_id,
+                'user_id' => $user->id,
+                'customer_id' => $customerId,
+                'customer_name' => $customerName,
+                'customer_document' => $customerDocument,
+                'restaurant_order_id' => $lockedOrder->id,
+                'order_type' => $lockedOrder->order_type ?? 'table',
+                'invoice_number' => $invoiceNumber,
+                'sale_date' => now('America/Bogota'),
+                'subtotal' => $subtotal,
+                'discount' => $discountAmount,
+                'discount_percentage' => $discountPercentage,
+                'delivery_fee' => 0.00,
+                'service_fee' => $tipAmount,
+                'tax_inc' => $taxAmount,
+                'total' => $totalToSettle,
+                'payment_method' => $derivedPaymentMethod,
+                'status' => 'completed',
+                'notes' => $notes,
+            ]);
+
+            // 7. Registro de Medios de Pago (SalePayment)
+            foreach ($payments as $p) {
+                SalePayment::create([
+                    'business_id' => $lockedOrder->business_id,
+                    'sale_id' => $sale->id,
+                    'method' => $p['method'],
+                    'amount' => $p['amount'],
+                    'reference' => $p['reference'],
+                    'cash_received' => $p['cash_received'],
+                    'change_given' => $p['change_given'],
+                ]);
+            }
+
+            // 8. Crear detalles de venta y descontar stock si es producto estándar
+            foreach ($lockedItems as $item) {
+                SaleDetail::create([
+                    'sale_id' => $sale->id,
+                    'product_id' => $item->product_id,
+                    'quantity' => $item->quantity,
+                    'unit_price' => $item->unit_price,
+                    'subtotal' => $item->subtotal,
+                ]);
+
+                if ($item->product && $item->product->isStandard()) {
+                    $this->inventoryService->registerMovement(
+                        product: $item->product,
+                        type: InventoryMovement::TYPE_EXIT,
+                        quantity: $item->quantity,
+                        reason: "Venta división de cuenta #{$invoiceNumber} (Comanda {$lockedOrder->order_number})",
+                        userId: $user->id,
+                        saleId: $sale->id,
+                    );
+                }
+            }
+
+            // 9. Transición Atómica de Ítems a 'paid'
+            $now = now();
+            foreach ($lockedItems as $item) {
+                $item->update([
+                    'payment_status' => 'paid',
+                    'paid_at' => $now,
+                    'payment_id' => $sale->id,
+                ]);
+            }
+
+            // 10. Evaluación de Cierre de Comanda y Mesa
+            $pendingCount = $lockedOrder->items()
+                ->where('payment_status', 'pending')
+                ->where('status', '!=', 'cancelled')
+                ->count();
+
+            $isFullyPaid = ($pendingCount === 0);
+            $existingNotes = $lockedOrder->notes ? trim($lockedOrder->notes) . "\n" : '';
+            $timestamp = now('America/Bogota')->format('d/m/Y H:i');
+
+            if ($isFullyPaid) {
+                // Comanda liquidada en su totalidad
+                $auditNote = "[AUDITORÍA] {$timestamp}: Comanda liquidada en su totalidad mediante división de cuenta por platos.";
+                $lockedOrder->update([
+                    'status' => 'billed',
+                    'sale_id' => $sale->id,
+                    'closed_at' => $now,
+                    'notes' => mb_substr($existingNotes . $auditNote, 0, 500),
+                ]);
+
+                if ($lockedOrder->table_id) {
+                    $table = RestaurantTable::where('business_id', $lockedOrder->business_id)
+                        ->lockForUpdate()
+                        ->find($lockedOrder->table_id);
+
+                    if ($table) {
+                        $table->update(['status' => 'available']);
+                    }
+                }
+            } else {
+                // Aún quedan ítems pendientes: la orden se mantiene activa (open) y la mesa ocupada (occupied)
+                $remainingBalance = (float) $lockedOrder->items()
+                    ->where('payment_status', 'pending')
+                    ->where('status', '!=', 'cancelled')
+                    ->sum('subtotal');
+
+                $itemNames = $lockedItems->map(fn ($i) => $i->product?->name ?? 'Ítem')->implode(', ');
+                $auditNote = "[AUDITORÍA] {$timestamp}: Pago parcial por {$user->name}. Platos cobrados: [{$itemNames}]. Saldo restante comanda: $" . number_format($remainingBalance, 0, ',', '.') . ".";
+
+                $lockedOrder->update([
+                    'status' => 'open',
+                    'notes' => mb_substr($existingNotes . $auditNote, 0, 500),
+                ]);
+
+                if ($lockedOrder->table_id) {
+                    $table = RestaurantTable::where('business_id', $lockedOrder->business_id)
+                        ->lockForUpdate()
+                        ->find($lockedOrder->table_id);
+
+                    if ($table && $table->status !== 'occupied') {
+                        $table->update(['status' => 'occupied']);
+                    }
+                }
+            }
+
+            $remainingBalance = (float) $lockedOrder->items()
+                ->where('payment_status', 'pending')
+                ->where('status', '!=', 'cancelled')
+                ->sum('subtotal');
+
+            $totalCashReceived = array_sum(array_column($payments, 'cash_received'));
+            $totalChange = array_sum(array_column($payments, 'change_given'));
+
+            return [
+                'payment_id' => $sale->id,
+                'sale' => $sale->load(['details.product', 'payments']),
+                'split_total' => $totalToSettle,
+                'subtotal' => $subtotal,
+                'discount' => $discountAmount,
+                'tip' => $tipAmount,
+                'tax' => $taxAmount,
+                'amount_received' => $totalCashReceived,
+                'change' => $totalChange,
+                'payment_method' => $derivedPaymentMethod,
+                'items_count' => $lockedItems->count(),
+                'is_fully_paid' => $isFullyPaid,
+                'remaining_balance' => round($remainingBalance, 2),
+                'order' => $lockedOrder->fresh(['table', 'items.product', 'user', 'customer']),
+            ];
+        });
+    }
+
+    /**
+     * Generate sequential invoice number per business.
+     * Format: VTA-YYYYMM-XXXX (e.g. VTA-202610-0001)
+     */
+    protected function generateInvoiceNumber(int $businessId): string
+    {
+        $prefix = 'VTA-' . now()->format('Ym') . '-';
+
+        $lastSale = Sale::withoutGlobalScopes()
+            ->where('business_id', $businessId)
+            ->where('invoice_number', 'like', $prefix . '%')
+            ->orderByRaw('LENGTH(invoice_number) DESC, invoice_number DESC')
+            ->lockForUpdate()
+            ->first();
+
+        if ($lastSale) {
+            $lastNumber = (int) str_replace($prefix, '', $lastSale->invoice_number);
+            $nextNumber = $lastNumber + 1;
+        } else {
+            $nextNumber = 1;
+        }
+
+        return $prefix . str_pad((string) $nextNumber, 4, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Bill and settle the remaining pending balance of an active restaurant order, create a Sale and SalePayment(s),
+     * mark remaining pending items as paid, transition order to 'billed', and free the assigned table.
+     *
+     * @param RestaurantOrder $order
+     * @param array $data
+     * @param User $user
+     * @return Sale
+     *
+     * @throws ValidationException
+     */
+    public function billOrder(RestaurantOrder $order, array $data, User $user): Sale
+    {
+        return DB::transaction(function () use ($order, $data, $user) {
+            // 1. Multi-Tenant y Bloqueo Pesimista de la Orden
+            $lockedOrder = RestaurantOrder::where('business_id', $order->business_id)
+                ->lockForUpdate()
+                ->findOrFail($order->id);
+
+            if ($lockedOrder->isClosed() || $lockedOrder->isCancelled()) {
+                throw ValidationException::withMessages([
+                    'order' => 'La comanda ya se encuentra cerrada o anulada.',
+                ]);
+            }
+
+            $pendingBalance = $lockedOrder->pendingBalance();
+            if ($pendingBalance <= 0) {
+                throw ValidationException::withMessages([
+                    'order' => 'La comanda no tiene saldo pendiente por cobrar.',
+                ]);
+            }
+
+            // Bloquear ítems pendientes activos
+            $lockedPendingItems = RestaurantOrderItem::where('business_id', $lockedOrder->business_id)
+                ->where('order_id', $lockedOrder->id)
+                ->where('payment_status', 'pending')
+                ->where('status', '!=', 'cancelled')
+                ->lockForUpdate()
+                ->get();
+
+            if ($lockedPendingItems->isEmpty()) {
+                throw ValidationException::withMessages([
+                    'order' => 'No existen consumos pendientes por liquidar en esta comanda.',
+                ]);
+            }
+
+            // 2. Normalización de Pagos
+            $payments = [];
+            if (! empty($data['payments']) && is_array($data['payments'])) {
+                foreach ($data['payments'] as $p) {
+                    $method = $p['method'] ?? 'cash';
+                    if ($method === 'nequi') {
+                        $method = 'transfer';
+                    }
+                    $amount = round((float) ($p['amount'] ?? 0), 2);
+                    if ($amount <= 0) {
+                        continue;
+                    }
+                    $isCash = ($method === 'cash');
+                    $cashReceived = $isCash
+                        ? (isset($p['cash_received']) && $p['cash_received'] !== '' ? round((float) $p['cash_received'], 2) : $amount)
+                        : $amount;
+                    $changeGiven = $isCash ? max(0.00, round($cashReceived - $amount, 2)) : 0.00;
+
+                    if ($isCash && $cashReceived < $amount) {
+                        throw ValidationException::withMessages([
+                            'payments' => 'El efectivo recibido no puede ser inferior al monto asignado.',
+                        ]);
+                    }
+
+                    $payments[] = [
+                        'method' => $method,
+                        'amount' => $amount,
+                        'reference' => ! empty($p['reference']) ? strip_tags(trim((string) $p['reference'])) : null,
+                        'cash_received' => $cashReceived,
+                        'change_given' => $changeGiven,
+                    ];
+                }
+            } elseif (! empty($data['payment_method'])) {
+                $method = $data['payment_method'] === 'nequi' ? 'transfer' : $data['payment_method'];
+                $amount = isset($data['amount']) ? round((float) $data['amount'], 2) : $pendingBalance;
+                $cashReceived = $method === 'cash'
+                    ? (isset($data['cash_received']) && $data['cash_received'] !== '' ? round((float) $data['cash_received'], 2) : $amount)
+                    : $amount;
+                $changeGiven = $method === 'cash' ? max(0.00, round($cashReceived - $amount, 2)) : 0.00;
+
+                if ($method === 'cash' && $cashReceived < $amount) {
+                    throw ValidationException::withMessages([
+                        'payments' => 'El efectivo recibido no puede ser inferior al monto asignado.',
+                    ]);
+                }
+
+                $payments[] = [
+                    'method' => $method,
+                    'amount' => $amount,
+                    'reference' => ! empty($data['reference']) ? strip_tags(trim((string) $data['reference'])) : null,
+                    'cash_received' => $cashReceived,
+                    'change_given' => $changeGiven,
+                ];
+            }
+
+            if (empty($payments)) {
+                throw ValidationException::withMessages([
+                    'payments' => 'Debe registrar al menos un método de pago válido.',
+                ]);
+            }
+
+            // 3. Validación Financiera Estricta del Saldo a Cubrir
+            $discountPercentage = (float) ($data['discount_percentage'] ?? 0);
+            $discount = round($pendingBalance * ($discountPercentage / 100), 2);
+            $netBase = max(0, round($pendingBalance - $discount, 2));
+
+            $serviceFee = isset($data['service_fee']) ? max(0, round((float) $data['service_fee'], 2)) : 0.00;
+            $taxInc = isset($data['tax_inc']) ? max(0, round((float) $data['tax_inc'], 2)) : 0.00;
+            $expectedTotal = round($netBase + $serviceFee + $taxInc, 2);
+
+            $sumPayments = round(array_sum(array_column($payments, 'amount')), 2);
+
+            if (abs($sumPayments - $expectedTotal) > 0.05) {
+                throw ValidationException::withMessages([
+                    'payments' => 'El saldo a cubrir es de $' . number_format($expectedTotal, 0, ',', '.') . ' (Total recibido: $' . number_format($sumPayments, 0, ',', '.') . ').',
+                ]);
+            }
+
+            // 4. Determinar método principal
+            $derivedPaymentMethod = count($payments) > 1 ? 'mixed' : $payments[0]['method'];
+
+            // 5. Creación de la Venta (Sale)
+            $invoiceNumber = $this->generateInvoiceNumber($lockedOrder->business_id);
+
+            $sale = Sale::create([
+                'business_id' => $lockedOrder->business_id,
+                'user_id' => $user->id,
+                'customer_id' => $data['customer_id'] ?? $lockedOrder->customer_id,
+                'customer_name' => $data['customer_name'] ?? $lockedOrder->customer_name,
+                'restaurant_order_id' => $lockedOrder->id,
+                'order_type' => $lockedOrder->order_type ?? 'table',
+                'invoice_number' => $invoiceNumber,
+                'sale_date' => now('America/Bogota'),
+                'subtotal' => $pendingBalance,
+                'discount' => $discount,
+                'discount_percentage' => $discountPercentage,
+                'delivery_fee' => 0.00,
+                'service_fee' => $serviceFee,
+                'tax_inc' => $taxInc,
+                'total' => $expectedTotal,
+                'payment_method' => $derivedPaymentMethod,
+                'status' => 'completed',
+                'notes' => $data['notes'] ?? "Cobro final de comanda {$lockedOrder->order_number}",
+            ]);
+
+            // 6. Registro de SalePayments
+            foreach ($payments as $p) {
+                SalePayment::create([
+                    'business_id' => $lockedOrder->business_id,
+                    'sale_id' => $sale->id,
+                    'method' => $p['method'],
+                    'amount' => $p['amount'],
+                    'reference' => $p['reference'],
+                    'cash_received' => $p['cash_received'],
+                    'change_given' => $p['change_given'],
+                ]);
+            }
+
+            // 7. Detalles de Venta e Inventario
+            foreach ($lockedPendingItems as $item) {
+                SaleDetail::create([
+                    'sale_id' => $sale->id,
+                    'product_id' => $item->product_id,
+                    'quantity' => $item->quantity,
+                    'unit_price' => $item->unit_price,
+                    'subtotal' => $item->subtotal,
+                ]);
+
+                if ($item->product && $item->product->isStandard()) {
+                    $this->inventoryService->registerMovement(
+                        product: $item->product,
+                        type: InventoryMovement::TYPE_EXIT,
+                        quantity: $item->quantity,
+                        reason: "Venta comanda #{$invoiceNumber} ({$lockedOrder->order_number})",
+                        userId: $user->id,
+                        saleId: $sale->id,
+                    );
+                }
+            }
+
+            // 8. Transición Atómica de Ítems a 'paid'
+            $now = now();
+            foreach ($lockedPendingItems as $item) {
+                $item->update([
+                    'payment_status' => 'paid',
+                    'paid_at' => $now,
+                    'payment_id' => $sale->id,
+                ]);
+            }
+
+            // 9. Cierre y Liberación Atómica de la Comanda y Mesa
+            $timestamp = now('America/Bogota')->format('d/m/Y H:i');
+            $auditNote = "[AUDITORÍA] {$timestamp}: Comanda cerrada y liquidada en su totalidad por {$user->name}. Cobro de saldo pendiente: $" . number_format($expectedTotal, 0, ',', '.') . ".";
+            $existingNotes = $lockedOrder->notes ? trim($lockedOrder->notes) . "\n" : '';
+
+            $lockedOrder->update([
+                'status' => 'billed',
+                'sale_id' => $sale->id,
+                'closed_at' => $now,
+                'notes' => mb_substr($existingNotes . $auditNote, 0, 500),
+            ]);
+
+            if ($lockedOrder->table_id) {
+                $table = RestaurantTable::where('business_id', $lockedOrder->business_id)
+                    ->lockForUpdate()
+                    ->find($lockedOrder->table_id);
+
+                if ($table) {
+                    $table->update(['status' => 'available']);
+                }
+            }
+
+            return $sale->load(['details.product', 'payments', 'restaurantOrder']);
+        });
+    }
+
+    /**
+     * Alias for billOrder to satisfy 'charge' naming convention.
+     */
+    public function charge(RestaurantOrder $order, array $data, User $user): Sale
+    {
+        return $this->billOrder($order, $data, $user);
+    }
 }
+

@@ -71,6 +71,25 @@
     </div>
 </div>
 
+@if($currentBusiness->isRestaurant() || ($total_tips ?? 0) > 0 || ($total_taxes ?? 0) > 0)
+<div class="row g-3 mb-4">
+    <div class="col-sm-6 col-xl-6">
+        <div class="card card-custom p-3 bg-white h-100 border-0 shadow-sm border-start border-4 border-success">
+            <span class="text-muted small fw-semibold text-uppercase">Propinas del Período</span>
+            <h3 class="fw-bold mb-0 mt-1 text-success">${{ number_format($total_tips ?? 0, 0, ',', '.') }}</h3>
+            <small class="text-muted">Fondo de servicio voluntario recaudado</small>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-6">
+        <div class="card card-custom p-3 bg-white h-100 border-0 shadow-sm border-start border-4 border-primary">
+            <span class="text-muted small fw-semibold text-uppercase">Impuesto al Consumo (INC)</span>
+            <h3 class="fw-bold mb-0 mt-1 text-primary">${{ number_format($total_taxes ?? 0, 0, ',', '.') }}</h3>
+            <small class="text-muted">Impuesto al consumo liquidado</small>
+        </div>
+    </div>
+</div>
+@endif
+
 {{-- Filtros --}}
 <div class="card card-custom p-3 bg-white mb-4 border-0 shadow-sm">
     <form method="GET" action="{{ route('reports.sales') }}" class="row g-2 align-items-center">

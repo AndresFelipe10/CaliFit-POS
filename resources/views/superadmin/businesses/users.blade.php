@@ -10,7 +10,7 @@
     </div>
     <div class="d-flex flex-column flex-sm-row align-items-stretch align-items-sm-center gap-2 w-100 w-sm-auto">
         <a href="{{ route('superadmin.businesses.users.create', $business) }}" class="btn btn-primary fw-semibold d-inline-flex align-items-center justify-content-center" style="min-height: 42px;">
-            <i class="bi bi-person-plus me-1"></i> + Agregar Colaborador
+            <i class="bi bi-person-plus me-1"></i> Agregar Colaborador
         </a>
         <a href="{{ route('superadmin.businesses.index') }}" class="btn btn-outline-secondary btn-sm rounded-pill px-3 d-inline-flex align-items-center justify-content-center" style="min-height: 42px;">
             <i class="bi bi-arrow-left me-1"></i> Volver a Negocios
@@ -83,19 +83,29 @@
                             {{ $user->pivot->created_at ? \Carbon\Carbon::parse($user->pivot->created_at)->format('d/m/Y H:i') : '—' }}
                         </td>
                         <td class="text-end">
-                            <form method="POST" action="{{ route('superadmin.businesses.toggleUserStatus', [$business, $user]) }}" class="d-inline"
-                                  onsubmit="return confirm('¿Seguro que deseas {{ $isActive ? 'desactivar' : 'activar' }} a {{ $user->name }} en este negocio?');">
-                                @csrf
-                                @if ($isActive)
-                                    <button type="submit" class="btn btn-outline-danger btn-sm" title="Desactivar usuario">
-                                        <i class="bi bi-person-x me-1"></i>Desactivar
-                                    </button>
-                                @else
-                                    <button type="submit" class="btn btn-outline-success btn-sm" title="Activar usuario">
-                                        <i class="bi bi-person-check me-1"></i>Activar
-                                    </button>
-                                @endif
-                            </form>
+                            @if ($isActive)
+                                <button type="button" 
+                                        class="btn btn-outline-danger btn-sm btn-toggle-superadmin-user" 
+                                        title="Desactivar usuario"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#toggleSuperadminUserModal"
+                                        data-action-url="{{ route('superadmin.businesses.toggleUserStatus', [$business, $user]) }}"
+                                        data-user-name="{{ $user->name }}"
+                                        data-target-action="deactivate">
+                                    <i class="bi bi-person-x me-1"></i>Desactivar
+                                </button>
+                            @else
+                                <button type="button" 
+                                        class="btn btn-outline-success btn-sm btn-toggle-superadmin-user" 
+                                        title="Activar usuario"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#toggleSuperadminUserModal"
+                                        data-action-url="{{ route('superadmin.businesses.toggleUserStatus', [$business, $user]) }}"
+                                        data-user-name="{{ $user->name }}"
+                                        data-target-action="activate">
+                                    <i class="bi bi-person-check me-1"></i>Activar
+                                </button>
+                            @endif
                         </td>
                     </tr>
                 @empty
@@ -109,4 +119,123 @@
         </table>
     </div>
 </div>
+
+{{-- Modal Superadmin de Cambio de Estado de Colaborador --}}
+<div class="modal fade" id="toggleSuperadminUserModal" tabindex="-1" aria-labelledby="toggleSuperadminUserModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content card-dark border-secondary border-opacity-50 shadow rounded-4 overflow-hidden text-light">
+            <div class="modal-header py-3" id="toggleSaModalHeader">
+                <h5 class="modal-title fw-bold d-flex align-items-center text-white" id="toggleSuperadminUserModalLabel">
+                    <i class="bi me-2 fs-5" id="toggleSaModalIcon"></i>
+                    <span id="toggleSaModalTitle">Cambiar Estado</span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="alert d-flex align-items-start mb-0 rounded-3" id="toggleSaModalAlert" role="alert">
+                    <i class="bi fs-3 me-3 flex-shrink-0" id="toggleSaAlertIcon"></i>
+                    <div>
+                        <div class="fw-semibold text-white mb-1" id="toggleSaModalMessage"></div>
+                        <div class="small text-secondary" id="toggleSaModalSubtext"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer bg-dark border-top border-secondary border-opacity-25 px-4 py-3 d-flex justify-content-end gap-2">
+                <button type="button" class="btn btn-outline-secondary rounded-pill px-4 fw-semibold" data-bs-dismiss="modal">
+                    Cancelar
+                </button>
+                <form action="" method="POST" id="toggleSuperadminUserForm" class="d-inline m-0" data-no-disable>
+                    @csrf
+                    <button type="submit" class="btn rounded-pill px-4 fw-bold" id="btnConfirmToggleSaUser">
+                        Confirmar
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
 @endsection
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const modalEl = document.getElementById('toggleSuperadminUserModal');
+    if (!modalEl) return;
+
+    const modalHeader = document.getElementById('toggleSaModalHeader');
+    const modalTitle = document.getElementById('toggleSaModalTitle');
+    const modalIcon = document.getElementById('toggleSaModalIcon');
+    const modalAlert = document.getElementById('toggleSaModalAlert');
+    const alertIcon = document.getElementById('toggleSaAlertIcon');
+    const modalMessage = document.getElementById('toggleSaModalMessage');
+    const modalSubtext = document.getElementById('toggleSaModalSubtext');
+    const statusForm = document.getElementById('toggleSuperadminUserForm');
+    const btnConfirm = document.getElementById('btnConfirmToggleSaUser');
+
+    modalEl.addEventListener('show.bs.modal', function (event) {
+        const triggerBtn = event.relatedTarget;
+        if (!triggerBtn) return;
+
+        const actionUrl = triggerBtn.getAttribute('data-action-url') || '';
+        const userName = triggerBtn.getAttribute('data-user-name') || '';
+        const targetAction = triggerBtn.getAttribute('data-target-action') || 'deactivate';
+
+        if (statusForm) statusForm.action = actionUrl;
+
+        if (targetAction === 'deactivate') {
+            modalHeader.className = 'modal-header py-3 bg-danger text-white';
+            modalTitle.textContent = 'Desactivar Usuario';
+            modalIcon.className = 'bi bi-person-x-fill me-2 fs-5';
+
+            modalAlert.className = 'alert alert-warning bg-warning bg-opacity-10 border border-warning border-opacity-25 d-flex align-items-start mb-0 rounded-3';
+            alertIcon.className = 'bi bi-exclamation-triangle-fill text-warning fs-3 me-3 flex-shrink-0';
+            modalMessage.innerHTML = `¿Seguro que deseas desactivar a <strong>${escapeHtml(userName)}</strong> en este negocio?`;
+            modalSubtext.textContent = 'El usuario perderá el acceso a las funciones del emprendimiento.';
+
+            btnConfirm.className = 'btn btn-danger rounded-pill px-4 fw-bold';
+            btnConfirm.innerHTML = '<i class="bi bi-person-x me-1"></i> Desactivar';
+        } else {
+            modalHeader.className = 'modal-header py-3 bg-success text-white';
+            modalTitle.textContent = 'Activar Usuario';
+            modalIcon.className = 'bi bi-person-check-fill me-2 fs-5';
+
+            modalAlert.className = 'alert alert-success bg-success bg-opacity-10 border border-success border-opacity-25 d-flex align-items-start mb-0 rounded-3';
+            alertIcon.className = 'bi bi-check-circle-fill text-success fs-3 me-3 flex-shrink-0';
+            modalMessage.innerHTML = `¿Seguro que deseas activar a <strong>${escapeHtml(userName)}</strong> en este negocio?`;
+            modalSubtext.textContent = 'El usuario podrá volver a ingresar y operar.';
+
+            btnConfirm.className = 'btn btn-success rounded-pill px-4 fw-bold';
+            btnConfirm.innerHTML = '<i class="bi bi-person-check me-1"></i> Activar';
+        }
+
+        btnConfirm.disabled = false;
+        btnConfirm.removeAttribute('data-original-html');
+    });
+
+    if (statusForm) {
+        statusForm.addEventListener('submit', function () {
+            if (!btnConfirm) return;
+            btnConfirm.setAttribute('data-original-html', btnConfirm.innerHTML);
+            btnConfirm.disabled = true;
+            btnConfirm.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Procesando...';
+        });
+    }
+
+    modalEl.addEventListener('hidden.bs.modal', function () {
+        if (!btnConfirm) return;
+        btnConfirm.disabled = false;
+        const orig = btnConfirm.getAttribute('data-original-html');
+        if (orig) {
+            btnConfirm.innerHTML = orig;
+            btnConfirm.removeAttribute('data-original-html');
+        }
+    });
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+});
+</script>
+@endpush

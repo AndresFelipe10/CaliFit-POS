@@ -55,6 +55,9 @@
                             <input type="text" class="form-control @error('customer_name') is-invalid @enderror" 
                                    id="customer_name" 
                                    name="customer_name" 
+                                   minlength="2"
+                                   maxlength="80"
+                                   autocomplete="off"
                                    value="{{ old('customer_name', old('waiter_name', $defaultWaiter)) }}" 
                                    placeholder="Ej: {{ $defaultWaiter }} (puedes cambiarlo si es otro mesero)">
                             @error('customer_name')
@@ -72,7 +75,7 @@
 
                         <div class="col-12">
                             <label for="notes" class="form-label fw-bold">Observaciones Generales</label>
-                            <textarea class="form-control @error('notes') is-invalid @enderror" id="notes" name="notes" rows="2" placeholder="Opcional: Ubicación de mesa, preferencia especial, etc.">{{ old('notes') }}</textarea>
+                            <textarea class="form-control @error('notes') is-invalid @enderror" id="notes" name="notes" rows="2" maxlength="500" placeholder="Opcional: Ubicación de mesa, preferencia especial, etc.">{{ old('notes') }}</textarea>
                             @error('notes')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
@@ -83,8 +86,9 @@
                     <div class="border-top pt-4 mb-4">
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <h5 class="fw-bold mb-0">Platos o Productos Iniciales (Opcional)</h5>
-                            <button type="button" class="btn btn-outline-primary fw-semibold px-3 py-2 d-inline-flex align-items-center" id="btn-add-item" style="min-height: 44px;">
-                                <i class="bi bi-plus-circle fs-5 me-2"></i> + Agregar plato
+                            <button type="button" class="btn btn-outline-primary fw-semibold px-3 py-2 d-inline-flex align-items-center gap-2" id="btn-add-item" style="min-height: 44px;">
+                                <i class="bi bi-plus-circle fs-5"></i>
+                                <span>Agregar plato</span>
                             </button>
                         </div>
 

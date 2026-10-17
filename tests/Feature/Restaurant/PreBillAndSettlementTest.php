@@ -128,11 +128,13 @@ class PreBillAndSettlementTest extends TestCase
         $response->assertSee('$40.000');
         $response->assertDontSee('FAC-');
 
-        // 3. Verificar cambio de estados en base de datos
+        // 3. Verificar cambio de estados en base de datos: comanda permanece open, con precount_printed_at y canBeModified() === true
         $this->assertDatabaseHas('restaurant_orders', [
             'id' => $order->id,
-            'status' => 'billed',
+            'status' => 'open',
         ]);
+        $this->assertNotNull($order->fresh()->precount_printed_at);
+        $this->assertTrue($order->fresh()->canBeModified());
 
         $this->assertDatabaseHas('restaurant_tables', [
             'id' => $this->table->id,

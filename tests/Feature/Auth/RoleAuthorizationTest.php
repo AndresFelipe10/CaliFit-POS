@@ -96,7 +96,16 @@ class RoleAuthorizationTest extends TestCase
         $response->assertStatus(403);
     }
 
-    public function test_admin_can_create_new_user_for_business(): void
+    public function test_admin_cannot_view_user_invite_page_because_provisioning_is_superadmin_exclusive(): void
+    {
+        $response = $this->actingAs($this->adminUser)
+            ->withSession(['current_business_id' => $this->business->id])
+            ->get(route('users.create'));
+
+        $response->assertStatus(403);
+    }
+
+    public function test_admin_cannot_store_new_user_because_provisioning_is_superadmin_exclusive(): void
     {
         $response = $this->actingAs($this->adminUser)
             ->withSession(['current_business_id' => $this->business->id])
@@ -107,33 +116,10 @@ class RoleAuthorizationTest extends TestCase
                 'role_id' => $this->employeeRole->id,
             ]);
 
-        $response->assertRedirect(route('users.index'));
-        $this->assertDatabaseHas('users', [
-            'name' => 'Nuevo Colaborador',
+        $response->assertStatus(403);
+        $this->assertDatabaseMissing('users', [
             'email' => 'colaborador@cali.com',
         ]);
-
-        $collaborator = User::where('email', 'colaborador@cali.com')->first();
-        $this->assertDatabaseHas('business_user', [
-            'business_id' => $this->business->id,
-            'user_id' => $collaborator->id,
-            'role_id' => $this->employeeRole->id,
-            'is_active' => 1,
-        ]);
-    }
-
-    public function test_admin_cannot_create_user_with_existing_email_gets_generic_error(): void
-    {
-        $response = $this->actingAs($this->adminUser)
-            ->withSession(['current_business_id' => $this->business->id])
-            ->post(route('users.store'), [
-                'name' => 'Duplicado',
-                'email' => $this->employeeUser->email,
-                'password' => 'password123',
-                'role_id' => $this->employeeRole->id,
-            ]);
-
-        $response->assertSessionHasErrors(['email' => 'Ese correo no está disponible.']);
     }
 
     public function test_employee_cannot_update_user_role(): void

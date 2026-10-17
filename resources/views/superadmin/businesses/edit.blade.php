@@ -78,7 +78,8 @@
                     <div class="col-md-6">
                         <label for="name" class="form-label small fw-semibold text-secondary">Nombre Comercial <span class="text-danger">*</span></label>
                         <input type="text" class="form-control bg-dark border-secondary text-light @error('name') is-invalid @enderror"
-                               id="name" name="name" value="{{ old('name', $business->name) }}" required autofocus>
+                               id="name" name="name" value="{{ old('name', $business->name) }}"
+                               minlength="2" maxlength="100" required autofocus>
                     </div>
                     <div class="col-md-6">
                         <label for="business_type" class="form-label small fw-semibold text-secondary">Tipo de Negocio <span class="text-danger">*</span></label>
@@ -98,12 +99,14 @@
                     <div class="col-md-6">
                         <label for="nit" class="form-label small fw-semibold text-secondary">NIT / Identificación</label>
                         <input type="text" class="form-control bg-dark border-secondary text-light @error('nit') is-invalid @enderror"
-                               id="nit" name="nit" value="{{ old('nit', $business->nit) }}">
+                               id="nit" name="nit" value="{{ old('nit', $business->nit) }}"
+                               minlength="5" maxlength="15" inputmode="numeric">
                     </div>
                     <div class="col-md-6">
                         <label for="phone" class="form-label small fw-semibold text-secondary">Teléfono / WhatsApp</label>
-                        <input type="text" class="form-control bg-dark border-secondary text-light @error('phone') is-invalid @enderror"
-                               id="phone" name="phone" value="{{ old('phone', $business->phone) }}">
+                        <input type="tel" class="form-control bg-dark border-secondary text-light @error('phone') is-invalid @enderror"
+                               id="phone" name="phone" value="{{ old('phone', $business->phone) }}"
+                               minlength="7" maxlength="15" inputmode="tel">
                     </div>
                 </div>
 
@@ -111,12 +114,13 @@
                     <div class="col-md-6">
                         <label for="email" class="form-label small fw-semibold text-secondary">Correo Electrónico</label>
                         <input type="email" class="form-control bg-dark border-secondary text-light @error('email') is-invalid @enderror"
-                               id="email" name="email" value="{{ old('email', $business->email) }}">
+                               id="email" name="email" value="{{ old('email', $business->email) }}" maxlength="150">
                     </div>
                     <div class="col-md-6">
                         <label for="address" class="form-label small fw-semibold text-secondary">Dirección</label>
                         <input type="text" class="form-control bg-dark border-secondary text-light @error('address') is-invalid @enderror"
-                               id="address" name="address" value="{{ old('address', $business->address) }}">
+                               id="address" name="address" value="{{ old('address', $business->address) }}"
+                               minlength="5" maxlength="150">
                     </div>
                 </div>
 

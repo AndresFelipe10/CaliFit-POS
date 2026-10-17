@@ -31,12 +31,15 @@ class UpdateCustomerRequest extends FormRequest
             'name' => [
                 'required',
                 'string',
-                'max:255',
+                'min:2',
+                'max:100',
                 'regex:/[a-zA-ZáéíóúÁÉÍÓÚñÑ]/',
             ],
             'document' => [
                 'required',
                 'string',
+                'min:5',
+                'max:15',
                 'regex:/^\d{5,15}(-\d)?$/',
                 'not_in:222222222222',
                 Rule::unique('customers', 'document')
@@ -45,8 +48,14 @@ class UpdateCustomerRequest extends FormRequest
             ],
             'identification_number' => ['nullable', 'string', 'max:30'],
             'email' => ['nullable', 'email', 'max:150'],
-            'phone' => ['nullable', 'string', 'max:30', 'regex:/^[\d\s+\-()]{7,20}$/'],
-            'address' => ['nullable', 'string', 'max:255'],
+            'phone' => ['nullable', 'string', 'min:7', 'max:20', 'regex:/^\+?[0-9\s\-()]{7,20}$/'],
+            'address' => [
+                'nullable',
+                'string',
+                'min:5',
+                'max:150',
+                'regex:/^(?!.*(.)\1{5,})[a-zA-Z0-9áéíóúÁÉÍÓÚñÑüÜ\s#\-\.,\/°]+$/u',
+            ],
             'is_active' => ['nullable', 'boolean'],
         ];
     }
@@ -58,12 +67,21 @@ class UpdateCustomerRequest extends FormRequest
     {
         return [
             'name.required' => 'El nombre o razón social es obligatorio.',
+            'name.min' => 'El nombre o razón social debe tener al menos 2 caracteres.',
+            'name.max' => 'El nombre o razón social no puede superar los 100 caracteres.',
             'name.regex' => 'El nombre o razón social debe contener letras y no solo números.',
             'document.required' => 'El documento o NIT es obligatorio.',
+            'document.min' => 'El documento debe contener al menos 5 dígitos.',
+            'document.max' => 'El documento no puede superar los 15 caracteres.',
             'document.regex' => 'El documento debe contener entre 5 y 15 dígitos numéricos (con guión y dígito opcional para NIT).',
             'document.not_in' => 'El documento 222222222222 está reservado para Consumidor Final de la DIAN.',
             'document.unique' => 'Ya existe un cliente registrado con este documento en este negocio.',
-            'phone.regex' => 'El teléfono solo debe contener números, espacios o los símbolos + y - (entre 7 y 20 caracteres).',
+            'phone.min' => 'El teléfono debe tener al menos 7 dígitos.',
+            'phone.max' => 'El teléfono no puede superar los 20 caracteres.',
+            'phone.regex' => 'El teléfono debe contener únicamente números (entre 7 y 15 dígitos) y opcionalmente el prefijo +.',
+            'address.min' => 'La dirección debe tener al menos 5 caracteres.',
+            'address.max' => 'La dirección no puede superar los 150 caracteres.',
+            'address.regex' => 'La dirección contiene caracteres no válidos o repetición indebida de caracteres.',
             'email.email' => 'El campo correo electrónico debe ser una dirección de correo válida.',
         ];
     }
@@ -84,8 +102,16 @@ class UpdateCustomerRequest extends FormRequest
         }
 
         $phone = $this->input('phone');
-        if ($phone !== null && trim((string)$phone) === '') {
-            $phone = null;
+        if ($phone !== null) {
+            $phone = trim((string)$phone);
+            if ($phone === '') {
+                $phone = null;
+            }
+        }
+
+        $address = $this->input('address');
+        if ($address !== null && trim((string)$address) === '') {
+            $address = null;
         }
 
         $email = $this->input('email');
@@ -95,6 +121,7 @@ class UpdateCustomerRequest extends FormRequest
 
         $this->merge([
             'phone' => $phone,
+            'address' => $address,
             'email' => $email,
             'is_active' => $this->boolean('is_active', true),
         ]);

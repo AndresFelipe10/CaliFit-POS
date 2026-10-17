@@ -23,7 +23,13 @@ class StoreUserRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => ['required', 'string', 'max:255'],
+            'name' => [
+                'required',
+                'string',
+                'min:2',
+                'max:80',
+                'regex:/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s.\'-]+$/u',
+            ],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'min:8'],
             'role_id' => ['required', 'exists:roles,id'],
@@ -38,6 +44,10 @@ class StoreUserRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'name.required' => 'El nombre del usuario es obligatorio.',
+            'name.min' => 'El nombre debe tener al menos 2 caracteres.',
+            'name.max' => 'El nombre no puede superar los 80 caracteres.',
+            'name.regex' => 'El nombre solo debe contener letras, espacios, puntos o guiones.',
             'email.unique' => 'Ese correo no está disponible.',
             'role_id.exists' => 'El rol seleccionado no es válido.',
         ];

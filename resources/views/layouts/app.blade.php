@@ -27,9 +27,9 @@
         /* Forzar visibilidad permanente de spinners numéricos en navegadores WebKit/Chromium */
         input[type=number]::-webkit-inner-spin-button,
         input[type=number]::-webkit-outer-spin-button {
+            -webkit-appearance: inner-spin-button !important;
             opacity: 1 !important;
-            visibility: visible !important;
-            display: block !important;
+            cursor: pointer;
         }
         /* Soporte en Firefox */
         input[type=number] {
@@ -135,6 +135,17 @@
         }
 
         /* Estilos del Sidebar */
+        .sidebar-section-label {
+            font-size: 0.70rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: #64748b;
+            padding: 0.85rem 1rem 0.35rem 1rem;
+            margin-bottom: 0.15rem;
+            user-select: none;
+        }
+
         .sidebar-nav-container .nav-link {
             display: flex;
             align-items: center;
@@ -406,29 +417,99 @@
                 input.addEventListener('focus', function () {
                     this.select();
                 });
-                input.addEventListener('mouseup', function (e) {
-                    e.preventDefault();
-                });
             });
         }
 
-        // Delegación de eventos para inputs numéricos y monetarios estáticos y dinámicos
-        document.addEventListener('focusin', function (e) {
+        // Prevenir que la rueda del ratón (wheel) altere valores numéricos accidentalmente
+        document.addEventListener('wheel', function (e) {
+            if (document.activeElement && document.activeElement.type === 'number') {
+                document.activeElement.blur();
+            }
+        }, { passive: true });
+
+        // Prevenir caracteres no numéricos prohibidos en inputs de números positivos
+        document.addEventListener('keydown', function (e) {
             const target = e.target;
-            if (target && target.matches('input[type="number"], .currency-input, input[name="cost_price"], input[name="sale_price"], input[name="stock"], input[name="min_stock"]')) {
-                setTimeout(() => {
-                    target.select();
-                }, 0);
+            if (target && target.matches('input[type="number"]') && target.getAttribute('min') === '0') {
+                if (e.key === 'e' || e.key === 'E' || e.key === '+' || (e.key === '-' && !target.hasAttribute('data-allow-negative'))) {
+                    e.preventDefault();
+                }
             }
         });
 
+        // Motor global y declarativo de higienización y restricción de inputs en tiempo real
         document.addEventListener('input', function (e) {
             const target = e.target;
-            if (target && target.matches('input[type="number"], .currency-input, input[name="cost_price"], input[name="sale_price"], input[name="stock"], input[name="min_stock"]')) {
+            if (!target || !target.tagName || (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA')) return;
+
+            // 1. Inputs numéricos: supresión reactiva de ceros a la izquierda
+            if (target.matches('input[type="number"], .currency-input, input[name="cost_price"], input[name="sale_price"], input[name="stock"], input[name="min_stock"]')) {
                 const val = target.value;
                 if (/^0+[1-9]/.test(val)) {
                     target.value = val.replace(/^0+/, '');
                 }
+                return;
+            }
+
+            // 2. Teléfono / WhatsApp: Solo dígitos y prefijo + opcional al inicio (longitud 7 a 15)
+            if (target.matches('input[type="tel"], input[name*="phone"], input[data-input-type="phone"]')) {
+                const val = target.value;
+                let cleaned = val.replace(/[^0-9+]/g, '');
+                if (cleaned.startsWith('+')) {
+                    cleaned = '+' + cleaned.substring(1).replace(/\+/g, '');
+                } else {
+                    cleaned = cleaned.replace(/\+/g, '');
+                }
+                if (cleaned.length > 15) {
+                    cleaned = cleaned.slice(0, 15);
+                }
+                if (val !== cleaned) {
+                    target.value = cleaned;
+                }
+                return;
+            }
+
+            // 3. Documento / Cédula / NIT: Solo dígitos y máximo un guion para dígito de verificación
+            if (target.matches('input[name="document"], input[name="document_number"], input[name="nit"], input[name="identification_number"], input[data-input-type="document"]')) {
+                const val = target.value;
+                let cleaned = val.replace(/[^0-9-]/g, '');
+                const firstDash = cleaned.indexOf('-');
+                if (firstDash !== -1) {
+                    cleaned = cleaned.substring(0, firstDash + 1) + cleaned.substring(firstDash + 1).replace(/-/g, '');
+                }
+                if (cleaned.length > 15) {
+                    cleaned = cleaned.slice(0, 15);
+                }
+                if (val !== cleaned) {
+                    target.value = cleaned;
+                }
+                return;
+            }
+
+            // 4. Nombre de Personas (Clientes, Meseros, Contactos): Solo letras, acentos, espacios, puntos y apóstrofes
+            if (target.matches('input[name="customer_name"], input[name="waiter_name"], input[name="contact_name"], input[data-person-name]')) {
+                const val = target.value;
+                let cleaned = val.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s.']/g, '').replace(/\s{2,}/g, ' ');
+                if (cleaned.length > 80) {
+                    cleaned = cleaned.slice(0, 80);
+                }
+                if (val !== cleaned) {
+                    target.value = cleaned;
+                }
+                return;
+            }
+
+            // 5. Dirección de Entrega / Ubicación: Caracteres alfanuméricos viales colombianos
+            if (target.matches('input[name="delivery_address"], input[name="address"], textarea[name="delivery_address"], textarea[name="address"]')) {
+                const val = target.value;
+                let cleaned = val.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑüÜ\s#\-\.,\/°]/g, '');
+                if (cleaned.length > 150) {
+                    cleaned = cleaned.slice(0, 150);
+                }
+                if (val !== cleaned) {
+                    target.value = cleaned;
+                }
+                return;
             }
         });
 

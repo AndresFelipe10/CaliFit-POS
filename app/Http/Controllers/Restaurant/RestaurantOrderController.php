@@ -7,6 +7,7 @@ use App\Http\Requests\Restaurant\AddOrderItemsRequest;
 use App\Http\Requests\Restaurant\CancelRestaurantOrderRequest;
 use App\Http\Requests\Restaurant\ChangeOrderTableRequest;
 use App\Http\Requests\Restaurant\RemoveOrderItemRequest;
+use App\Http\Requests\Restaurant\SplitOrderPaymentRequest;
 use App\Http\Requests\Restaurant\StoreDeliveryOrderRequest;
 use App\Http\Requests\Restaurant\StoreRestaurantOrderRequest;
 use App\Models\Customer;
@@ -14,6 +15,7 @@ use App\Models\Product;
 use App\Models\RestaurantOrder;
 use App\Models\RestaurantOrderItem;
 use App\Models\RestaurantTable;
+use App\Models\Sale;
 use App\Services\Restaurant\RestaurantOrderService;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
@@ -132,7 +134,7 @@ class RestaurantOrderController extends Controller
     {
         Gate::authorize('view', $order);
 
-        $order->load(['table', 'user', 'items.product', 'customer']);
+        $order->load(['table', 'user', 'items.product', 'customer', 'sales']);
 
         $productsQuery = Product::where('is_active', true);
         if ($order->order_type === 'table') {
@@ -164,11 +166,18 @@ class RestaurantOrderController extends Controller
     {
         Gate::authorize('update', $order);
 
-        $orderService->addItemsToOrder($order, $request->validated('items'));
+        if (! $order->canBeModified()) {
+            return redirect()->route('restaurant.orders.show', $order)
+                ->with('error', 'No se pueden agregar platos a una comanda que ya ha sido cerrada y facturada.');
+        }
+
+        $createdItems = $orderService->addItemsToOrder($order, $request->validated('items'));
+        $batchNumber = $createdItems->first()?->batch_number;
 
         return redirect()->route('restaurant.orders.show', $order)
             ->with('success', 'Platos agregados correctamente a la comanda.')
-            ->with('print_kitchen_ticket_id', $order->id);
+            ->with('print_kitchen_ticket_id', $order->id)
+            ->with('print_kitchen_batch', $batchNumber);
     }
 
     /**
@@ -178,16 +187,28 @@ class RestaurantOrderController extends Controller
     {
         Gate::authorize('view', $order);
 
-        $itemsToPrint = $orderService->sendToKitchen($order);
+        $batch = $request->query('batch') ?? $request->input('batch');
         $isReprint = false;
 
-        // Si todos los ítems ya estaban impresos (reimpresión)
-        if ($itemsToPrint->isEmpty()) {
+        if ($batch) {
             $itemsToPrint = $order->items()
+                ->where('batch_number', $batch)
                 ->where('status', '!=', 'cancelled')
                 ->with('product')
                 ->get();
-            $isReprint = true;
+        } else {
+            $itemsToPrint = $orderService->sendToKitchen($order);
+
+            // Si todos los ítems ya estaban impresos (reimpresión de la última tanda enviada)
+            if ($itemsToPrint->isEmpty()) {
+                $maxBatch = (int) ($order->items()->where('status', '!=', 'cancelled')->max('batch_number') ?? 1);
+                $itemsToPrint = $order->items()
+                    ->where('batch_number', $maxBatch)
+                    ->where('status', '!=', 'cancelled')
+                    ->with('product')
+                    ->get();
+                $isReprint = true;
+            }
         }
 
         return view('restaurant.orders.kitchen-ticket', [
@@ -294,25 +315,18 @@ class RestaurantOrderController extends Controller
     {
         Gate::authorize('view', $order);
 
-        DB::transaction(function () use ($order) {
-            $lockedOrder = RestaurantOrder::where('business_id', $order->business_id)
-                ->lockForUpdate()
-                ->findOrFail($order->id);
+        if (! $order->isClosedOrBilled() && ! $order->isCancelled()) {
+            $order->update([
+                'precount_printed_at' => now(),
+            ]);
 
-            if (! in_array($lockedOrder->status, ['closed', 'cancelled'], true)) {
-                $lockedOrder->update(['status' => 'billed']);
-
-                if ($lockedOrder->table_id) {
-                    $table = RestaurantTable::where('business_id', $lockedOrder->business_id)
-                        ->lockForUpdate()
-                        ->find($lockedOrder->table_id);
-
-                    if ($table) {
-                        $table->update(['status' => 'billed']);
-                    }
+            if ($order->table_id) {
+                $table = RestaurantTable::where('business_id', $order->business_id)->find($order->table_id);
+                if ($table && $table->status !== 'billed') {
+                    $table->update(['status' => 'billed']);
                 }
             }
-        });
+        }
 
         $order->refresh()->load(['items.product', 'user', 'table', 'business']);
 
@@ -430,7 +444,7 @@ class RestaurantOrderController extends Controller
             abort(403);
         }
 
-        if (! $order->canBeModified() || $order->status === 'billed') {
+        if (! $order->canBeModified()) {
             return back()->withErrors([
                 'order' => 'No se puede cambiar de mesa una comanda que ya fue facturada, cobrada o anulada.',
             ]);
@@ -443,5 +457,139 @@ class RestaurantOrderController extends Controller
 
         return redirect()->route('restaurant.orders.show', $order)
             ->with('success', "Mesa cambiada exitosamente a: {$newTable->name}");
+    }
+
+    /**
+     * Process split payment for selected items in an active table order.
+     */
+    public function splitPayment(
+        SplitOrderPaymentRequest $request,
+        RestaurantOrder $order,
+        RestaurantOrderService $orderService
+    ): RedirectResponse {
+        Gate::authorize('update', $order);
+
+        $result = $orderService->paySplitItems(
+            order: $order,
+            data: $request->validated(),
+            user: $request->user()
+        );
+
+        $msg = $result['is_fully_paid']
+            ? "Comanda {$order->order_number} saldada en su totalidad por división de cuenta. Mesa liberada."
+            : "Pago parcial de {$result['items_count']} plato(s) por $" . number_format($result['split_total'], 0, ',', '.') . " registrado exitosamente.";
+
+        return redirect()->route('restaurant.orders.show', $order)
+            ->with('success', $msg)
+            ->with('print_split_ticket_id', $result['payment_id']);
+    }
+
+    /**
+     * Render 80mm thermal ticket for split pre-count (informational partial pre-bill).
+     */
+    public function printSplitPrecount(Request $request, RestaurantOrder $order): View
+    {
+        Gate::authorize('view', $order);
+
+        $itemIds = $request->query('items', []);
+        if (is_string($itemIds)) {
+            $itemIds = explode(',', $itemIds);
+        }
+
+        $itemsQuery = $order->items()
+            ->where('status', '!=', 'cancelled')
+            ->where('payment_status', 'pending')
+            ->with('product');
+
+        if (! empty($itemIds)) {
+            $itemsQuery->whereIn('id', (array) $itemIds);
+        }
+
+        $items = $itemsQuery->get();
+        $splitTotal = (float) $items->sum('subtotal');
+
+        $customerId = $request->query('customer_id');
+        $customer = null;
+        if ($customerId) {
+            $customer = Customer::where('business_id', $order->business_id)->find($customerId);
+        }
+
+        $discountPct = max(0, min(100, (float) $request->query('discount_percentage', 0)));
+        $includeTip = filter_var($request->query('include_tip', false), FILTER_VALIDATE_BOOLEAN);
+        $includeTax = filter_var($request->query('include_tax', false), FILTER_VALIDATE_BOOLEAN);
+
+        $discountAmount = round($splitTotal * ($discountPct / 100), 2);
+        $base = max(0, round($splitTotal - $discountAmount, 2));
+        $tipAmount = $includeTip ? round($base * 0.10, 2) : 0;
+        $taxAmount = $includeTax ? round($base * 0.08, 2) : 0;
+        $finalTotal = round($base + $tipAmount + $taxAmount, 2);
+
+        $order->load(['table', 'user', 'customer', 'business']);
+
+        return view('restaurant.orders.split-precount-ticket', [
+            'order' => $order,
+            'items' => $items,
+            'splitTotal' => $splitTotal,
+            'customer' => $customer,
+            'discountPct' => $discountPct,
+            'discountAmount' => $discountAmount,
+            'includeTip' => $includeTip,
+            'tipAmount' => $tipAmount,
+            'includeTax' => $includeTax,
+            'taxAmount' => $taxAmount,
+            'finalTotal' => $finalTotal,
+        ]);
+    }
+
+    /**
+     * Render 80mm thermal receipt/ticket for a settled split payment.
+     */
+    public function printSplitTicket(RestaurantOrder $order, Sale $payment): View
+    {
+        Gate::authorize('view', $order);
+
+        if ((int) $payment->restaurant_order_id !== (int) $order->id || (int) $payment->business_id !== (int) $order->business_id) {
+            abort(404);
+        }
+
+        $order->load(['table', 'business', 'items']);
+        $payment->load(['details.product', 'payments', 'user', 'customer', 'business']);
+
+        return view('restaurant.orders.split-ticket', [
+            'order' => $order,
+            'payment' => $payment,
+        ]);
+    }
+
+    /**
+     * Bill and settle remaining balance of an order.
+     */
+    public function charge(
+        Request $request,
+        RestaurantOrder $order,
+        RestaurantOrderService $orderService
+    ): RedirectResponse {
+        Gate::authorize('update', $order);
+
+        if ((int) $order->business_id !== (int) session('current_business_id')) {
+            abort(403);
+        }
+
+        $sale = $orderService->billOrder($order, $request->all(), $request->user());
+
+        return redirect()->route('restaurant.orders.show', $order)
+            ->with('success', "Comanda {$order->order_number} cobrada y liquidada exitosamente.")
+            ->with('print_sale_ticket_id', $sale->id);
+    }
+
+    /**
+     * Alias for charge method.
+     */
+    public function bill(
+        Request $request,
+        RestaurantOrder $order,
+        RestaurantOrderService $orderService
+    ): RedirectResponse {
+        return $this->charge($request, $order, $orderService);
     }
 }

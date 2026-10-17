@@ -13,9 +13,9 @@
 /* Forzar visibilidad permanente de spinners numéricos en navegadores WebKit/Chromium */
 input[type=number]::-webkit-inner-spin-button,
 input[type=number]::-webkit-outer-spin-button {
+    -webkit-appearance: inner-spin-button !important;
     opacity: 1 !important;
-    visibility: visible !important;
-    display: block !important;
+    cursor: pointer;
 }
 /* Soporte en Firefox */
 input[type=number] {

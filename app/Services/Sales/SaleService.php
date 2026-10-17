@@ -325,6 +325,15 @@ class SaleService
 
             // Close linked restaurant order and free table if applicable
             if ($restaurantOrder) {
+                $restaurantOrder->items()
+                    ->where('payment_status', 'pending')
+                    ->where('status', '!=', 'cancelled')
+                    ->update([
+                        'payment_status' => 'paid',
+                        'paid_at' => now(),
+                        'payment_id' => $sale->id,
+                    ]);
+
                 $restaurantOrder->update([
                     'status' => 'closed',
                     'sale_id' => $sale->id,

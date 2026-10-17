@@ -4,77 +4,78 @@
 
 @section('content')
 <div class="container-fluid py-3">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h1 class="h3 fw-bold mb-1 text-dark">
-                <i class="bi bi-grid-3x3-gap-fill text-primary me-2"></i>Salón y Mapa de Mesas
-            </h1>
+    {{-- Cabecera Responsiva Mobile POS --}}
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3 mb-4">
+        <div class="w-100 w-md-auto">
+            <div class="d-flex align-items-center gap-2 mb-1">
+                <i class="bi bi-grid-3x3-gap-fill text-primary fs-4"></i>
+                <h1 class="fs-3 fw-bold text-dark mb-0">Salón y Mapa de Mesas</h1>
+            </div>
             <p class="text-muted small mb-0">Gestión de mesas en tiempo real y asignación rápida de comandas.</p>
         </div>
-        <div class="d-flex gap-2">
-            <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#kitchenConfigModal" title="Configuración de Comandas">
-                <i class="bi bi-gear-fill me-1"></i> Configuración
-            </button>
-            <a href="{{ route('restaurant.orders.index') }}" class="btn btn-outline-secondary">
-                <i class="bi bi-receipt me-1"></i> Ver Comandas
+        <div class="d-flex align-items-center gap-2 w-100 w-md-auto">
+            <a href="{{ route('restaurant.orders.index') }}" class="btn btn-outline-secondary d-inline-flex align-items-center justify-content-center gap-2 flex-fill flex-md-grow-0 px-3 py-2 rounded-3 fw-semibold" style="min-height: 44px;">
+                <i class="bi bi-receipt"></i>
+                <span>Ver Comandas</span>
             </a>
             @can('create', App\Models\RestaurantTable::class)
-                <a href="{{ route('restaurant.tables.create') }}" class="btn btn-primary">
-                    <i class="bi bi-plus-circle me-1"></i> Nueva Mesa
+                <a href="{{ route('restaurant.tables.create') }}" class="btn btn-primary d-inline-flex align-items-center justify-content-center gap-2 flex-fill flex-md-grow-0 px-3 py-2 rounded-3 fw-semibold shadow-sm" style="min-height: 44px;">
+                    <i class="bi bi-plus-circle"></i>
+                    <span>Nueva Mesa</span>
                 </a>
             @endcan
         </div>
     </div>
 
-    {{-- Indicadores de estado del salón --}}
-    <div class="row g-3 mb-4">
-        <div class="col-6 col-md-3">
-            <div class="card border-0 shadow-sm rounded-3">
-                <div class="card-body d-flex align-items-center">
-                    <div class="rounded-circle bg-secondary bg-opacity-10 p-3 me-3 text-secondary">
-                        <i class="bi bi-grid fs-4"></i>
+    {{-- Indicadores de estado del salón (KPIs Adaptables) --}}
+    <div class="row g-2 g-md-3 mb-4">
+        <div class="col-6 col-lg-3">
+            <div class="card border-0 shadow-sm rounded-3 h-100">
+                <div class="card-body p-3 d-flex align-items-center">
+                    <div class="rounded-circle bg-secondary bg-opacity-10 p-2 p-md-3 me-2 me-md-3 text-secondary flex-shrink-0">
+                        <i class="bi bi-grid fs-5 fs-md-4"></i>
                     </div>
                     <div>
-                        <span class="text-muted small fw-semibold">Total Mesas</span>
+                        <span class="text-muted small fw-semibold d-block text-truncate">Total Mesas</span>
                         <h4 class="fw-bold mb-0">{{ $stats['total'] }}</h4>
                     </div>
                 </div>
             </div>
         </div>
-        <div class="col-6 col-md-3">
-            <div class="card border-0 shadow-sm rounded-3">
-                <div class="card-body d-flex align-items-center">
-                    <div class="rounded-circle bg-success bg-opacity-10 p-3 me-3 text-success">
-                        <i class="bi bi-check-circle-fill fs-4"></i>
+        <div class="col-6 col-lg-3">
+            <div class="card border-0 shadow-sm rounded-3 h-100">
+                <div class="card-body p-3 d-flex align-items-center">
+                    <div class="rounded-circle bg-success bg-opacity-10 p-2 p-md-3 me-2 me-md-3 text-success flex-shrink-0">
+                        <i class="bi bi-check-circle-fill fs-5 fs-md-4"></i>
                     </div>
                     <div>
-                        <span class="text-muted small fw-semibold">Libres</span>
+                        <span class="text-muted small fw-semibold d-block text-truncate">Libres</span>
                         <h4 class="fw-bold mb-0 text-success">{{ $stats['available'] }}</h4>
                     </div>
                 </div>
             </div>
         </div>
-        <div class="col-6 col-md-3">
-            <div class="card border-0 shadow-sm rounded-3">
-                <div class="card-body d-flex align-items-center">
-                    <div class="rounded-circle bg-primary bg-opacity-10 p-3 me-3 text-primary">
-                        <i class="bi bi-people-fill fs-4"></i>
+        <div class="col-6 col-lg-3">
+            <div class="card border-0 shadow-sm rounded-3 h-100">
+                <div class="card-body p-3 d-flex align-items-center">
+                    <div class="rounded-circle bg-primary bg-opacity-10 p-2 p-md-3 me-2 me-md-3 text-primary flex-shrink-0">
+                        <i class="bi bi-people-fill fs-5 fs-md-4"></i>
                     </div>
                     <div>
-                        <span class="text-muted small fw-semibold">Ocupadas</span>
+                        <span class="text-muted small fw-semibold d-block text-truncate">Ocupadas</span>
                         <h4 class="fw-bold mb-0 text-primary">{{ $stats['occupied'] }}</h4>
                     </div>
                 </div>
             </div>
         </div>
-        <div class="col-6 col-md-3">
-            <div class="card border-0 shadow-sm rounded-3">
-                <div class="card-body d-flex align-items-center">
-                    <div class="rounded-circle bg-warning bg-opacity-10 p-3 me-3 text-warning">
-                        <i class="bi bi-hourglass-split fs-4"></i>
+        <div class="col-6 col-lg-3">
+            <div class="card border-0 shadow-sm rounded-3 h-100">
+                <div class="card-body p-3 d-flex align-items-center">
+                    <div class="rounded-circle bg-warning bg-opacity-10 p-2 p-md-3 me-2 me-md-3 text-warning flex-shrink-0">
+                        <i class="bi bi-hourglass-split fs-5 fs-md-4"></i>
                     </div>
                     <div>
-                        <span class="text-muted small fw-semibold">En Cobro</span>
+                        <span class="text-muted small fw-semibold d-block text-truncate">En Cobro</span>
                         <h4 class="fw-bold mb-0 text-warning">{{ $stats['billed'] }}</h4>
                     </div>
                 </div>
@@ -97,7 +98,7 @@
             </div>
         </div>
     @else
-        <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-xl-6 g-2 g-md-3">
+        <div class="row g-2 g-md-3">
             @foreach($tables as $table)
                 @php
                     $isAvailable = $table->status === 'available';
@@ -105,7 +106,7 @@
                     $isBilled = $table->status === 'billed';
                     $activeOrder = $table->activeOrder;
                 @endphp
-                <div class="col">
+                <div class="col-12 col-sm-6 col-lg-4 col-xl-3">
                     <div class="card h-100 shadow-sm rounded-3 border-2 transition-all {{ $isAvailable ? 'border-success' : ($isOccupied ? 'border-primary' : 'border-warning') }}">
                         <div class="card-header bg-white border-0 p-2 d-flex justify-content-between align-items-center">
                             <span class="badge px-2 py-1 fw-bold {{ $isAvailable ? 'bg-success text-white' : ($isOccupied ? 'bg-primary text-white' : 'bg-warning text-dark') }}" style="font-size: 0.68rem;">
@@ -119,7 +120,7 @@
 
                                 @can('update', $table)
                                     <div class="dropdown">
-                                        <button class="btn btn-xs btn-light rounded-circle text-muted p-0 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px;" type="button" data-bs-toggle="dropdown" aria-label="Opciones de mesa">
+                                        <button class="btn btn-xs btn-light rounded-circle text-muted p-0 d-flex align-items-center justify-content-center" style="width: 28px; height: 28px;" type="button" data-bs-toggle="dropdown" aria-label="Opciones de mesa">
                                             <i class="bi bi-three-dots-vertical" style="font-size: 0.75rem;"></i>
                                         </button>
                                         <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0">
@@ -155,11 +156,11 @@
                             @if(($isOccupied || $isBilled) && $activeOrder)
                                 <div class="bg-light rounded-2 p-1.5 mb-1 text-start small border" style="font-size: 0.75rem;">
                                     <div class="d-flex justify-content-between align-items-center mb-0.5">
-                                        <span class="fw-bold text-dark text-truncate" style="max-width: 65px;" title="{{ $activeOrder->order_number }}">#{{ $activeOrder->order_number }}</span>
+                                        <span class="fw-bold text-dark text-truncate" style="max-width: 80px;" title="{{ $activeOrder->order_number }}">#{{ $activeOrder->order_number }}</span>
                                         <span class="fw-bold text-primary">${{ number_format($activeOrder->total, 0, ',', '.') }}</span>
                                     </div>
                                     <div class="d-flex justify-content-between align-items-center text-muted" style="font-size: 0.7rem;">
-                                        <span class="text-truncate" style="max-width: 65px;" title="{{ !empty($activeOrder->customer_name) ? $activeOrder->customer_name : ($activeOrder->user->name ?? 'Usuario') }}">
+                                        <span class="text-truncate" style="max-width: 80px;" title="{{ !empty($activeOrder->customer_name) ? $activeOrder->customer_name : ($activeOrder->user->name ?? 'Usuario') }}">
                                             <i class="bi bi-person-badge"></i> {{ !empty($activeOrder->customer_name) ? $activeOrder->customer_name : ($activeOrder->user->name ?? 'Usuario') }}
                                         </span>
                                         <span class="text-secondary fw-semibold">
@@ -175,12 +176,13 @@
                         </div>
 
                         <div class="card-footer bg-white border-0 p-2 pt-0">
-                            @if($isAvailable)
-                                <a href="{{ route('restaurant.orders.create', ['table_id' => $table->id]) }}" class="btn btn-sm btn-outline-success w-100 fw-bold d-flex align-items-center justify-content-center py-2" style="min-height: 38px; font-size: 0.8rem;">
-                                    <i class="bi bi-plus-lg me-1"></i> + Abrir Mesa
+                            @if($isAvailable || !$activeOrder)
+                                <a href="{{ route('restaurant.orders.create', ['table_id' => $table->id]) }}" class="btn btn-sm btn-outline-success w-100 fw-bold d-flex align-items-center justify-content-center gap-1 py-2" style="min-height: 44px; font-size: 0.85rem;">
+                                    <i class="bi bi-plus-lg"></i>
+                                    <span>Abrir Mesa</span>
                                 </a>
-                            @elseif($activeOrder)
-                                <a href="{{ route('restaurant.orders.show', $activeOrder) }}" class="btn btn-sm btn-primary w-100 fw-bold d-flex align-items-center justify-content-center py-2" style="min-height: 38px; font-size: 0.8rem;">
+                            @else
+                                <a href="{{ route('restaurant.orders.show', $activeOrder) }}" class="btn btn-sm btn-primary w-100 fw-bold d-flex align-items-center justify-content-center py-2" style="min-height: 44px; font-size: 0.85rem;">
                                     <i class="bi bi-receipt me-1"></i> Ver Comanda
                                 </a>
                             @endif
@@ -191,6 +193,4 @@
         </div>
     @endif
 </div>
-
-@include('restaurant.partials.kitchen-config-modal')
 @endsection

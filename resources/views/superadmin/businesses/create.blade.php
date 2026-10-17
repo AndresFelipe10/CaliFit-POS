@@ -36,7 +36,8 @@
                     <div class="col-md-6">
                         <label for="name" class="form-label small fw-semibold text-secondary">Nombre Comercial <span class="text-danger">*</span></label>
                         <input type="text" class="form-control bg-dark border-secondary text-light @error('name') is-invalid @enderror"
-                               id="name" name="name" value="{{ old('name') }}" placeholder="Ej: Tienda La Colina" required autofocus>
+                               id="name" name="name" value="{{ old('name') }}" placeholder="Ej: Tienda La Colina"
+                               minlength="2" maxlength="100" required autofocus>
                     </div>
                     <div class="col-md-6">
                         <label for="business_type" class="form-label small fw-semibold text-secondary">Tipo de Negocio <span class="text-danger">*</span></label>
@@ -56,12 +57,14 @@
                     <div class="col-md-6">
                         <label for="nit" class="form-label small fw-semibold text-secondary">NIT / Identificación</label>
                         <input type="text" class="form-control bg-dark border-secondary text-light @error('nit') is-invalid @enderror"
-                               id="nit" name="nit" value="{{ old('nit') }}" placeholder="Ej: 900123456-1">
+                               id="nit" name="nit" value="{{ old('nit') }}" placeholder="Ej: 900123456-1"
+                               minlength="5" maxlength="15" inputmode="numeric">
                     </div>
                     <div class="col-md-6">
                         <label for="phone" class="form-label small fw-semibold text-secondary">Teléfono / WhatsApp</label>
-                        <input type="text" class="form-control bg-dark border-secondary text-light @error('phone') is-invalid @enderror"
-                               id="phone" name="phone" value="{{ old('phone') }}" placeholder="Ej: 3001234567">
+                        <input type="tel" class="form-control bg-dark border-secondary text-light @error('phone') is-invalid @enderror"
+                               id="phone" name="phone" value="{{ old('phone') }}" placeholder="Ej: 3001234567"
+                               minlength="7" maxlength="15" inputmode="tel">
                     </div>
                 </div>
 
@@ -69,12 +72,13 @@
                     <div class="col-md-6">
                         <label for="email" class="form-label small fw-semibold text-secondary">Correo del Negocio</label>
                         <input type="email" class="form-control bg-dark border-secondary text-light @error('email') is-invalid @enderror"
-                               id="email" name="email" value="{{ old('email') }}" placeholder="contacto@negocio.com">
+                               id="email" name="email" value="{{ old('email') }}" placeholder="contacto@negocio.com" maxlength="150">
                     </div>
                     <div class="col-md-6">
                         <label for="address" class="form-label small fw-semibold text-secondary">Dirección</label>
                         <input type="text" class="form-control bg-dark border-secondary text-light @error('address') is-invalid @enderror"
-                               id="address" name="address" value="{{ old('address') }}" placeholder="Ej: Calle 5 # 10-20, Cali">
+                               id="address" name="address" value="{{ old('address') }}" placeholder="Ej: Calle 5 # 10-20, Cali"
+                               minlength="5" maxlength="150">
                     </div>
                 </div>
 
@@ -83,7 +87,8 @@
                 <div class="mb-3">
                     <label for="admin_name" class="form-label small fw-semibold text-secondary">Nombre del Administrador <span class="text-danger">*</span></label>
                     <input type="text" class="form-control bg-dark border-secondary text-light @error('admin_name') is-invalid @enderror"
-                           id="admin_name" name="admin_name" value="{{ old('admin_name') }}" placeholder="Ej: Andrés Felipe Gómez" required>
+                           id="admin_name" name="admin_name" value="{{ old('admin_name') }}" placeholder="Ej: Andrés Felipe Gómez"
+                           minlength="2" maxlength="80" required>
                 </div>
 
                 <div class="row g-3 mb-4">

@@ -39,6 +39,9 @@
                                id="name" 
                                name="name" 
                                value="{{ old('name', $supplier->name) }}" 
+                               minlength="2"
+                               maxlength="100"
+                               autocomplete="off"
                                required 
                                autofocus>
                     </div>
@@ -49,7 +52,11 @@
                                class="form-control font-monospace @error('identification_number') is-invalid @enderror" 
                                id="identification_number" 
                                name="identification_number" 
-                               value="{{ old('identification_number', $supplier->identification_number) }}">
+                               value="{{ old('identification_number', $supplier->identification_number) }}"
+                               minlength="5"
+                               maxlength="15"
+                               inputmode="numeric"
+                               autocomplete="off">
                     </div>
                 </div>
 
@@ -60,16 +67,23 @@
                                class="form-control @error('contact_name') is-invalid @enderror" 
                                id="contact_name" 
                                name="contact_name" 
-                               value="{{ old('contact_name', $supplier->contact_name) }}">
+                               value="{{ old('contact_name', $supplier->contact_name) }}"
+                               minlength="2"
+                               maxlength="80"
+                               autocomplete="off">
                     </div>
 
                     <div class="col-md-6">
                         <label for="phone" class="form-label small fw-semibold text-secondary">Teléfono / WhatsApp</label>
-                        <input type="text" 
-                               class="form-control @error('phone') is-invalid @enderror" 
+                        <input type="tel" 
+                               class="form-control font-monospace @error('phone') is-invalid @enderror" 
                                id="phone" 
                                name="phone" 
-                               value="{{ old('phone', $supplier->phone) }}">
+                               value="{{ old('phone', $supplier->phone) }}"
+                               minlength="7"
+                               maxlength="15"
+                               inputmode="tel"
+                               autocomplete="off">
                     </div>
                 </div>
 
@@ -89,7 +103,9 @@
                            class="form-control @error('address') is-invalid @enderror" 
                            id="address" 
                            name="address" 
-                           value="{{ old('address', $supplier->address) }}">
+                           value="{{ old('address', $supplier->address) }}"
+                           minlength="5"
+                           maxlength="150">
                     </div>
                 </div>
 

@@ -22,6 +22,9 @@ class RestaurantOrderItem extends Model
         'subtotal',
         'notes',
         'status',
+        'payment_status',
+        'paid_at',
+        'payment_id',
         'printed_to_kitchen',
         'batch_number',
         'cancelled_by',
@@ -37,6 +40,7 @@ class RestaurantOrderItem extends Model
             'subtotal' => 'float',
             'printed_to_kitchen' => 'boolean',
             'batch_number' => 'integer',
+            'paid_at' => 'datetime',
             'cancelled_at' => 'datetime',
         ];
     }
@@ -56,6 +60,11 @@ class RestaurantOrderItem extends Model
         return $this->belongsTo(Product::class);
     }
 
+    public function payment(): BelongsTo
+    {
+        return $this->belongsTo(Sale::class, 'payment_id');
+    }
+
     public function cancelledByUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'cancelled_by');
@@ -64,5 +73,15 @@ class RestaurantOrderItem extends Model
     public function isCancelled(): bool
     {
         return $this->status === 'cancelled';
+    }
+
+    public function isPaid(): bool
+    {
+        return $this->payment_status === 'paid';
+    }
+
+    public function isPendingPayment(): bool
+    {
+        return $this->payment_status === 'pending';
     }
 }

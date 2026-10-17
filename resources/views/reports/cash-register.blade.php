@@ -278,6 +278,22 @@
                         <span class="h4 fw-bold text-dark mb-0">${{ number_format($total_delivery_fee, 0, ',', '.') }}</span>
                     </div>
                 </div>
+
+                {{-- Recaudo de Propinas Voluntarias (Bolsa de Propinas para Personal de Servicio) --}}
+                <div class="mt-3 p-3 bg-success-subtle rounded-3 border border-success text-success-emphasis d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <div>
+                        <i class="bi bi-heart-fill fs-5 me-2 align-middle text-success"></i>
+                        <strong class="align-middle">Total Propinas Recaudadas (Servicio Voluntario):</strong>
+                        <span class="d-block small text-muted mt-1">
+                            Bolsa de propinas acumulada para distribución al personal de servicio.
+                            (Efectivo: <strong>${{ number_format($cash_tips ?? 0, 0, ',', '.') }}</strong> | 
+                            Digital: <strong>${{ number_format($digital_tips ?? 0, 0, ',', '.') }}</strong>)
+                        </span>
+                    </div>
+                    <div class="text-end">
+                        <span class="h4 fw-bold text-success mb-0">${{ number_format($total_tips ?? 0, 0, ',', '.') }}</span>
+                    </div>
+                </div>
             </div>
         </div>
 

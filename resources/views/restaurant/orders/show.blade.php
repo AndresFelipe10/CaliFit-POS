@@ -63,7 +63,7 @@
                         <span class="badge bg-light text-dark border ms-2">
                             <i class="bi bi-aspect-ratio me-1"></i>{{ $order->table->name }}
                         </span>
-                        @if($order->canBeModified())
+                        @if($order->canBeModified() && !in_array($order->status, ['billed', 'closed', 'cancelled']))
                             <button type="button" class="btn btn-sm btn-outline-primary ms-2" data-bs-toggle="modal" data-bs-target="#changeTableModal">
                                 <i class="bi bi-arrow-left-right me-1"></i> Cambiar Mesa
                             </button>
@@ -107,7 +107,7 @@
                 }
             @endphp
 
-            @if(!in_array($order->status, ['closed', 'cancelled']))
+            @if(!in_array($order->status, ['closed', 'cancelled', 'billed']))
                 <form action="{{ route('restaurant.orders.kitchen-ticket', $order) }}" method="POST" target="_blank" class="d-inline">
                     @csrf
                     <button type="submit" class="btn {{ $hasPendingKitchen ? 'btn-warning text-dark fw-bold animate-pulse' : 'btn-outline-secondary' }}">
@@ -118,10 +118,17 @@
             @endif
 
             {{-- Botón Pre-cuenta (Mesas) --}}
-            @if($order->order_type === 'table' && !in_array($order->status, ['closed', 'cancelled']))
+            @if($order->order_type === 'table' && !in_array($order->status, ['closed', 'cancelled', 'billed']))
                 <a href="{{ route('restaurant.orders.prebill', $order) }}" target="_blank" class="btn btn-outline-warning text-dark fw-bold">
                     <i class="bi bi-file-earmark-text me-1"></i> Pre-cuenta (80mm)
                 </a>
+            @endif
+
+            {{-- Botón Dividir Cuenta por Platos (Mesas) --}}
+            @if($order->order_type === 'table' && $order->canBeModified() && !in_array($order->status, ['closed', 'cancelled', 'billed']) && $order->unpaidItems()->isNotEmpty())
+                <button type="button" class="btn btn-outline-success fw-semibold rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#splitBillModal">
+                    <i class="bi bi-pie-chart me-1"></i> Dividir Cuenta por Platos
+                </button>
             @endif
 
             {{-- Botón Cancelar Comanda Vacía --}}
@@ -132,17 +139,22 @@
             @endif
 
             {{-- Botón Cobrar / Facturar --}}
-            @if(!in_array($order->status, ['closed', 'cancelled']))
+            @if(!in_array($order->status, ['closed', 'cancelled', 'billed']) && !$order->isFullyPaid())
                 <button type="button" class="btn btn-success fw-bold text-white shadow-sm" data-bs-toggle="modal" data-bs-target="#settlementModal" {{ $activeItems->isEmpty() ? 'disabled' : '' }}>
-                    <i class="bi bi-cash-coin me-1"></i> Cobrar / Facturar
+                    <i class="bi bi-cash-coin me-1"></i> {{ $order->hasPartialPayments() ? 'Cobrar Saldo Restante ($' . number_format($order->pendingBalance(), 0, ',', '.') . ')' : 'Cobrar / Facturar' }}
                 </button>
-            @elseif($order->status === 'closed' && $order->sale_id)
-                <a href="{{ route('sales.show', $order->sale_id) }}" class="btn btn-outline-primary fw-bold">
-                    <i class="bi bi-receipt me-1"></i> Factura de Venta
-                </a>
-                <a href="{{ route('sales.print.receipt', $order->sale_id) }}" target="_blank" class="btn btn-outline-secondary">
-                    <i class="bi bi-printer me-1"></i> Ticket Fiscal (80mm)
-                </a>
+            @elseif(($order->status === 'closed' || $order->isFullyPaid() || $order->status === 'billed') && ($order->sale_id || ($order->relationLoaded('sales') && $order->sales->isNotEmpty())))
+                @php
+                    $headerSaleId = $order->sale_id ?? ($order->relationLoaded('sales') && $order->sales->isNotEmpty() ? $order->sales->last()->id : null);
+                @endphp
+                @if($headerSaleId)
+                    <a href="{{ route('sales.show', $headerSaleId) }}" class="btn btn-outline-primary fw-bold">
+                        <i class="bi bi-receipt me-1"></i> Factura de Venta
+                    </a>
+                    <a href="{{ route('sales.print.receipt', $headerSaleId) }}" target="_blank" class="btn btn-outline-secondary">
+                        <i class="bi bi-printer me-1"></i> Ticket Fiscal (80mm)
+                    </a>
+                @endif
             @endif
         </div>
     </div>
@@ -233,6 +245,10 @@
                                                             <span class="badge bg-danger-subtle text-danger border ms-1" title="Cancelado por {{ $item->cancelledByUser?->name ?? 'Admin' }}: {{ $item->cancellation_reason }}">
                                                                 <i class="bi bi-x-circle me-1"></i>Cancelado
                                                             </span>
+                                                        @elseif($item->isPaid())
+                                                            <span class="badge bg-success-subtle text-success border border-success-subtle ms-1">
+                                                                <i class="bi bi-check2-circle me-1"></i>Pagado
+                                                            </span>
                                                         @elseif($item->printed_to_kitchen)
                                                             <i class="bi bi-check2-all text-success ms-1" title="Impreso en cocina"></i>
                                                         @else
@@ -260,7 +276,7 @@
                                                     </td>
                                                     @if(auth()->check() && auth()->user()->hasRole('admin') && $order->canBeModified())
                                                         <td class="text-center">
-                                                            @if(! $item->isCancelled())
+                                                            @if(! $item->isCancelled() && ! $item->isPaid())
                                                                 <button type="button" 
                                                                         class="btn-action-icon-danger" 
                                                                         title="Gestionar o retirar plato de la comanda"
@@ -272,6 +288,8 @@
                                                                         data-action-url="{{ route('restaurant.orders.items.destroy', [$order, $item]) }}">
                                                                     <i class="bi bi-trash3"></i>
                                                                 </button>
+                                                            @elseif($item->isPaid())
+                                                                <span class="badge bg-success-subtle text-success border border-success-subtle small" title="Plato pagado con soporte contable"><i class="bi bi-lock-fill me-1"></i>Pagado</span>
                                                             @else
                                                                 <span class="text-muted small">—</span>
                                                             @endif
@@ -288,8 +306,9 @@
                 </div>
             </div>
 
-            {{-- Formulario para Agregar Más Platos (Solo si comanda está activa) --}}
-            @if(!in_array($order->status, ['closed', 'cancelled']))
+            {{-- Formulario para Agregar Más Platos o Panel Informativo de Comanda Cerrada --}}
+            {{-- Formulario para Agregar Más Platos o Panel Informativo de Comanda Cerrada --}}
+            @if($order->canBeModified())
                 <div class="card border-0 shadow-sm rounded-4">
                     <div class="card-header bg-white border-0 pt-4 pb-2 px-4">
                         <h5 class="fw-bold mb-0">
@@ -352,14 +371,61 @@
                             </div>
 
                             <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 pt-3 border-top">
-                                <button type="button" class="btn btn-outline-primary fw-semibold px-3 py-2 d-inline-flex align-items-center" id="btn-add-more-row" style="min-height: 44px;">
-                                    <i class="bi bi-plus-circle fs-5 me-2"></i> + Agregar otro plato
+                                <button type="button" class="btn btn-outline-primary fw-semibold px-3 py-2 d-inline-flex align-items-center gap-2" id="btn-add-more-row" style="min-height: 44px;">
+                                    <i class="bi bi-plus-circle fs-5"></i>
+                                    <span>Agregar otro plato</span>
                                 </button>
                                 <button type="submit" class="btn btn-primary px-4 py-2 fw-bold d-inline-flex align-items-center shadow-sm" style="min-height: 44px;">
                                     <i class="bi bi-send-check fs-5 me-2"></i> Confirmar y Enviar a Cocina
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            @elseif($order->isCancelled())
+                {{-- Panel informativo de Comanda Anulada --}}
+                <div class="card border-0 shadow-sm rounded-4 p-4 text-center bg-light-subtle mb-4">
+                    <div class="mb-3">
+                        <span class="badge bg-danger-subtle text-danger fs-6 px-3 py-2 border border-danger-subtle rounded-pill">
+                            <i class="bi bi-x-circle-fill me-1"></i> Comanda Anulada
+                        </span>
+                    </div>
+                    <h5 class="fw-bold text-dark mb-1">Esta comanda ha sido anulada</h5>
+                    <p class="text-muted small mb-3">La mesa asociada ha sido liberada y no se pueden agregar platos a este servicio.</p>
+                    <div class="d-flex justify-content-center gap-2 flex-wrap">
+                        <a href="{{ route('restaurant.tables.index') }}" class="btn btn-primary px-4 py-2 rounded-3 fw-semibold">
+                            <i class="bi bi-grid-3x3-gap me-2"></i>Volver al Salón y Mesas
+                        </a>
+                        <a href="{{ route('restaurant.orders.index') }}" class="btn btn-outline-secondary px-4 py-2 rounded-3 fw-semibold">
+                            <i class="bi bi-receipt me-2"></i>Ir a Comandas de Hoy
+                        </a>
+                    </div>
+                </div>
+            @elseif($order->isClosedOrBilled())
+                {{-- Panel informativo de Comanda Cerrada y Facturada --}}
+                <div class="card border-0 shadow-sm rounded-4 p-4 text-center bg-light-subtle mb-4">
+                    <div class="mb-3">
+                        <span class="badge bg-success-subtle text-success fs-6 px-3 py-2 border border-success-subtle rounded-pill">
+                            <i class="bi bi-check-circle-fill me-1"></i> Comanda Cerrada y Facturada
+                        </span>
+                    </div>
+                    <h5 class="fw-bold text-dark mb-1">Esta comanda ha sido liquidada en su totalidad</h5>
+                    <p class="text-muted small mb-3">La mesa asociada ha sido liberada y no se pueden agregar más platos a este servicio.</p>
+                    <div class="d-flex justify-content-center gap-2 flex-wrap">
+                        <a href="{{ route('restaurant.tables.index') }}" class="btn btn-primary px-4 py-2 rounded-3 fw-semibold">
+                            <i class="bi bi-grid-3x3-gap me-2"></i>Volver al Salón y Mesas
+                        </a>
+                        <a href="{{ route('restaurant.orders.index') }}" class="btn btn-outline-secondary px-4 py-2 rounded-3 fw-semibold">
+                            <i class="bi bi-receipt me-2"></i>Ir a Comandas de Hoy
+                        </a>
+                        @php
+                            $panelSaleId = $order->sale_id ?? ($order->relationLoaded('sales') && $order->sales->isNotEmpty() ? $order->sales->last()->id : null);
+                        @endphp
+                        @if($panelSaleId)
+                            <a href="{{ route('sales.show', $panelSaleId) }}" class="btn btn-outline-success px-3 py-2 rounded-3 fw-semibold" target="_blank">
+                                <i class="bi bi-file-earmark-text me-1"></i>Ver Factura
+                            </a>
+                        @endif
                     </div>
                 </div>
             @endif
@@ -374,8 +440,8 @@
 
                 <div class="card-body px-4 pb-4">
                     <div class="d-flex justify-content-between py-2 border-bottom">
-                        <span class="text-muted">Subtotal:</span>
-                        <span class="fw-semibold text-dark">${{ number_format($order->subtotal, 2) }}</span>
+                        <span class="text-muted">Subtotal Consumo:</span>
+                        <span class="fw-semibold text-dark">${{ number_format($order->totalAmount(), 2) }}</span>
                     </div>
 
                     @if($order->delivery_fee > 0)
@@ -385,20 +451,57 @@
                         </div>
                     @endif
 
-                    <div class="d-flex justify-content-between py-3">
-                        <span class="h5 fw-bold text-dark mb-0">Total:</span>
-                        <span class="h4 fw-bold text-primary mb-0">${{ number_format($order->total, 2) }}</span>
-                    </div>
+                    @if($order->totalTips() > 0)
+                        <div class="d-flex justify-content-between py-2 border-bottom text-success small">
+                            <span><i class="bi bi-heart me-1"></i>Propinas Pagadas:</span>
+                            <span class="fw-semibold">+${{ number_format($order->totalTips(), 2) }}</span>
+                        </div>
+                    @endif
+
+                    @if($order->totalTaxes() > 0)
+                        <div class="d-flex justify-content-between py-2 border-bottom text-primary small">
+                            <span>Impuesto al Consumo (INC):</span>
+                            <span class="fw-semibold">+${{ number_format($order->totalTaxes(), 2) }}</span>
+                        </div>
+                    @endif
+
+                    @if($order->hasPartialPayments())
+                        <div class="d-flex justify-content-between py-2 border-bottom text-muted small">
+                            <span><i class="bi bi-check-circle me-1 text-success"></i>Consumo Pagado:</span>
+                            <span class="fw-semibold text-dark">${{ number_format($order->paidAmount(), 2) }}</span>
+                        </div>
+                        <div class="d-flex justify-content-between py-3 border-bottom bg-light px-2 rounded-3 my-2">
+                            <span class="h5 fw-bold text-dark mb-0">SALDO POR COBRAR:</span>
+                            <span class="h4 fw-bold text-success mb-0">${{ number_format($order->pendingBalance(), 2) }}</span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center pt-2">
+                            <span class="small text-muted fw-semibold">Recaudado hasta ahora:</span>
+                            <span class="fw-bold text-primary">${{ number_format($order->totalCollected(), 2) }}</span>
+                        </div>
+                    @else
+                        <div class="d-flex justify-content-between align-items-center border-top pt-2 mt-2">
+                            <span class="fw-bold">Total Recaudado:</span>
+                            <span class="fs-4 fw-bold text-primary">${{ number_format($order->totalCollected() ?: $order->totalAmount(), 2) }}</span>
+                        </div>
+                    @endif
 
                     <div class="bg-light rounded-3 p-3 mt-1 text-start small">
                         <div class="mb-2">
                             <span class="text-muted d-block">Estado de Comanda:</span>
                             @switch($order->status)
                                 @case('open')
-                                    <span class="badge bg-info text-dark fs-6">Abierta</span>
+                                    @if(!empty($order->precount_printed_at) || $order->hasPartialPayments())
+                                        <span class="badge bg-warning text-dark fs-6"><i class="bi bi-clock-history me-1"></i>En Cobro / Pre-cuenta</span>
+                                    @else
+                                        <span class="badge bg-info text-dark fs-6">Abierta</span>
+                                    @endif
                                     @break
                                 @case('in_kitchen')
-                                    <span class="badge bg-warning text-dark fs-6">En Cocina</span>
+                                    @if(!empty($order->precount_printed_at) || $order->hasPartialPayments())
+                                        <span class="badge bg-warning text-dark fs-6"><i class="bi bi-clock-history me-1"></i>En Cobro / Pre-cuenta</span>
+                                    @else
+                                        <span class="badge bg-warning text-dark fs-6">En Cocina</span>
+                                    @endif
                                     @break
                                 @case('dispatched')
                                     <span class="badge bg-primary text-white fs-6">En Despacho</span>
@@ -407,7 +510,11 @@
                                     <span class="badge bg-secondary text-white fs-6">Entregado</span>
                                     @break
                                 @case('billed')
-                                    <span class="badge bg-warning text-dark fs-6"><i class="bi bi-clock-history me-1"></i>En Cobro / Pre-cuenta</span>
+                                    @if($order->isFullyPaid())
+                                        <span class="badge bg-success text-white fs-6"><i class="bi bi-check2-circle me-1"></i>Cerrada / Pagada</span>
+                                    @else
+                                        <span class="badge bg-warning text-dark fs-6"><i class="bi bi-clock-history me-1"></i>En Cobro / Pre-cuenta</span>
+                                    @endif
                                     @break
                                 @case('closed')
                                     <span class="badge bg-success text-white fs-6"><i class="bi bi-check2-circle me-1"></i>Cerrada / Facturada</span>
@@ -427,16 +534,16 @@
                         @endif
                     </div>
 
-                    @if(!in_array($order->status, ['closed', 'cancelled']))
+                    @if($order->canBeModified() && !$order->isFullyPaid())
                         <button type="button" class="btn btn-success btn-lg w-100 fw-bold text-white shadow-sm mt-3" data-bs-toggle="modal" data-bs-target="#settlementModal" {{ $activeItems->isEmpty() ? 'disabled' : '' }}>
-                            <i class="bi bi-cash-coin me-1"></i> Cobrar / Facturar
+                            <i class="bi bi-cash-coin me-1"></i> {{ $order->hasPartialPayments() ? 'Cobrar Saldo Restante ($' . number_format($order->pendingBalance(), 0, ',', '.') . ')' : 'Cobrar / Facturar' }}
                         </button>
                         @if(auth()->check() && auth()->user()->hasRole('admin') && $order->canBeModified())
                             <button type="button" class="btn btn-outline-danger w-100 fw-bold mt-2" data-bs-toggle="modal" data-bs-target="#cancelOrderModal">
                                 <i class="bi bi-x-octagon-fill me-1"></i> Anular Comanda
                             </button>
                         @endif
-                    @elseif($order->status === 'cancelled')
+                    @elseif($order->isCancelled())
                         <div class="alert alert-danger border-danger-subtle rounded-3 mt-3 mb-0 small text-start">
                             <div class="fw-bold mb-1 text-danger">
                                 <i class="bi bi-x-circle-fill me-1"></i> Comanda Anulada Definitivamente
@@ -456,15 +563,20 @@
                                 </div>
                             @endif
                         </div>
-                    @elseif($order->status === 'closed' && $order->sale_id)
-                        <div class="mt-3">
-                            <a href="{{ route('sales.show', $order->sale_id) }}" class="btn btn-outline-primary w-100 fw-bold mb-2">
-                                <i class="bi bi-receipt me-1"></i> Ver Factura
-                            </a>
-                            <a href="{{ route('sales.print.receipt', $order->sale_id) }}" target="_blank" class="btn btn-outline-secondary w-100">
-                                <i class="bi bi-printer me-1"></i> Imprimir Ticket Fiscal (80mm)
-                            </a>
-                        </div>
+                    @elseif($order->isClosedOrBilled() && ($order->sale_id || ($order->relationLoaded('sales') && $order->sales->isNotEmpty())))
+                        @php
+                            $sideSaleId = $order->sale_id ?? ($order->relationLoaded('sales') && $order->sales->isNotEmpty() ? $order->sales->last()->id : null);
+                        @endphp
+                        @if($sideSaleId)
+                            <div class="mt-3">
+                                <a href="{{ route('sales.show', $sideSaleId) }}" class="btn btn-outline-primary w-100 fw-bold mb-2">
+                                    <i class="bi bi-receipt me-1"></i> Ver Factura
+                                </a>
+                                <a href="{{ route('sales.print.receipt', $sideSaleId) }}" target="_blank" class="btn btn-outline-secondary w-100">
+                                    <i class="bi bi-printer me-1"></i> Imprimir Ticket Fiscal (80mm)
+                                </a>
+                            </div>
+                        @endif
                     @endif
                 </div>
             </div>
@@ -473,7 +585,7 @@
 </div>
 
 {{-- MODAL DE LIQUIDACIÓN Y FACTURACIÓN INTEGRADA --}}
-@if(!in_array($order->status, ['closed', 'cancelled']))
+@if($order->canBeModified() && !$order->isFullyPaid())
 <div class="modal fade" id="settlementModal" tabindex="-1" aria-labelledby="settlementModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content border-0 shadow rounded-4 overflow-hidden">
@@ -484,18 +596,19 @@
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
 
-            <form action="{{ route('sales.store') }}" method="POST" id="settlementForm">
+            <form action="{{ route('restaurant.orders.charge', $order) }}" method="POST" id="settlementForm">
                 @csrf
                 <input type="hidden" name="sale_date" value="{{ now()->format('Y-m-d\TH:i:s') }}">
                 <input type="hidden" name="restaurant_order_id" value="{{ $order->id }}">
                 <input type="hidden" name="order_type" value="{{ $order->order_type }}">
-                <input type="hidden" name="delivery_fee" id="settlement_delivery_fee" value="{{ $order->delivery_fee }}">
+                <input type="hidden" name="delivery_fee" id="settlement_delivery_fee" value="{{ $order->hasPartialPayments() ? 0 : $order->delivery_fee }}">
 
-                {{-- Productos de la comanda agrupados para facturación --}}
+                {{-- Productos pendientes de la comanda agrupados para facturación --}}
                 @php
+                    $unpaidItemsList = $order->unpaidItems();
                     $groupedItems = [];
-                    $dishSubtotal = 0.0;
-                    foreach ($activeItems as $item) {
+                    $pendingDishSubtotal = 0.0;
+                    foreach ($unpaidItemsList as $item) {
                         $pid = $item->product_id;
                         if (!isset($groupedItems[$pid])) {
                             $groupedItems[$pid] = [
@@ -507,7 +620,7 @@
                         }
                         $groupedItems[$pid]['quantity'] += (float)$item->quantity;
                         if ($item->product && $item->product->isDish()) {
-                            $dishSubtotal += (float)$item->quantity * (float)$item->unit_price;
+                            $pendingDishSubtotal += (float)$item->quantity * (float)$item->unit_price;
                         }
                     }
                 @endphp
@@ -520,27 +633,67 @@
                 @endforeach
 
                 <div class="modal-body p-4">
+                    {{-- Desglose Transparente de Pagos Parciales Previos (Si existen) --}}
+                    @if($order->hasPartialPayments())
+                        <div class="card bg-light border-0 p-3 mb-3 rounded-3">
+                            <div class="d-flex justify-content-between text-muted small mb-1">
+                                <span>Total Consumo Comanda:</span>
+                                <span>${{ number_format($order->totalAmount(), 2) }}</span>
+                            </div>
+                            <div class="d-flex justify-content-between text-success small mb-2">
+                                <span>Pagos Parciales Realizados:</span>
+                                <span>- ${{ number_format($order->paidAmount(), 2) }}</span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center border-top pt-2">
+                                <span class="fw-bold">Total a Liquidar (Saldo Pendiente):</span>
+                                <span class="fs-4 fw-bold text-primary" id="checkoutTotalDisplay">${{ number_format($order->pendingBalance(), 2) }}</span>
+                            </div>
+                        </div>
+                    @endif
+
                     {{-- Datos del Comprador y Descuento --}}
                     <div class="row g-3 mb-3">
                         <div class="col-12 col-md-7">
-                            <label class="form-label small fw-semibold text-dark">Cliente / Comprador:</label>
-                            <select name="customer_id" class="form-select form-select-sm">
-                                <option value="">Consumidor Final DIAN (222222222222)</option>
-                                @foreach($customers as $c)
-                                    <option value="{{ $c->id }}" {{ (old('customer_id', $order->customer_id) == $c->id) ? 'selected' : '' }}>
-                                        {{ $c->name }} (Doc: {{ $c->document ?? 'N/A' }})
-                                    </option>
-                                @endforeach
-                            </select>
-                            <small class="text-muted">Por defecto asignado a Consumidor Final</small>
+                            <label class="form-label fw-semibold small mb-1">Cliente / Comprador:</label>
+                            <div class="d-flex align-items-stretch gap-1">
+                                <select name="customer_id" id="settlement_customer_id" class="form-select form-select-sm">
+                                    <option value="">Consumidor Final DIAN (222222222222)</option>
+                                    @foreach($customers as $c)
+                                        <option value="{{ $c->id }}" {{ (old('customer_id', $order->customer_id) == $c->id) ? 'selected' : '' }}>
+                                            {{ $c->name }} (Doc: {{ $c->document ?? 'N/A' }})
+                                        </option>
+                                    @endforeach
+                                </select>
+                                <button type="button" 
+                                        class="btn btn-outline-primary d-flex align-items-center justify-content-center px-3 flex-shrink-0 btn-open-quick-customer" 
+                                        data-target-select="#settlement_customer_id"
+                                        title="Crear Cliente Rápido"
+                                        aria-label="Crear Cliente Rápido">
+                                    <i class="bi bi-plus-lg"></i>
+                                </button>
+                            </div>
+                            <small class="text-muted d-block" style="font-size: 0.72rem;">Por defecto asignado a Consumidor Final</small>
                         </div>
                         <div class="col-12 col-md-5">
                             <label class="form-label small fw-semibold text-dark">Porcentaje de Descuento:</label>
-                            <div class="input-group input-group-sm">
-                                <input type="number" step="0.5" min="0" max="100" name="discount_percentage" id="settlement_discount_pct" class="form-control text-end fw-bold" value="0">
-                                <span class="input-group-text bg-light">%</span>
+                            <div class="input-group">
+                                <button type="button" class="btn btn-outline-secondary px-2 btn-discount-step" data-target="#settlement_discount_pct" data-step="-5">
+                                    <i class="bi bi-dash"></i>
+                                </button>
+                                <input type="number" 
+                                       name="discount_percentage" 
+                                       id="settlement_discount_pct" 
+                                       class="form-control text-center fw-bold" 
+                                       min="0" 
+                                       max="100" 
+                                       step="1" 
+                                       value="0">
+                                <button type="button" class="btn btn-outline-secondary px-2 btn-discount-step" data-target="#settlement_discount_pct" data-step="5">
+                                    <i class="bi bi-plus"></i>
+                                </button>
+                                <span class="input-group-text bg-light fw-bold">%</span>
                             </div>
-                            <small class="text-muted">Descuento aplicado sobre el subtotal</small>
+                            <small class="text-muted">Descuento aplicado sobre el saldo a liquidar</small>
                         </div>
                     </div>
 
@@ -563,7 +716,7 @@
                                         <span class="input-group-text bg-light">$</span>
                                         <input type="number" step="0.01" min="0" name="service_fee" id="settlement_service_fee" class="form-control text-end fw-bold" value="0.00">
                                     </div>
-                                    <small class="text-muted d-block" style="font-size: 0.72rem;">Sugerido 10% voluntario sobre el consumo</small>
+                                    <small class="text-muted d-block" style="font-size: 0.72rem;">Sugerido 10% voluntario sobre el consumo a liquidar</small>
                                 </div>
                             </div>
 
@@ -582,7 +735,7 @@
                                         <span class="input-group-text bg-light">$</span>
                                         <input type="number" step="0.01" min="0" name="tax_inc" id="settlement_tax_inc" class="form-control text-end fw-bold" value="0.00" readonly>
                                     </div>
-                                    <small class="text-muted d-block" style="font-size: 0.72rem;">8% sobre la base gravable de alimentos y bebidas</small>
+                                    <small class="text-muted d-block" style="font-size: 0.72rem;">8% sobre base gravable de platos pendientes</small>
                                 </div>
                             </div>
                         </div>
@@ -591,14 +744,14 @@
                     {{-- Resumen de Cálculo Autoritativo --}}
                     <div class="card bg-light border-0 p-3 mb-3 rounded-3">
                         <div class="d-flex justify-content-between small mb-1">
-                            <span class="text-muted">Subtotal Platos ({{ count($groupedItems) }} ref):</span>
-                            <span class="fw-semibold text-dark" id="display_subtotal">${{ number_format($order->subtotal, 2) }}</span>
+                            <span class="text-muted">Subtotal Base a Cobrar ({{ count($groupedItems) }} ref):</span>
+                            <span class="fw-semibold text-dark" id="display_subtotal">${{ number_format($order->pendingBalance(), 2) }}</span>
                         </div>
                         <div class="d-flex justify-content-between small mb-1">
                             <span class="text-muted">Descuento (<span id="display_discount_pct_label">0%</span>):</span>
                             <span class="fw-semibold text-danger" id="display_discount">-$0.00</span>
                         </div>
-                        @if($order->order_type === 'delivery')
+                        @if($order->order_type === 'delivery' && !$order->hasPartialPayments())
                             <div class="d-flex justify-content-between small mb-1">
                                 <span class="text-muted">Flete de Domicilio:</span>
                                 <span class="fw-semibold text-dark" id="display_delivery_fee">+${{ number_format($order->delivery_fee, 2) }}</span>
@@ -615,7 +768,7 @@
                         <hr class="my-2">
                         <div class="d-flex justify-content-between align-items-center">
                             <span class="fw-bold fs-6 text-dark">Total a Liquidar:</span>
-                            <span class="fw-bold fs-4 text-primary" id="display_total">${{ number_format($order->total, 2) }}</span>
+                            <span class="fw-bold fs-4 text-primary" id="display_total">${{ number_format($order->pendingBalance(), 2) }}</span>
                         </div>
                     </div>
 
@@ -625,16 +778,17 @@
                             <label class="form-label small fw-bold text-dark mb-0">
                                 <i class="bi bi-wallet2 text-primary me-1"></i>Métodos de Pago
                             </label>
-                            <button type="button" class="btn btn-xs btn-outline-primary py-1 px-2 rounded-pill" id="btnAddPaymentLine" style="font-size: 0.75rem;">
-                                <i class="bi bi-plus-circle me-1"></i>+ Agregar otro medio
+                            <button type="button" class="btn btn-xs btn-outline-primary py-1 px-2 rounded-pill d-inline-flex align-items-center gap-1" id="btnAddPaymentLine" style="font-size: 0.75rem;">
+                                <i class="bi bi-plus-circle"></i>
+                                <span>Agregar otro medio</span>
                             </button>
                         </div>
 
-                        {{-- Atajos rápidos de efectivo (Reactivos y calculados hacia arriba según la comanda) --}}
+                        {{-- Atajos rápidos de efectivo (Reactivos según saldo pendiente) --}}
                         <div class="d-flex flex-wrap gap-1 mb-2 align-items-center" id="quickCashButtons">
                             <span class="small text-muted me-1" style="font-size: 0.75rem;"><i class="bi bi-cash me-1"></i>Atajos Efectivo:</span>
-                            <button type="button" class="btn btn-sm btn-outline-success py-1 px-2 quick-cash-btn fw-bold" data-amt="{{ (float)$order->total }}" style="font-size: 0.75rem; min-height: 32px;">
-                                <i class="bi bi-check2 me-1"></i>Exacto (${{ number_format($order->total, 0, ',', '.') }})
+                            <button type="button" class="btn btn-sm btn-outline-success py-1 px-2 quick-cash-btn fw-bold" data-amt="{{ (float)$order->pendingBalance() }}" style="font-size: 0.75rem; min-height: 32px;">
+                                <i class="bi bi-check2 me-1"></i>Exacto (${{ number_format($order->pendingBalance(), 0, ',', '.') }})
                             </button>
                         </div>
 
@@ -653,13 +807,13 @@
                                     <div class="col-6 col-md-3">
                                         <div class="input-group input-group-sm">
                                             <span class="input-group-text">$</span>
-                                            <input type="number" step="0.01" min="0.01" name="payments[0][amount]" class="form-control text-end payment-amount-input fw-bold" value="{{ (float)$order->total }}" required>
+                                            <input type="number" step="0.01" min="0.01" name="payments[0][amount]" class="form-control text-end payment-amount-input fw-bold" value="{{ (float)$order->pendingBalance() }}" required>
                                         </div>
                                     </div>
                                     <div class="col-6 col-md-3 cash-fields-col">
                                         <div class="input-group input-group-sm">
                                             <span class="input-group-text" title="Efectivo Recibido"><i class="bi bi-box-arrow-in-down"></i></span>
-                                            <input type="number" step="0.01" min="0" name="payments[0][cash_received]" class="form-control text-end payment-cash-received-input" placeholder="Recibido" value="{{ (float)$order->total }}">
+                                            <input type="number" step="0.01" min="0" name="payments[0][cash_received]" class="form-control text-end payment-cash-received-input" placeholder="Recibido" value="{{ (float)$order->pendingBalance() }}">
                                         </div>
                                     </div>
                                     <div class="col-10 col-md-2 text-end text-md-center change-display-col">
@@ -697,13 +851,225 @@
                 <div class="modal-footer bg-light py-3">
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
                     <button type="submit" class="btn btn-success fw-bold px-4" id="btnSubmitSettlement">
-                        <i class="bi bi-check2-circle me-1"></i> Confirmar Pago y Generar Factura
+                        <i class="bi bi-check2-circle me-1"></i> {{ $order->hasPartialPayments() ? 'Cobrar Saldo y Cerrar Comanda' : 'Confirmar Pago y Generar Factura' }}
                     </button>
                 </div>
             </form>
         </div>
     </div>
 </div>
+
+{{-- Modal Estandarizado de Creación Rápida de Cliente --}}
+<div class="modal fade" id="quickCustomerModal" tabindex="-1" aria-labelledby="quickCustomerModalLabel" aria-hidden="true" style="z-index: 1065;">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header border-bottom">
+                <h5 class="modal-title fw-bold" id="quickCustomerModalLabel">
+                    <i class="bi bi-person-plus text-primary me-2"></i>Crear Cliente Rápido
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div id="quickCustomerErrors" class="alert alert-danger d-none small mb-3"></div>
+
+                <div class="mb-3">
+                    <label for="quick_customer_document" class="form-label small fw-semibold text-muted">Cédula o NIT <span class="text-danger">*</span></label>
+                    <input type="text" id="quick_customer_document" class="form-control font-monospace" placeholder="Ej: 1144001234 o 900123456-1" minlength="5" maxlength="15" inputmode="numeric" autocomplete="off" required>
+                    <div class="form-text small">Solo dígitos (5–15) y guión opcional con dígito de verificación.</div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="quick_customer_name" class="form-label small fw-semibold text-muted">Nombre o Razón Social <span class="text-danger">*</span></label>
+                    <input type="text" id="quick_customer_name" class="form-control" placeholder="Nombre completo o razón social" minlength="2" maxlength="100" autocomplete="off" required>
+                    <div class="form-text small">Debe contener letras (no se permiten únicamente números).</div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="quick_customer_phone" class="form-label small fw-semibold text-muted">Teléfono <span class="text-muted">(opcional)</span></label>
+                    <input type="tel" id="quick_customer_phone" class="form-control font-monospace" placeholder="Ej: 3151234567" minlength="7" maxlength="15" inputmode="tel" autocomplete="off">
+                    <div class="form-text small">Solo números y símbolos telefónicos (+, -).</div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="quick_customer_email" class="form-label small fw-semibold text-muted">Correo Electrónico <span class="text-muted">(opcional)</span></label>
+                    <input type="email" id="quick_customer_email" class="form-control" placeholder="cliente@ejemplo.com">
+                </div>
+            </div>
+            <div class="modal-footer border-top bg-light">
+                <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" id="btn_save_quick_customer" class="btn btn-primary rounded-pill px-4 fw-semibold">
+                    <i class="bi bi-box-arrow-in-down me-1"></i> Guardar Cliente
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const quickCustomerModalEl = document.getElementById('quickCustomerModal');
+    if (!quickCustomerModalEl) return;
+
+    let currentTargetCustomerSelect = null;
+
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('.btn-open-quick-customer');
+        if (!btn) return;
+        currentTargetCustomerSelect = btn.getAttribute('data-target-select');
+
+        const errBox = document.getElementById('quickCustomerErrors');
+        if (errBox) {
+            errBox.classList.add('d-none');
+            errBox.innerHTML = '';
+        }
+
+        const modalInstance = bootstrap.Modal.getOrCreateInstance(quickCustomerModalEl);
+        modalInstance.show();
+    });
+
+    quickCustomerModalEl.addEventListener('show.bs.modal', function () {
+        setTimeout(function() {
+            const backdrops = document.querySelectorAll('.modal-backdrop');
+            if (backdrops.length > 1) {
+                backdrops[backdrops.length - 1].style.zIndex = '1060';
+            }
+        }, 10);
+    });
+
+    quickCustomerModalEl.addEventListener('hidden.bs.modal', function () {
+        const openModals = document.querySelectorAll('.modal.show');
+        if (openModals.length > 0) {
+            document.body.classList.add('modal-open');
+            document.body.style.overflow = 'hidden';
+        }
+    });
+
+    const btnSaveQuickCust = document.getElementById('btn_save_quick_customer');
+    if (btnSaveQuickCust) {
+        btnSaveQuickCust.addEventListener('click', function () {
+            const docInput = document.getElementById('quick_customer_document');
+            const nameInput = document.getElementById('quick_customer_name');
+            const phoneInput = document.getElementById('quick_customer_phone');
+            const emailInput = document.getElementById('quick_customer_email');
+            const errBox = document.getElementById('quickCustomerErrors');
+
+            const docVal = (docInput ? docInput.value : '').trim();
+            const nameVal = (nameInput ? nameInput.value : '').trim();
+            const phoneVal = (phoneInput ? phoneInput.value : '').trim();
+            const emailVal = (emailInput ? emailInput.value : '').trim();
+
+            if (errBox) {
+                errBox.classList.add('d-none');
+                errBox.innerHTML = '';
+            }
+
+            btnSaveQuickCust.disabled = true;
+            btnSaveQuickCust.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Guardando...';
+
+            const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') 
+                || document.querySelector('input[name="_token"]')?.value 
+                || '{{ csrf_token() }}';
+
+            fetch('{{ route("customers.store") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': token,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({
+                    document: docVal,
+                    name: nameVal,
+                    phone: phoneVal || null,
+                    email: emailVal || null,
+                    is_active: true
+                })
+            })
+            .then(async function (response) {
+                const data = await response.json();
+                btnSaveQuickCust.disabled = false;
+                btnSaveQuickCust.innerHTML = '<i class="bi bi-box-arrow-in-down me-1"></i> Guardar Cliente';
+
+                if (!response.ok) {
+                    if (errBox) {
+                        const ul = document.createElement('ul');
+                        ul.className = 'mb-0 ps-3';
+                        if (data.errors) {
+                            Object.values(data.errors).forEach(function(errArr) {
+                                errArr.forEach(function(errText) {
+                                    const li = document.createElement('li');
+                                    li.textContent = errText;
+                                    ul.appendChild(li);
+                                });
+                            });
+                        } else if (data.message) {
+                            const li = document.createElement('li');
+                            li.textContent = data.message;
+                            ul.appendChild(li);
+                        }
+                        errBox.appendChild(ul);
+                        errBox.classList.remove('d-none');
+                    }
+                    return;
+                }
+
+                // Éxito: agregar la opción a ambos selectores de cliente
+                const labelText = data.name + ' (Doc: ' + (data.document || 'N/A') + ')';
+                const selects = [
+                    document.getElementById('settlement_customer_id'),
+                    document.getElementById('split_customer_id')
+                ];
+
+                selects.forEach(function(selectEl) {
+                    if (selectEl) {
+                        let existingOpt = selectEl.querySelector('option[value="' + data.id + '"]');
+                        if (!existingOpt) {
+                            existingOpt = document.createElement('option');
+                            existingOpt.value = data.id;
+                            existingOpt.textContent = labelText;
+                            selectEl.appendChild(existingOpt);
+                        }
+                    }
+                });
+
+                if (currentTargetCustomerSelect) {
+                    const targetSelect = document.querySelector(currentTargetCustomerSelect);
+                    if (targetSelect) {
+                        targetSelect.value = data.id;
+                        targetSelect.dispatchEvent(new Event('change'));
+                    }
+                } else {
+                    selects.forEach(function(s) {
+                        if (s) {
+                            s.value = data.id;
+                            s.dispatchEvent(new Event('change'));
+                        }
+                    });
+                }
+
+                if (docInput) docInput.value = '';
+                if (nameInput) nameInput.value = '';
+                if (phoneInput) phoneInput.value = '';
+                if (emailInput) emailInput.value = '';
+
+                const modalInstance = bootstrap.Modal.getInstance(quickCustomerModalEl);
+                if (modalInstance) {
+                    modalInstance.hide();
+                }
+            })
+            .catch(function (err) {
+                btnSaveQuickCust.disabled = false;
+                btnSaveQuickCust.innerHTML = '<i class="bi bi-box-arrow-in-down me-1"></i> Guardar Cliente';
+                if (errBox) {
+                    errBox.textContent = 'Ocurrió un error al procesar la solicitud. Intente nuevamente.';
+                    errBox.classList.remove('d-none');
+                }
+            });
+        });
+    }
+});
+</script>
 @endif
 
 @if(!in_array($order->status, ['closed', 'cancelled']))
@@ -1014,9 +1380,10 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // 2. Lógica Reactiva de la Pasarela de Liquidación / Cobro
-    const subtotal = {{ (float)$order->subtotal }};
-    const dishSubtotal = {{ (float)($dishSubtotal ?? 0) }};
-    const deliveryFee = {{ (float)$order->delivery_fee }};
+    const BASE_AMOUNT_TO_PAY = parseFloat("{{ $order->pendingBalance() }}");
+    const subtotal = BASE_AMOUNT_TO_PAY;
+    const dishSubtotal = parseFloat("{{ $pendingDishSubtotal ?? 0 }}");
+    const deliveryFee = parseFloat("{{ $order->hasPartialPayments() ? 0 : (float)$order->delivery_fee }}");
     const discountInput = document.getElementById('settlement_discount_pct');
     const displaySubtotal = document.getElementById('display_subtotal');
     const displayDiscount = document.getElementById('display_discount');
@@ -1120,6 +1487,8 @@ document.addEventListener('DOMContentLoaded', function () {
         if (displayDiscount) displayDiscount.textContent = '-' + formatMoney(discountAmount);
         if (displayDiscountLabel) displayDiscountLabel.textContent = discountPct + '%';
         if (displayTotal) displayTotal.textContent = formatMoney(currentTotal);
+        const checkoutTotalDisplay = document.getElementById('checkoutTotalDisplay');
+        if (checkoutTotalDisplay) checkoutTotalDisplay.textContent = formatMoney(currentTotal);
 
         // Si solo hay una línea de pago, sincronizarla con el nuevo total
         const lines = paymentsContainer?.querySelectorAll('.payment-line') || [];
@@ -1200,6 +1569,9 @@ document.addEventListener('DOMContentLoaded', function () {
             if (btnSubmitSettlement) btnSubmitSettlement.disabled = false;
         }
     }
+
+    const calculatePaymentTotals = recalculatePaymentsBalance;
+    window.calculatePaymentTotals = recalculatePaymentsBalance;
 
     function renderQuickCashButtons() {
         if (!quickCashContainer) return;
@@ -1400,6 +1772,23 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Inicializar cálculo y atajos de efectivo iniciales
     recalculateTotal('init');
+
+    // Controladores ergonómicos táctiles para botones de incremento/decremento de descuento (+5% / -5%)
+    document.querySelectorAll('.btn-discount-step').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const targetSelector = this.getAttribute('data-target');
+            const targetInput = targetSelector 
+                ? document.querySelector(targetSelector) 
+                : this.closest('.input-group')?.querySelector('input[type="number"]');
+            if (!targetInput) return;
+            const step = parseFloat(this.getAttribute('data-step')) || 5;
+            let currentVal = parseFloat(targetInput.value) || 0;
+            let newVal = Math.min(100, Math.max(0, currentVal + step));
+            targetInput.value = newVal;
+            targetInput.dispatchEvent(new Event('input', { bubbles: true }));
+            targetInput.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+    });
 
     // Prevención de doble clic al liquidar
     const settlementForm = document.getElementById('settlementForm');
@@ -1828,7 +2217,7 @@ document.addEventListener('DOMContentLoaded', function () {
             try {
                 const autoPrint = localStorage.getItem('puntostock_auto_print_kitchen') !== 'disabled';
                 if (autoPrint) {
-                    const printUrl = "{{ route('restaurant.orders.kitchen-ticket', session('print_kitchen_ticket_id')) }}";
+                    const printUrl = "{{ route('restaurant.orders.kitchen-ticket', ['order' => session('print_kitchen_ticket_id'), 'batch' => session('print_kitchen_batch')]) }}";
                     const popup = window.open(printUrl, '_blank', 'width=450,height=650,scrollbars=yes');
                     if (!popup || popup.closed || typeof popup.closed === 'undefined') {
                         console.info('Aviso: La ventana emergente de impresión automática fue bloqueada por el navegador. El botón de impresión manual está disponible.');
@@ -1836,6 +2225,833 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             } catch (e) {
                 console.warn('Impresión automática de cocina no ejecutada:', e);
+            }
+        });
+    </script>
+@endif
+
+@if($order->order_type === 'table' && $order->canBeModified() && !$order->isFullyPaid())
+{{-- Modal Reactivo de División de Cuenta por Platos (Split Bill) --}}
+<div class="modal fade" id="splitBillModal" tabindex="-1" aria-labelledby="splitBillModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content border-0 shadow rounded-4 overflow-hidden">
+            {{-- Header del Modal --}}
+            <div class="modal-header border-bottom px-4 py-3 align-items-center bg-white">
+                <div class="d-flex align-items-center">
+                    <div class="rounded-circle bg-success-subtle p-2 text-success me-3 d-inline-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+                        <i class="bi bi-pie-chart-fill fs-4"></i>
+                    </div>
+                    <div>
+                        <div class="d-flex align-items-center gap-2">
+                            <h5 class="modal-title fw-bold text-dark mb-0" id="splitBillModalLabel">División de Cuenta por Platos</h5>
+                            @if($order->table)
+                                <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle px-2 py-1">
+                                    <i class="bi bi-aspect-ratio me-1"></i>{{ $order->table->name }}
+                                </span>
+                            @endif
+                        </div>
+                        <p class="text-muted small mb-0 mt-1">
+                            Comanda <strong>{{ $order->order_number }}</strong> &bull; Total comanda: <strong>${{ number_format($order->total, 0, ',', '.') }}</strong> &bull; Saldo pendiente: <span class="text-success fw-bold">${{ number_format($order->pendingBalance(), 0, ',', '.') }}</span>
+                        </p>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            {{-- Formulario de Liquidación Dividida --}}
+            <form action="{{ route('restaurant.orders.split-payment', $order) }}" method="POST" id="splitBillForm">
+                @csrf
+                <div class="modal-body p-4 bg-white">
+                    <div class="row g-4">
+                        {{-- Columna Izquierda: Platos y Consumos de la Comanda (col-lg-7) --}}
+                        <div class="col-12 col-lg-7">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <div>
+                                    <h6 class="fw-bold mb-0 text-dark">Platos y Consumos de la Comanda</h6>
+                                    <small class="text-muted">Seleccione los platos que pagará este comensal:</small>
+                                </div>
+                                <button type="button" id="btnSelectAllSplit" class="btn btn-sm btn-outline-success rounded-pill px-3 fw-semibold">
+                                    <i class="bi bi-check2-all me-1"></i>Marcar todos
+                                </button>
+                            </div>
+
+                            <div class="table-responsive border rounded-3" style="max-height: 420px; overflow-y: auto;">
+                                <table class="table table-hover align-middle mb-0">
+                                    <thead class="table-light sticky-top">
+                                        <tr>
+                                            <th style="width: 45px;" class="text-center">
+                                                <i class="bi bi-check2-square text-muted"></i>
+                                            </th>
+                                            <th>Plato / Consumo</th>
+                                            <th class="text-center" style="width: 80px;">Cant.</th>
+                                            <th class="text-end" style="width: 120px;">Subtotal</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @forelse($order->unpaidItems() as $item)
+                                            <tr>
+                                                <td class="text-center">
+                                                    <input type="checkbox"
+                                                           class="form-check-input split-item-checkbox"
+                                                           name="items[]"
+                                                           value="{{ $item->id }}"
+                                                           data-price="{{ $item->subtotal }}"
+                                                           id="split_item_{{ $item->id }}"
+                                                           style="cursor: pointer; width: 20px; height: 20px;">
+                                                </td>
+                                                <td>
+                                                    <label for="split_item_{{ $item->id }}" class="mb-0 fw-semibold text-dark d-block" style="cursor: pointer;">
+                                                        {{ $item->product?->name ?? 'Plato / Consumo' }}
+                                                    </label>
+                                                    @if(!empty($item->notes))
+                                                        <span class="small text-muted fst-italic">Nota: {{ $item->notes }}</span>
+                                                    @endif
+                                                </td>
+                                                <td class="text-center">
+                                                    <span class="badge bg-light text-dark border">
+                                                        {{ (float)$item->quantity == (int)$item->quantity ? (int)$item->quantity : number_format($item->quantity, 1) }}
+                                                    </span>
+                                                </td>
+                                                <td class="text-end fw-bold text-dark">
+                                                    ${{ number_format($item->subtotal, 0, ',', '.') }}
+                                                </td>
+                                            </tr>
+                                        @empty
+                                            <tr>
+                                                <td colspan="4" class="text-center py-4 text-muted">
+                                                    <i class="bi bi-check-circle-fill text-success fs-3 d-block mb-2"></i>
+                                                    Todos los platos de esta comanda ya han sido pagados.
+                                                </td>
+                                            </tr>
+                                        @endforelse
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        {{-- Columna Derecha: Liquidación de Platos Seleccionados (col-lg-5) --}}
+                        <div class="col-12 col-lg-5">
+                            <div class="card border bg-light-subtle rounded-4 p-4 h-100 shadow-sm">
+                                <h6 class="fw-bold mb-3 text-dark d-flex align-items-center">
+                                    <i class="bi bi-calculator me-2 text-success"></i>Liquidación de Platos Seleccionados
+                                </h6>
+
+                                {{-- Datos del Comprador y Descuento --}}
+                                <div class="row g-2 mb-3">
+                                    <div class="col-12 col-md-7">
+                                        <label class="form-label fw-semibold small mb-1">Cliente / Comprador:</label>
+                                        <div class="d-flex align-items-stretch gap-1">
+                                            <select name="customer_id" id="split_customer_id" class="form-select form-select-sm">
+                                                <option value="">Consumidor Final DIAN (222222222222)</option>
+                                                @foreach($customers as $c)
+                                                    <option value="{{ $c->id }}" {{ (old('customer_id', $order->customer_id) == $c->id) ? 'selected' : '' }}>
+                                                        {{ $c->name }} (Doc: {{ $c->document ?? 'N/A' }})
+                                                    </option>
+                                                @endforeach
+                                            </select>
+                                            <button type="button" 
+                                                    class="btn btn-outline-primary d-flex align-items-center justify-content-center px-3 flex-shrink-0 btn-open-quick-customer" 
+                                                    data-target-select="#split_customer_id"
+                                                    title="Crear Cliente Rápido"
+                                                    aria-label="Crear Cliente Rápido">
+                                                <i class="bi bi-plus-lg"></i>
+                                            </button>
+                                        </div>
+                                        <small class="text-muted d-block" style="font-size: 0.72rem;">Opcional para facturación individual</small>
+                                    </div>
+                                    <div class="col-12 col-md-5">
+                                        <label for="split_discount_percentage" class="form-label small fw-semibold text-dark mb-1">Descuento (%):</label>
+                                        <div class="input-group">
+                                            <button type="button" class="btn btn-outline-secondary px-2 btn-discount-step" data-target="#split_discount_percentage" data-step="-5">
+                                                <i class="bi bi-dash"></i>
+                                            </button>
+                                            <input type="number" 
+                                                   name="discount_percentage" 
+                                                   id="split_discount_percentage" 
+                                                   class="form-control text-center fw-bold" 
+                                                   min="0" 
+                                                   max="100" 
+                                                   step="1" 
+                                                   value="0">
+                                            <button type="button" class="btn btn-outline-secondary px-2 btn-discount-step" data-target="#split_discount_percentage" data-step="5">
+                                                <i class="bi bi-plus"></i>
+                                            </button>
+                                            <span class="input-group-text bg-light fw-bold">%</span>
+                                        </div>
+                                        <small class="text-muted d-block" style="font-size: 0.72rem;">Sobre platos de este comensal</small>
+                                    </div>
+                                </div>
+
+                                {{-- Interruptores de Propina (10%) e Impuesto al Consumo (INC 8%) --}}
+                                <div class="card border p-3 mb-3 rounded-3 bg-white">
+                                    <div class="row g-2">
+                                        <div class="col-12 col-sm-6 border-end-sm">
+                                            <div class="form-check form-switch mb-0">
+                                                <input class="form-check-input" type="checkbox" id="split_include_tip" name="include_tip" value="1" role="switch">
+                                                <label class="form-check-label fw-semibold small text-dark" for="split_include_tip">
+                                                    <i class="bi bi-heart text-danger me-1"></i> Propina (10%)
+                                                </label>
+                                            </div>
+                                            <small class="text-muted d-block" style="font-size: 0.7rem;">Sugerido voluntario</small>
+                                        </div>
+                                        <div class="col-12 col-sm-6">
+                                            <div class="form-check form-switch mb-0">
+                                                <input class="form-check-input" type="checkbox" id="split_include_tax" name="include_tax" value="1" role="switch">
+                                                <label class="form-check-label fw-semibold small text-dark" for="split_include_tax">
+                                                    <i class="bi bi-receipt text-primary me-1"></i> Impuesto (INC 8%)
+                                                </label>
+                                            </div>
+                                            <small class="text-muted d-block" style="font-size: 0.7rem;">Consumo gravable</small>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {{-- Tarjeta de Desglose Financiero Transparente --}}
+                                <div class="card bg-white border p-3 mb-3 rounded-3 shadow-sm">
+                                    <div class="d-flex justify-content-between small mb-1">
+                                        <span class="text-muted">Subtotal Platos (<span id="splitRefsCount">0</span> ref):</span>
+                                        <span class="fw-semibold text-dark" id="splitBaseSubtotal">$0</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between small mb-1">
+                                        <span class="text-muted">Descuento (<span id="splitDiscountPercentLabel">0</span>%):</span>
+                                        <span class="fw-semibold text-danger" id="splitDiscountDisplay">-$0</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between small mb-1" id="splitRowTip" style="display: none !important;">
+                                        <span class="text-muted">Servicio / Propina (10%):</span>
+                                        <span class="fw-semibold text-success" id="splitTipDisplay">+$0</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between small mb-1" id="splitRowTax" style="display: none !important;">
+                                        <span class="text-muted">Impuesto al Consumo (INC 8%):</span>
+                                        <span class="fw-semibold text-primary" id="splitTaxDisplay">+$0</span>
+                                    </div>
+                                    <hr class="my-2">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span class="fw-bold fs-6 text-dark">Total a Liquidar:</span>
+                                        <span class="fw-bold fs-3 text-primary" id="splitFinalTotalDisplay">$0</span>
+                                    </div>
+                                </div>
+
+                                {{-- Pasarela de Medios de Pago Mixtos --}}
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <label class="form-label small fw-bold text-dark mb-0">
+                                            <i class="bi bi-wallet2 text-primary me-1"></i>Métodos de Pago
+                                        </label>
+                                        <button type="button" class="btn btn-xs btn-outline-primary py-1 px-2 rounded-pill d-inline-flex align-items-center gap-1" id="btnAddSplitPaymentMethod" style="font-size: 0.75rem;">
+                                            <i class="bi bi-plus-circle"></i>
+                                            <span>Agregar otro medio</span>
+                                        </button>
+                                    </div>
+
+                                    {{-- Atajos rápidos de efectivo (Reactivos al total a liquidar) --}}
+                                    <div class="d-flex flex-wrap gap-1 mb-2 align-items-center" id="splitQuickCashButtons">
+                                        <span class="small text-muted me-1" style="font-size: 0.75rem;"><i class="bi bi-cash me-1"></i>Atajos Efectivo:</span>
+                                        <button type="button" class="btn btn-sm btn-outline-success py-1 px-2 split-quick-cash-btn fw-bold" data-amt="0" style="font-size: 0.75rem; min-height: 30px;">
+                                            <i class="bi bi-check2 me-1"></i>Exacto ($0)
+                                        </button>
+                                    </div>
+
+                                    {{-- Contenedor dinámico de filas de pago --}}
+                                    <div id="splitPaymentMethodsContainer">
+                                        {{-- Línea 1 por defecto --}}
+                                        <div class="split-payment-line payment-method-row card border p-2 mb-2 rounded-3 bg-white" data-index="0">
+                                            <div class="d-flex align-items-center gap-2">
+                                                <div style="flex: 1 1 130px; min-width: 115px;">
+                                                    <select name="payments[0][method]" class="form-select form-select-sm split-method-select" required>
+                                                        <option value="cash" selected>Efectivo</option>
+                                                        <option value="transfer">Transferencia / Nequi</option>
+                                                        <option value="card">Tarjeta</option>
+                                                        <option value="other">Otro</option>
+                                                    </select>
+                                                </div>
+                                                <div style="flex: 1 1 120px; min-width: 110px;">
+                                                    <div class="input-group input-group-sm">
+                                                        <span class="input-group-text">$</span>
+                                                        <input type="number" step="0.01" min="0.01" name="payments[0][amount]" class="form-control text-end split-payment-amount-input fw-bold" value="0" required>
+                                                    </div>
+                                                </div>
+                                                <button type="button" 
+                                                        class="btn btn-outline-danger btn-remove-split-payment remove-split-payment-btn flex-shrink-0 d-flex align-items-center justify-content-center" 
+                                                        style="width: 38px; height: 38px; position: relative; z-index: 2;" 
+                                                        title="Eliminar fila de pago" 
+                                                        disabled>
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </div>
+
+                                            {{-- Sub-fila para Efectivo (Recibido y Vuelto) --}}
+                                            <div class="split-cash-details-row w-100 d-flex align-items-center justify-content-between gap-2 mt-2 pt-2 border-top">
+                                                <div class="d-flex align-items-center gap-1" style="max-width: 175px;">
+                                                    <span class="text-muted small" style="font-size: 0.72rem; white-space: nowrap;">Recibido:</span>
+                                                    <div class="input-group input-group-sm">
+                                                        <span class="input-group-text" style="font-size: 0.75rem;">$</span>
+                                                        <input type="number" step="0.01" min="0" name="payments[0][cash_received]" class="form-control text-end split-cash-received-input" placeholder="0" value="0">
+                                                    </div>
+                                                </div>
+                                                <div class="text-end">
+                                                    <span class="badge bg-light text-success border small split-change-display">Vuelto: $0</span>
+                                                    <input type="hidden" name="payments[0][change_given]" class="split-change-given-input" value="0.00">
+                                                </div>
+                                            </div>
+
+                                            {{-- Sub-fila para Referencia / Voucher (cuando no es efectivo) --}}
+                                            <div class="split-reference-row w-100 mt-2 pt-2 border-top" style="display: none;">
+                                                <input type="text" name="payments[0][reference]" class="form-control form-control-sm split-reference-input" placeholder="N° Comprobante / Voucher (opcional)" maxlength="60">
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {{-- Alerta de balance en tiempo real --}}
+                                    <div id="splitPaymentBalanceAlert" class="alert py-2 px-3 small d-none rounded-3 mt-2">
+                                        <span id="splitPaymentBalanceMessage">Seleccione platos a liquidar.</span>
+                                    </div>
+                                </div>
+
+                                {{-- Observaciones de Facturación --}}
+                                <div class="mb-3">
+                                    <label for="split_notes" class="form-label small fw-semibold text-muted mb-1">Observaciones de Facturación (Opcional):</label>
+                                    <input type="text" name="notes" id="split_notes" class="form-control form-control-sm" placeholder="Ej: Pago individual comensal 1, transferencia aprobada..." maxlength="255">
+                                </div>
+
+                                {{-- Botones de Acción --}}
+                                <button type="button" id="btnPrintSplitPreTicket" class="btn btn-outline-secondary w-100 py-2 rounded-3 mb-2 fw-semibold" disabled>
+                                    <i class="bi bi-printer me-1"></i> Imprimir Pre-cuenta (Platos Seleccionados)
+                                </button>
+
+                                <button type="submit" id="btnSubmitSplitPayment" class="btn btn-success w-100 py-2 fw-bold rounded-3 shadow-sm" disabled>
+                                    <i class="bi bi-check2-circle me-1"></i> Cobrar Platos e Imprimir Factura
+                                </button>
+
+                                <div class="text-center mt-3">
+                                    <small class="text-muted" style="font-size: 0.8rem;">
+                                        <i class="bi bi-shield-check me-1 text-success"></i>Descuenta los platos pagados y mantiene pendientes los restantes hasta liberar la mesa.
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const splitModal = document.getElementById('splitBillModal');
+    if (!splitModal) return;
+
+    const checkboxes = splitModal.querySelectorAll('.split-item-checkbox');
+    const btnSelectAll = document.getElementById('btnSelectAllSplit');
+    const customerSelect = document.getElementById('split_customer_id');
+    const discountInput = document.getElementById('split_discount_percentage');
+    const switchTip = document.getElementById('split_include_tip');
+    const switchTax = document.getElementById('split_include_tax');
+
+    const refsCountDisplay = document.getElementById('splitRefsCount');
+    const baseSubtotalDisplay = document.getElementById('splitBaseSubtotal');
+    const discountPctLabel = document.getElementById('splitDiscountPercentLabel');
+    const discountDisplay = document.getElementById('splitDiscountDisplay');
+    const rowTip = document.getElementById('splitRowTip');
+    const tipDisplay = document.getElementById('splitTipDisplay');
+    const rowTax = document.getElementById('splitRowTax');
+    const taxDisplay = document.getElementById('splitTaxDisplay');
+    const finalTotalDisplay = document.getElementById('splitFinalTotalDisplay');
+
+    const paymentsContainer = document.getElementById('splitPaymentMethodsContainer');
+    const btnAddPaymentMethod = document.getElementById('btnAddSplitPaymentMethod');
+    const quickCashContainer = document.getElementById('splitQuickCashButtons');
+    const balanceAlert = document.getElementById('splitPaymentBalanceAlert');
+    const balanceMessage = document.getElementById('splitPaymentBalanceMessage');
+
+    const btnPrecount = document.getElementById('btnPrintSplitPreTicket');
+    const btnSubmit = document.getElementById('btnSubmitSplitPayment');
+    const splitForm = document.getElementById('splitBillForm');
+
+    let currentBaseSubtotal = 0;
+    let currentFinalTotal = 0;
+    let paymentLineIndex = 1;
+    let allSelected = false;
+
+    function formatCurrency(amount) {
+        return '$' + Math.round(amount).toLocaleString('es-CO');
+    }
+
+    function calculateSplitTotals() {
+        let sum = 0;
+        let count = 0;
+
+        checkboxes.forEach(function (cb) {
+            if (cb.checked) {
+                sum += parseFloat(cb.dataset.price || 0);
+                count++;
+            }
+        });
+
+        currentBaseSubtotal = roundToCents(sum);
+        if (refsCountDisplay) refsCountDisplay.textContent = count;
+        if (baseSubtotalDisplay) baseSubtotalDisplay.textContent = formatCurrency(currentBaseSubtotal);
+
+        // Descuento
+        let discPct = parseFloat(discountInput ? discountInput.value : 0) || 0;
+        discPct = Math.max(0, Math.min(100, discPct));
+        const discAmount = roundToCents(currentBaseSubtotal * (discPct / 100));
+        const baseAjustada = Math.max(0, roundToCents(currentBaseSubtotal - discAmount));
+
+        if (discountPctLabel) discountPctLabel.textContent = discPct;
+        if (discountDisplay) discountDisplay.textContent = '-' + formatCurrency(discAmount);
+
+        // Propina (10%)
+        const includeTip = switchTip && switchTip.checked;
+        const tipAmount = includeTip ? roundToCents(baseAjustada * 0.10) : 0;
+        if (rowTip) {
+            rowTip.style.setProperty('display', includeTip ? 'flex' : 'none', 'important');
+        }
+        if (tipDisplay) tipDisplay.textContent = '+' + formatCurrency(tipAmount);
+
+        // Impuesto INC (8%)
+        const includeTax = switchTax && switchTax.checked;
+        const taxAmount = includeTax ? roundToCents(baseAjustada * 0.08) : 0;
+        if (rowTax) {
+            rowTax.style.setProperty('display', includeTax ? 'flex' : 'none', 'important');
+        }
+        if (taxDisplay) taxDisplay.textContent = '+' + formatCurrency(taxAmount);
+
+        // Total Final
+        currentFinalTotal = roundToCents(baseAjustada + tipAmount + taxAmount);
+        if (finalTotalDisplay) finalTotalDisplay.textContent = formatCurrency(currentFinalTotal);
+
+        const hasSelected = count > 0;
+        if (btnPrecount) btnPrecount.disabled = !hasSelected;
+
+        // Si solo hay una línea de pago, sincronizar automáticamente su monto con currentFinalTotal
+        const lines = paymentsContainer.querySelectorAll('.split-payment-line');
+        if (lines.length === 1) {
+            const firstAmtInput = lines[0].querySelector('.split-payment-amount-input');
+            const firstReceivedInput = lines[0].querySelector('.split-cash-received-input');
+            const methodSelect = lines[0].querySelector('.split-method-select');
+
+            if (firstAmtInput) firstAmtInput.value = currentFinalTotal;
+            if (methodSelect && methodSelect.value === 'cash' && firstReceivedInput) {
+                firstReceivedInput.value = currentFinalTotal;
+            }
+        }
+
+        renderQuickCashButtons(currentFinalTotal);
+        updatePaymentLinesChange();
+        calculatePaymentBalance();
+
+        allSelected = count === checkboxes.length && checkboxes.length > 0;
+        if (btnSelectAll) {
+            btnSelectAll.innerHTML = allSelected
+                ? '<i class="bi bi-dash-circle me-1"></i>Desmarcar todos'
+                : '<i class="bi bi-check2-all me-1"></i>Marcar todos';
+        }
+    }
+
+    function roundToCents(val) {
+        return Math.round(val * 100) / 100;
+    }
+
+    function renderQuickCashButtons(total) {
+        if (!quickCashContainer) return;
+
+        quickCashContainer.innerHTML = '<span class="small text-muted me-1" style="font-size: 0.75rem;"><i class="bi bi-cash me-1"></i>Atajos Efectivo:</span>';
+
+        if (total <= 0) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn btn-sm btn-outline-success py-1 px-2 split-quick-cash-btn fw-bold';
+            btn.style.fontSize = '0.75rem';
+            btn.style.minHeight = '30px';
+            btn.dataset.amt = 0;
+            btn.innerHTML = '<i class="bi bi-check2 me-1"></i>Exacto ($0)';
+            quickCashContainer.appendChild(btn);
+            return;
+        }
+
+        const exactBtn = document.createElement('button');
+        exactBtn.type = 'button';
+        exactBtn.className = 'btn btn-sm btn-outline-success py-1 px-2 split-quick-cash-btn fw-bold';
+        exactBtn.style.fontSize = '0.75rem';
+        exactBtn.style.minHeight = '30px';
+        exactBtn.dataset.amt = total;
+        exactBtn.innerHTML = `<i class="bi bi-check2 me-1"></i>Exacto (${formatCurrency(total)})`;
+        quickCashContainer.appendChild(exactBtn);
+
+        // Denominaciones colombianas redondeadas sugeridas
+        const steps = [1000, 2000, 5000, 10000, 20000, 50000, 100000];
+        const addedAmts = new Set([total]);
+
+        steps.forEach(function (step) {
+            const rounded = Math.ceil(total / step) * step;
+            if (rounded > total && !addedAmts.has(rounded) && addedAmts.size < 4) {
+                addedAmts.add(rounded);
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'btn btn-sm btn-outline-secondary py-1 px-2 split-quick-cash-btn';
+                btn.style.fontSize = '0.75rem';
+                btn.style.minHeight = '30px';
+                btn.dataset.amt = rounded;
+                btn.textContent = formatCurrency(rounded);
+                quickCashContainer.appendChild(btn);
+            }
+        });
+    }
+
+    function updatePaymentLinesChange() {
+        const lines = paymentsContainer.querySelectorAll('.split-payment-line');
+        lines.forEach(function (line) {
+            const methodSelect = line.querySelector('.split-method-select');
+            const amtInput = line.querySelector('.split-payment-amount-input');
+            const cashInput = line.querySelector('.split-cash-received-input');
+            const changeDisplay = line.querySelector('.split-change-display');
+            const changeInput = line.querySelector('.split-change-given-input');
+
+            if (!methodSelect || !amtInput) return;
+
+            const isCash = methodSelect.value === 'cash';
+            const amount = parseFloat(amtInput.value) || 0;
+
+            if (isCash && cashInput && changeDisplay) {
+                const received = parseFloat(cashInput.value) || 0;
+                const change = roundToCents(received - amount);
+
+                if (change >= 0) {
+                    changeDisplay.textContent = 'Vuelto: ' + formatCurrency(change);
+                    changeDisplay.className = 'badge bg-light text-success border small split-change-display';
+                    if (changeInput) changeInput.value = change.toFixed(2);
+                } else {
+                    changeDisplay.textContent = 'Faltan: ' + formatCurrency(Math.abs(change));
+                    changeDisplay.className = 'badge bg-danger-subtle text-danger border small split-change-display';
+                    if (changeInput) changeInput.value = '0.00';
+                }
+            }
+        });
+    }
+
+    function calculatePaymentBalance() {
+        if (!balanceAlert || !balanceMessage) return;
+
+        const lines = paymentsContainer.querySelectorAll('.split-payment-line');
+        let sumPayments = 0;
+        let hasCashDeficit = false;
+
+        lines.forEach(function (line) {
+            const amtInput = line.querySelector('.split-payment-amount-input');
+            const methodSelect = line.querySelector('.split-method-select');
+            const cashInput = line.querySelector('.split-cash-received-input');
+
+            const amt = parseFloat(amtInput ? amtInput.value : 0) || 0;
+            sumPayments += amt;
+
+            if (methodSelect && methodSelect.value === 'cash' && cashInput) {
+                const received = parseFloat(cashInput.value) || 0;
+                if (received < amt) {
+                    hasCashDeficit = true;
+                }
+            }
+        });
+
+        sumPayments = roundToCents(sumPayments);
+        const diff = roundToCents(currentFinalTotal - sumPayments);
+
+        let count = 0;
+        checkboxes.forEach(function (cb) { if (cb.checked) count++; });
+
+        if (count === 0 || currentFinalTotal <= 0) {
+            balanceAlert.className = 'alert alert-secondary py-2 px-3 small rounded-3 mt-2';
+            balanceMessage.innerHTML = '<i class="bi bi-info-circle me-1"></i> Seleccione al menos un plato en la columna izquierda.';
+            balanceAlert.classList.remove('d-none');
+            if (btnSubmit) btnSubmit.disabled = true;
+            return;
+        }
+
+        if (Math.abs(diff) < 0.05) {
+            if (hasCashDeficit) {
+                balanceAlert.className = 'alert alert-warning py-2 px-3 small rounded-3 mt-2';
+                balanceMessage.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-1"></i> El efectivo recibido en una de las líneas no cubre el monto a abonar.';
+                balanceAlert.classList.remove('d-none');
+                if (btnSubmit) btnSubmit.disabled = true;
+            } else {
+                balanceAlert.className = 'alert alert-success py-2 px-3 small rounded-3 mt-2';
+                balanceMessage.innerHTML = `<i class="bi bi-check-circle-fill me-1"></i> Total cubierto exactamente: ${formatCurrency(sumPayments)}`;
+                balanceAlert.classList.remove('d-none');
+                if (btnSubmit) btnSubmit.disabled = false;
+            }
+        } else if (diff > 0) {
+            balanceAlert.className = 'alert alert-warning py-2 px-3 small rounded-3 mt-2';
+            balanceMessage.innerHTML = `<i class="bi bi-exclamation-triangle-fill me-1"></i> ⚠️ Falta cubrir: ${formatCurrency(diff)} (Total a liquidar: ${formatCurrency(currentFinalTotal)})`;
+            balanceAlert.classList.remove('d-none');
+            if (btnSubmit) btnSubmit.disabled = true;
+        } else {
+            balanceAlert.className = 'alert alert-danger py-2 px-3 small rounded-3 mt-2';
+            balanceMessage.innerHTML = `<i class="bi bi-exclamation-octagon-fill me-1"></i> ⚠️ El monto ingresado excede el total a liquidar por ${formatCurrency(Math.abs(diff))}`;
+            balanceAlert.classList.remove('d-none');
+            if (btnSubmit) btnSubmit.disabled = true;
+        }
+    }
+
+    function updateRemoveButtonsState() {
+        const lines = paymentsContainer.querySelectorAll('.split-payment-line');
+        lines.forEach(function (line) {
+            const removeBtn = line.querySelector('.remove-split-payment-btn');
+            if (removeBtn) {
+                removeBtn.disabled = (lines.length <= 1);
+            }
+        });
+    }
+
+    function attachPaymentLineEvents(line) {
+        const methodSelect = line.querySelector('.split-method-select');
+        const amtInput = line.querySelector('.split-payment-amount-input');
+        const cashInput = line.querySelector('.split-cash-received-input');
+        const cashRow = line.querySelector('.split-cash-details-row');
+        const refRow = line.querySelector('.split-reference-row');
+
+        if (methodSelect) {
+            methodSelect.addEventListener('change', function () {
+                const isCash = this.value === 'cash';
+                if (cashRow) cashRow.style.setProperty('display', isCash ? 'flex' : 'none', 'important');
+                if (refRow) refRow.style.setProperty('display', isCash ? 'none' : 'block', 'important');
+
+                if (isCash && cashInput && amtInput) {
+                    if (!cashInput.value || parseFloat(cashInput.value) === 0) {
+                        cashInput.value = amtInput.value;
+                    }
+                }
+                updatePaymentLinesChange();
+                calculatePaymentBalance();
+            });
+        }
+
+        if (amtInput) {
+            amtInput.addEventListener('input', function () {
+                if (methodSelect && methodSelect.value === 'cash' && cashInput) {
+                    if (parseFloat(cashInput.value) < parseFloat(this.value)) {
+                        cashInput.value = this.value;
+                    }
+                }
+                updatePaymentLinesChange();
+                calculatePaymentBalance();
+            });
+        }
+
+        if (cashInput) {
+            cashInput.addEventListener('input', function () {
+                updatePaymentLinesChange();
+                calculatePaymentBalance();
+            });
+        }
+    }
+
+    // Delegación de eventos para eliminar filas de pago en split bill
+    if (paymentsContainer) {
+        paymentsContainer.addEventListener('click', function (e) {
+            const removeBtn = e.target.closest('.btn-remove-split-payment, .remove-split-payment-btn');
+            if (!removeBtn) return;
+
+            const lines = paymentsContainer.querySelectorAll('.split-payment-line');
+            if (lines.length <= 1) {
+                const amtInput = lines[0].querySelector('.split-payment-amount-input');
+                if (amtInput) amtInput.value = 0;
+                const cashInput = lines[0].querySelector('.split-cash-received-input');
+                if (cashInput) cashInput.value = 0;
+                updatePaymentLinesChange();
+                calculateSplitTotals();
+                return;
+            }
+
+            const line = removeBtn.closest('.split-payment-line');
+            if (line) {
+                line.remove();
+                updateRemoveButtonsState();
+                calculateSplitTotals();
+            }
+        });
+    }
+
+    // Inicializar eventos de la primera línea de pago
+    const initialLine = paymentsContainer.querySelector('.split-payment-line');
+    if (initialLine) {
+        attachPaymentLineEvents(initialLine);
+        updateRemoveButtonsState();
+    }
+
+    // Evento de checkboxes de platos
+    checkboxes.forEach(function (cb) {
+        cb.addEventListener('change', calculateSplitTotals);
+    });
+
+    // Marcar / Desmarcar todos
+    if (btnSelectAll) {
+        btnSelectAll.addEventListener('click', function () {
+            allSelected = !allSelected;
+            checkboxes.forEach(function (cb) { cb.checked = allSelected; });
+            calculateSplitTotals();
+        });
+    }
+
+    // Cambios en Descuento y Switches
+    if (discountInput) {
+        discountInput.addEventListener('input', calculateSplitTotals);
+    }
+    if (switchTip) {
+        switchTip.addEventListener('change', calculateSplitTotals);
+    }
+    if (switchTax) {
+        switchTax.addEventListener('change', calculateSplitTotals);
+    }
+
+    // Agregar nueva línea de pago
+    if (btnAddPaymentMethod) {
+        btnAddPaymentMethod.addEventListener('click', function () {
+            const lines = paymentsContainer.querySelectorAll('.split-payment-line');
+            let sumExisting = 0;
+            lines.forEach(function (l) {
+                const a = l.querySelector('.split-payment-amount-input');
+                sumExisting += parseFloat(a ? a.value : 0) || 0;
+            });
+
+            const remainingToCover = Math.max(0, roundToCents(currentFinalTotal - sumExisting));
+            const idx = paymentLineIndex++;
+
+            const newLine = document.createElement('div');
+            newLine.className = 'split-payment-line payment-method-row card border p-2 mb-2 rounded-3 bg-white';
+            newLine.dataset.index = idx;
+            newLine.innerHTML = `
+                <div class="d-flex align-items-center gap-2">
+                    <div style="flex: 1 1 130px; min-width: 115px;">
+                        <select name="payments[${idx}][method]" class="form-select form-select-sm split-method-select" required>
+                            <option value="transfer" selected>Transferencia / Nequi</option>
+                            <option value="cash">Efectivo</option>
+                            <option value="card">Tarjeta</option>
+                            <option value="other">Otro</option>
+                        </select>
+                    </div>
+                    <div style="flex: 1 1 120px; min-width: 110px;">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text">$</span>
+                            <input type="number" step="0.01" min="0.01" name="payments[${idx}][amount]" class="form-control text-end split-payment-amount-input fw-bold" value="${remainingToCover}" required>
+                        </div>
+                    </div>
+                    <button type="button" 
+                            class="btn btn-outline-danger btn-remove-split-payment remove-split-payment-btn flex-shrink-0 d-flex align-items-center justify-content-center" 
+                            style="width: 38px; height: 38px; position: relative; z-index: 2;" 
+                            title="Eliminar fila de pago">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+
+                <div class="split-cash-details-row w-100 d-flex align-items-center justify-content-between gap-2 mt-2 pt-2 border-top" style="display: none !important;">
+                    <div class="d-flex align-items-center gap-1" style="max-width: 175px;">
+                        <span class="text-muted small" style="font-size: 0.72rem; white-space: nowrap;">Recibido:</span>
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text" style="font-size: 0.75rem;">$</span>
+                            <input type="number" step="0.01" min="0" name="payments[${idx}][cash_received]" class="form-control text-end split-cash-received-input" placeholder="0" value="${remainingToCover}">
+                        </div>
+                    </div>
+                    <div class="text-end">
+                        <span class="badge bg-light text-success border small split-change-display">Vuelto: $0</span>
+                        <input type="hidden" name="payments[${idx}][change_given]" class="split-change-given-input" value="0.00">
+                    </div>
+                </div>
+
+                <div class="split-reference-row w-100 mt-2 pt-2 border-top">
+                    <input type="text" name="payments[${idx}][reference]" class="form-control form-control-sm split-reference-input" placeholder="N° Comprobante / Voucher (opcional)" maxlength="60">
+                </div>
+            `;
+
+            paymentsContainer.appendChild(newLine);
+            attachPaymentLineEvents(newLine);
+            updateRemoveButtonsState();
+            calculatePaymentBalance();
+        });
+    }
+
+    // Delegación de clic para atajos de efectivo rápido
+    if (quickCashContainer) {
+        quickCashContainer.addEventListener('click', function (e) {
+            const btn = e.target.closest('.split-quick-cash-btn');
+            if (!btn) return;
+
+            const amt = parseFloat(btn.dataset.amt || 0);
+            const lines = paymentsContainer.querySelectorAll('.split-payment-line');
+            if (lines.length === 0) return;
+
+            const firstLine = lines[0];
+            const methodSelect = firstLine.querySelector('.split-method-select');
+            const amtInput = firstLine.querySelector('.split-payment-amount-input');
+            const cashInput = firstLine.querySelector('.split-cash-received-input');
+
+            if (methodSelect && methodSelect.value !== 'cash') {
+                methodSelect.value = 'cash';
+                methodSelect.dispatchEvent(new Event('change'));
+            }
+
+            if (lines.length === 1 && amtInput) {
+                amtInput.value = currentFinalTotal;
+            }
+
+            if (cashInput) {
+                cashInput.value = amt;
+            }
+
+            updatePaymentLinesChange();
+            calculatePaymentBalance();
+        });
+    }
+
+    // Impresión de Pre-cuenta con parámetros enriquecidos
+    if (btnPrecount) {
+        btnPrecount.addEventListener('click', function () {
+            const selectedIds = [];
+            checkboxes.forEach(function (cb) {
+                if (cb.checked) selectedIds.push(cb.value);
+            });
+
+            if (selectedIds.length === 0) return;
+
+            const custId = customerSelect ? customerSelect.value : '';
+            const disc = parseFloat(discountInput ? discountInput.value : 0) || 0;
+            const tip = switchTip && switchTip.checked ? 1 : 0;
+            const tax = switchTax && switchTax.checked ? 1 : 0;
+
+            let url = "{{ route('restaurant.orders.print-split-precount', $order) }}?items[]=" + selectedIds.join('&items[]=');
+            if (custId) url += '&customer_id=' + encodeURIComponent(custId);
+            if (disc > 0) url += '&discount_percentage=' + encodeURIComponent(disc);
+            if (tip) url += '&include_tip=1';
+            if (tax) url += '&include_tax=1';
+
+            window.open(url, '_blank', 'width=450,height=650,scrollbars=yes');
+        });
+    }
+
+    // Submit del formulario
+    if (splitForm && btnSubmit) {
+        splitForm.addEventListener('submit', function () {
+            btnSubmit.disabled = true;
+            btnSubmit.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Procesando pago...';
+        });
+    }
+
+    // Cálculo inicial
+    calculateSplitTotals();
+});
+</script>
+@endif
+
+@if(session('print_split_ticket_id'))
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            try {
+                const printUrl = "{{ route('restaurant.orders.print-split-ticket', [$order, session('print_split_ticket_id')]) }}";
+                const popup = window.open(printUrl, '_blank', 'width=450,height=650,scrollbars=yes');
+                if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+                    console.info('Aviso: La ventana emergente de impresión de comprobante parcial fue bloqueada por el navegador.');
+                }
+            } catch (e) {
+                console.warn('Impresión de ticket parcial no ejecutada:', e);
             }
         });
     </script>

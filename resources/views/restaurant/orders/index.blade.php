@@ -9,11 +9,11 @@
     $todayFormatted = \Carbon\Carbon::parse($todayDate)->format('d/m/Y');
 
     $statusBadges = [
-        'open' => 'bg-secondary',
+        'open' => 'bg-primary',
         'in_kitchen' => 'bg-warning text-dark',
         'dispatched' => 'bg-info text-dark',
         'delivered' => 'bg-primary',
-        'billed' => 'bg-warning text-dark',
+        'billed' => 'bg-success',
         'closed' => 'bg-success',
         'cancelled' => 'bg-danger',
     ];
@@ -22,11 +22,88 @@
         'in_kitchen' => 'En Cocina',
         'dispatched' => 'En Despacho',
         'delivered' => 'Entregada',
-        'billed' => 'En Cobro / Pre-cuenta emitida',
+        'billed' => 'Cerrada / Pagada',
         'closed' => 'Cerrada / Pagada',
         'cancelled' => 'Anulada',
     ];
 @endphp
+
+<style>
+    .orders-nav-tabs-wrapper {
+        position: relative;
+    }
+    .orders-segmented-control {
+        background-color: #f1f5f9 !important;
+        border: 1px solid rgba(148, 163, 184, 0.25) !important;
+        padding: 4px !important;
+        border-radius: 9999px !important;
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        gap: 4px !important;
+    }
+    .orders-segmented-control .nav-item {
+        flex: 1 1 50% !important;
+        min-width: 0 !important;
+    }
+    .orders-segmented-control .nav-link {
+        width: 100%;
+        color: #64748b;
+        background-color: transparent;
+        border: none;
+        border-radius: 9999px !important;
+        font-size: 0.925rem;
+        font-weight: 600;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        text-align: center;
+        user-select: none;
+        white-space: nowrap !important;
+        -webkit-tap-highlight-color: transparent;
+        padding: 8px 12px !important;
+    }
+    .orders-segmented-control .nav-link:hover:not(.active) {
+        color: #334155;
+        background-color: rgba(255, 255, 255, 0.6);
+    }
+    .orders-segmented-control .nav-link.active {
+        color: #0d6efd !important;
+        background-color: #ffffff !important;
+        box-shadow: 0 2px 6px rgba(15, 23, 42, 0.1) !important;
+    }
+    .orders-segmented-control .nav-link.active .badge {
+        background-color: #0d6efd !important;
+        color: #ffffff !important;
+        border-color: #0d6efd !important;
+    }
+    .orders-segmented-control .nav-link:not(.active) .badge {
+        background-color: #e2e8f0 !important;
+        color: #64748b !important;
+        border-color: #cbd5e1 !important;
+    }
+    @media (max-width: 575.98px) {
+        .orders-segmented-control .nav-link {
+            font-size: 0.825rem;
+            padding: 8px 6px !important;
+            gap: 4px !important;
+        }
+        .orders-segmented-control .nav-link i {
+            font-size: 0.9rem !important;
+        }
+        .orders-segmented-control .badge {
+            font-size: 0.725rem !important;
+            padding: 0.2rem 0.4rem !important;
+        }
+    }
+    @media (max-width: 380px) {
+        .orders-segmented-control .tab-text-extra {
+            display: none !important;
+        }
+        .orders-segmented-control .nav-link {
+            font-size: 0.775rem;
+            padding: 8px 4px !important;
+        }
+    }
+</style>
 
 <div class="container-fluid py-3">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
@@ -37,10 +114,10 @@
             <p class="text-muted small mb-0">Listado y seguimiento de pedidos de salón, cocina y despachos.</p>
         </div>
         <div class="d-flex gap-2">
-            <a href="{{ route('restaurant.tables.index') }}" class="btn btn-outline-primary d-inline-flex align-items-center" style="min-height: 40px;">
+            <a href="{{ route('restaurant.tables.index') }}" class="btn btn-outline-primary d-inline-flex align-items-center" style="min-height: 44px;">
                 <i class="bi bi-grid-3x3-gap-fill me-1"></i> Mapa de Mesas
             </a>
-            <a href="{{ route('restaurant.orders.create') }}" class="btn btn-primary d-inline-flex align-items-center" style="min-height: 40px;">
+            <a href="{{ route('restaurant.orders.create') }}" class="btn btn-primary d-inline-flex align-items-center" style="min-height: 44px;">
                 <i class="bi bi-plus-circle me-1"></i> Abrir Nueva Comanda
             </a>
         </div>
@@ -60,43 +137,49 @@
         </div>
     @endif
 
-    {{-- Pestañas de Navegación Temporal --}}
-    <ul class="nav nav-tabs mb-3 border-bottom" id="ordersTab" role="tablist">
-        <li class="nav-item" role="presentation">
-            <button class="nav-link fw-semibold px-4 py-2 {{ $activeTab === 'today' ? 'active text-primary border-bottom-0' : 'text-secondary' }}" 
-                    id="today-tab" 
-                    data-bs-toggle="tab" 
-                    data-bs-target="#today-orders-pane" 
-                    type="button" 
-                    role="tab" 
-                    aria-controls="today-orders-pane" 
-                    aria-selected="{{ $activeTab === 'today' ? 'true' : 'false' }}">
-                <i class="bi bi-calendar-check me-1"></i> Comandas de Hoy ({{ $todayFormatted }})
-                <span class="badge {{ $todayOrders->count() > 0 ? 'bg-primary' : 'bg-secondary' }} ms-1 rounded-pill">
-                    {{ $todayOrders->count() }}
-                </span>
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link fw-semibold px-4 py-2 {{ $activeTab === 'past' ? 'active text-primary border-bottom-0' : 'text-secondary' }}" 
-                    id="past-tab" 
-                    data-bs-toggle="tab" 
-                    data-bs-target="#past-orders-pane" 
-                    type="button" 
-                    role="tab" 
-                    aria-controls="past-orders-pane" 
-                    aria-selected="{{ $activeTab === 'past' ? 'true' : 'false' }}">
-                <i class="bi bi-clock-history me-1"></i> Historial de Días Anteriores
-                <span class="badge bg-secondary ms-1 rounded-pill">
-                    {{ $pastOrders->total() }}
-                </span>
-            </button>
-        </li>
-    </ul>
+    {{-- Control Segmentado Unificado de Navegación Temporal --}}
+    <div class="orders-nav-tabs-wrapper mb-3">
+        <ul class="nav nav-pills nav-fill p-1 bg-light border border-secondary border-opacity-25 rounded-4 shadow-sm orders-segmented-control" id="ordersTab" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link {{ $activeTab === 'today' ? 'active' : '' }} rounded-pill py-2 px-2 px-sm-3 fw-semibold d-flex align-items-center justify-content-center gap-1 gap-sm-2" 
+                        id="today-orders-tab" 
+                        data-bs-toggle="pill" 
+                        data-bs-target="#today-orders-pane" 
+                        type="button" 
+                        role="tab" 
+                        aria-controls="today-orders-pane" 
+                        aria-selected="{{ $activeTab === 'today' ? 'true' : 'false' }}"
+                        style="min-height: 44px;">
+                    <i class="bi bi-calendar-check fs-6"></i>
+                    <span><span class="tab-text-extra">Comandas </span>Hoy<span class="d-none d-md-inline"> ({{ $todayFormatted }})</span></span>
+                    <span class="badge {{ $activeTab === 'today' ? 'bg-primary text-white' : 'bg-secondary-subtle text-secondary border border-secondary-subtle' }} rounded-pill px-2 py-1 ms-1 orders-today-count">
+                        {{ $todayOrdersCount ?? $todayOrders->count() }}
+                    </span>
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link {{ $activeTab === 'past' ? 'active' : '' }} rounded-pill py-2 px-2 px-sm-3 fw-semibold text-secondary d-flex align-items-center justify-content-center gap-1 gap-sm-2" 
+                        id="history-orders-tab" 
+                        data-bs-toggle="pill" 
+                        data-bs-target="#past-orders-pane" 
+                        type="button" 
+                        role="tab" 
+                        aria-controls="past-orders-pane" 
+                        aria-selected="{{ $activeTab === 'past' ? 'true' : 'false' }}"
+                        style="min-height: 44px;">
+                    <i class="bi bi-clock-history fs-6"></i>
+                    <span>Historial<span class="tab-text-extra"> Anterior</span></span>
+                    <span class="badge {{ $activeTab === 'past' ? 'bg-primary text-white' : 'bg-secondary-subtle text-secondary border border-secondary-subtle' }} rounded-pill px-2 py-1 ms-1 orders-history-count">
+                        {{ $historyOrdersCount ?? (isset($historyOrders) ? $historyOrders->count() : $pastOrders->total()) }}
+                    </span>
+                </button>
+            </li>
+        </ul>
+    </div>
 
     <div class="tab-content" id="ordersTabContent">
         {{-- PESTAÑA 1: COMANDAS DE HOY --}}
-        <div class="tab-pane fade {{ $activeTab === 'today' ? 'show active' : '' }}" id="today-orders-pane" role="tabpanel" aria-labelledby="today-tab" tabindex="0">
+        <div class="tab-pane fade {{ $activeTab === 'today' ? 'show active' : '' }}" id="today-orders-pane" role="tabpanel" aria-labelledby="today-orders-tab" tabindex="0">
             <div class="card border-0 shadow-sm rounded-4">
                 <div class="card-body p-0">
                     @if($todayOrders->isEmpty())
@@ -160,9 +243,17 @@
                                                 <small class="text-muted">{{ $order->user->name ?? 'Usuario' }}</small>
                                             </td>
                                             <td>
-                                                <span class="badge {{ $statusBadges[$order->status] ?? 'bg-secondary' }}">
-                                                    {{ $statusLabels[$order->status] ?? $order->status }}
-                                                </span>
+                                                @if($order->status === 'billed' || $order->status === 'closed')
+                                                    <span class="badge bg-success px-2 py-1">Cerrada / Pagada</span>
+                                                @elseif($order->status === 'cancelled')
+                                                    <span class="badge bg-danger px-2 py-1">Anulada</span>
+                                                @elseif($order->precount_printed_at || $order->hasPartialPayments())
+                                                    <span class="badge bg-warning text-dark px-2 py-1">En Cobro / Pre-cuenta emitida</span>
+                                                @elseif($order->status === 'in_kitchen')
+                                                    <span class="badge bg-warning text-dark px-2 py-1">En Cocina</span>
+                                                @else
+                                                    <span class="badge bg-primary px-2 py-1">Abierta / En preparación</span>
+                                                @endif
                                             </td>
                                             <td class="fw-bold">
                                                 ${{ number_format($order->total, 2) }}
@@ -201,7 +292,7 @@
         </div>
 
         {{-- PESTAÑA 2: HISTORIAL DE DÍAS ANTERIORES --}}
-        <div class="tab-pane fade {{ $activeTab === 'past' ? 'show active' : '' }}" id="past-orders-pane" role="tabpanel" aria-labelledby="past-tab" tabindex="0">
+        <div class="tab-pane fade {{ $activeTab === 'past' ? 'show active' : '' }}" id="past-orders-pane" role="tabpanel" aria-labelledby="history-orders-tab" tabindex="0">
             {{-- Filtros de Búsqueda --}}
             <div class="card border-0 shadow-sm rounded-4 mb-3 bg-light">
                 <div class="card-body p-3">
@@ -306,9 +397,17 @@
                                                 <small class="text-muted">{{ $order->user->name ?? 'Usuario' }}</small>
                                             </td>
                                             <td>
-                                                <span class="badge {{ $statusBadges[$order->status] ?? 'bg-secondary' }}">
-                                                    {{ $statusLabels[$order->status] ?? $order->status }}
-                                                </span>
+                                                @if($order->status === 'billed' || $order->status === 'closed')
+                                                    <span class="badge bg-success px-2 py-1">Cerrada / Pagada</span>
+                                                @elseif($order->status === 'cancelled')
+                                                    <span class="badge bg-danger px-2 py-1">Anulada</span>
+                                                @elseif($order->precount_printed_at || $order->hasPartialPayments())
+                                                    <span class="badge bg-warning text-dark px-2 py-1">En Cobro / Pre-cuenta emitida</span>
+                                                @elseif($order->status === 'in_kitchen')
+                                                    <span class="badge bg-warning text-dark px-2 py-1">En Cocina</span>
+                                                @else
+                                                    <span class="badge bg-primary px-2 py-1">Abierta / En preparación</span>
+                                                @endif
                                             </td>
                                             <td class="fw-bold">
                                                 ${{ number_format($order->total, 2) }}

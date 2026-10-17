@@ -3,24 +3,76 @@
 @section('title', 'Asistente de Consultas IA')
 
 @section('content')
-<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+<style>
+    @media (max-width: 767.98px) {
+        .chat-conversation-card {
+            max-height: 38vh;
+            min-height: 200px;
+            display: flex;
+            flex-direction: column;
+        }
+        .chat-messages-body {
+            overflow-y: auto;
+            flex: 1 1 auto;
+        }
+    }
+    @media (min-width: 768px) {
+        .chat-conversation-card {
+            min-height: 520px;
+            height: 600px;
+        }
+        .chat-messages-body {
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+    }
+    .chat-messages-body {
+        overscroll-behavior-y: contain;
+        scroll-behavior: smooth;
+    }
+    .scrollbar-thin {
+        scrollbar-width: thin;
+        -webkit-overflow-scrolling: touch;
+    }
+    .scrollbar-thin::-webkit-scrollbar {
+        height: 4px;
+    }
+    .scrollbar-thin::-webkit-scrollbar-thumb {
+        background-color: rgba(0, 0, 0, 0.2);
+        border-radius: 4px;
+    }
+    .quick-prompt-btn {
+        font-size: 0.85rem;
+        background-color: #ffffff;
+        border-color: #dee2e6;
+        color: #495057;
+        transition: all 0.2s ease-in-out;
+    }
+    .quick-prompt-btn:hover, .quick-prompt-btn:active {
+        background-color: #f8f9fa;
+        border-color: #0d6efd;
+        color: #0d6efd;
+    }
+</style>
+
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center py-2 py-md-3 mb-2 mb-md-3 gap-2">
     <div>
-        <h3 class="fw-bold mb-1">
+        <h3 class="fw-bold mb-1 fs-5 fs-md-3">
             <i class="bi bi-stars text-primary me-1"></i> Asistente de Consultas
         </h3>
-        <p class="text-muted small mb-0">
+        <p class="text-muted small mb-0 d-none d-md-block">
             Pregunta en lenguaje natural sobre ventas, inventario, clientes y catálogo de <strong>{{ $currentBusiness->name }}</strong>.
         </p>
     </div>
-    <div class="d-flex align-items-center gap-2 flex-wrap">
-        <span class="badge bg-success-subtle text-success rounded-pill px-3 py-2">
+    <div class="d-flex flex-wrap gap-1 gap-md-2 align-items-center">
+        <span class="badge bg-success-subtle text-success rounded-pill px-2 px-md-3 py-1 py-md-2">
             <i class="bi bi-shield-check me-1"></i> Solo Lectura
         </span>
-        <span class="badge bg-primary-subtle text-primary rounded-pill px-3 py-2">
+        <span class="badge bg-primary-subtle text-primary rounded-pill px-2 px-md-3 py-1 py-md-2">
             <i class="bi bi-building-check me-1"></i> Tenant Aislado
         </span>
         @if(!$enabled)
-            <span class="badge bg-warning-subtle text-dark rounded-pill px-3 py-2">
+            <span class="badge bg-warning-subtle text-dark rounded-pill px-2 px-md-3 py-1 py-md-2">
                 <i class="bi bi-power me-1"></i> Desactivado en .env
             </span>
         @endif
@@ -48,7 +100,7 @@
 <div class="row g-4">
     <div class="col-lg-8">
         {{-- Contenedor del Chat --}}
-        <div class="card card-custom bg-white border-0 shadow-sm d-flex flex-column" style="min-height: 520px; height: 600px;">
+        <div class="card card-custom bg-white border-0 shadow-sm d-flex flex-column chat-conversation-card">
             <div class="card-header bg-transparent border-0 pt-3 px-4 d-flex justify-content-between align-items-center">
                 <span class="small fw-semibold text-muted text-uppercase">Conversación</span>
                 <button type="button" class="btn btn-sm btn-link text-secondary text-decoration-none" id="clearChatBtn">
@@ -56,7 +108,7 @@
                 </button>
             </div>
 
-            <div class="card-body px-4 overflow-y-auto flex-grow-1" id="chatMessages" style="scroll-behavior: smooth;">
+            <div class="card-body px-4 chat-messages-body" id="chatMessages">
                 {{-- Mensaje Inicial de Bienvenida --}}
                 <div class="d-flex gap-3 mb-4">
                     <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width: 38px; height: 38px;">
@@ -73,38 +125,87 @@
                 </div>
             </div>
 
-            {{-- Formulario de Entrada --}}
-            <div class="card-footer bg-white border-0 p-3">
-                <form id="queryForm" class="d-flex gap-2">
-                    @csrf
-                    <input type="text" id="userInput" class="form-control rounded-pill px-4 py-2"
-                           placeholder="Escribe tu consulta aquí (ej: ¿Cuáles productos tienen bajo stock?)..."
-                           autocomplete="off" maxlength="500">
-                    <button type="submit" class="btn btn-primary rounded-pill px-4 fw-semibold d-flex align-items-center gap-2" id="sendBtn">
-                        <span>Enviar</span>
-                        <i class="bi bi-send-fill"></i>
+            {{-- Formulario de Entrada Inmediata --}}
+            <div class="card-footer bg-white border-0 p-2 p-md-3">
+                <div class="chat-input-wrapper">
+                    <form id="queryForm" class="d-flex gap-2 align-items-center">
+                        @csrf
+                        <input type="text" id="userInput" class="form-control rounded-pill px-3 px-md-4 py-2 shadow-sm"
+                               placeholder="Escribe tu consulta aquí..."
+                               autocomplete="off" maxlength="500"
+                               style="min-height: 44px;">
+                        <button type="submit" class="btn btn-primary rounded-pill px-3 px-md-4 fw-semibold d-inline-flex align-items-center justify-content-center gap-2 shadow-sm flex-shrink-0" 
+                                id="sendBtn"
+                                style="min-height: 44px;">
+                            <span>Enviar</span>
+                            <i class="bi bi-send-fill"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        {{-- Preguntas Frecuentes en Móvil (Chips Horizontales con Desplazamiento) --}}
+        <div class="quick-prompts-section my-3 d-block d-lg-none">
+            <div class="d-flex align-items-center gap-1 text-muted small fw-bold text-uppercase mb-2">
+                <i class="bi bi-lightbulb-fill text-warning"></i>
+                <span>Preguntas Frecuentes</span>
+            </div>
+            <div class="d-flex flex-nowrap gap-2 overflow-x-auto pb-2 scrollbar-thin">
+                @foreach ($suggestions as $suggestion)
+                    <button type="button" 
+                            class="btn btn-sm btn-outline-secondary rounded-pill text-nowrap px-3 py-2 suggestion-btn quick-prompt-btn flex-shrink-0" 
+                            data-query="{{ $suggestion }}"
+                            style="min-height: 44px;">
+                        <i class="bi bi-arrow-return-right me-1 text-primary"></i>{{ $suggestion }}
                     </button>
-                </form>
+                @endforeach
+            </div>
+        </div>
+
+        {{-- Garantías de Seguridad en Móvil (Colapsable) --}}
+        <div class="mobile-security-section mb-3 d-block d-lg-none">
+            <div class="card bg-light border-0 rounded-3 p-2 px-3">
+                <a class="small text-muted text-decoration-none fw-semibold d-inline-flex align-items-center justify-content-between w-100 py-1" 
+                   data-bs-toggle="collapse" 
+                   href="#securityDetails" 
+                   role="button" 
+                   aria-expanded="false" 
+                   aria-controls="securityDetails"
+                   style="min-height: 44px;">
+                    <span class="d-inline-flex align-items-center">
+                        <i class="bi bi-shield-check text-success me-2 fs-6"></i>
+                        <span>Ver Garantías de Seguridad</span>
+                    </span>
+                    <i class="bi bi-chevron-down text-muted small"></i>
+                </a>
+                <div class="collapse pt-2" id="securityDetails">
+                    <ul class="list-unstyled small text-muted mb-0 d-flex flex-column gap-2 pt-2 border-top">
+                        <li><i class="bi bi-check-circle-fill text-success me-1"></i> <strong>Solo Lectura:</strong> Imposible alterar o borrar datos por error.</li>
+                        <li><i class="bi bi-check-circle-fill text-success me-1"></i> <strong>Aislamiento Estricto:</strong> Solo accede a datos de {{ $currentBusiness->name }}.</li>
+                        <li><i class="bi bi-check-circle-fill text-success me-1"></i> <strong>Sin SQL arbitrario:</strong> Intenciones verificadas contra una whitelist fija.</li>
+                    </ul>
+                </div>
             </div>
         </div>
     </div>
 
-    <div class="col-lg-4">
-        {{-- Sugerencias Rápidas --}}
+    <div class="col-lg-4 d-none d-lg-block">
+        {{-- Sugerencias Rápidas en Desktop --}}
         <div class="card card-custom bg-white border-0 shadow-sm p-4 mb-4">
             <h6 class="fw-bold mb-3 text-dark">
                 <i class="bi bi-lightbulb text-warning me-1"></i> Preguntas Frecuentes
             </h6>
             <div class="d-flex flex-column gap-2" id="suggestionChips">
                 @foreach ($suggestions as $suggestion)
-                    <button type="button" class="btn btn-sm btn-outline-secondary text-start rounded-pill py-2 px-3 suggestion-btn text-truncate" data-query="{{ $suggestion }}" title="{{ $suggestion }}">
+                    <button type="button" class="btn btn-sm btn-outline-secondary text-start rounded-pill py-2 px-3 suggestion-btn text-truncate" data-query="{{ $suggestion }}" title="{{ $suggestion }}" style="min-height: 40px;">
                         <i class="bi bi-arrow-return-right me-1 text-primary"></i> {{ $suggestion }}
                     </button>
                 @endforeach
             </div>
         </div>
 
-        {{-- Reglas de Seguridad Visibles al Usuario --}}
+        {{-- Reglas de Seguridad Visibles al Usuario en Desktop --}}
         <div class="card card-custom bg-light border-0 p-3">
             <h6 class="fw-bold small text-muted text-uppercase mb-2">Garantías de Seguridad</h6>
             <ul class="list-unstyled small text-muted mb-0 d-flex flex-column gap-2">

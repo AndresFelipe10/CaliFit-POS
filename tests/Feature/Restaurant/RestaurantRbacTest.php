@@ -197,12 +197,21 @@ class RestaurantRbacTest extends TestCase
 
         $response->assertOk();
 
+        // Categoría operativa visible
+        $response->assertSee('OPERACIÓN Y ATENCIÓN');
+
         // Enlaces visibles para empleado en Restaurante
+        $response->assertSee('Dashboard');
         $response->assertSee('Salón y Mesas');
         $response->assertSee('Comandas');
         $response->assertSee('Domicilios y Despacho');
+        $response->assertSee('Ventas de Mostrador');
         $response->assertSee('Cuadre de Caja');
         $response->assertSee('Clientes');
+        $response->assertSee('Asistente IA');
+
+        // Encabezado de sección administrativa oculto para empleado
+        $response->assertDontSee('GESTIÓN Y ADMINISTRACIÓN');
 
         // Enlaces bloqueados y ocultos para empleado
         $response->assertDontSee('Menú / Productos');
@@ -223,10 +232,18 @@ class RestaurantRbacTest extends TestCase
 
         $response->assertOk();
 
+        // Categoría operativa visible
+        $response->assertSee('OPERACIÓN Y ATENCIÓN');
+
         // Enlaces visibles para empleado en Retail
+        $response->assertSee('Dashboard');
         $response->assertSee('<i class="bi bi-cart-check me-2"></i> Ventas', false);
         $response->assertSee('Cuadre de Caja');
         $response->assertSee('Clientes');
+        $response->assertSee('Asistente IA');
+
+        // Encabezado de sección administrativa oculto para empleado
+        $response->assertDontSee('GESTIÓN Y ADMINISTRACIÓN');
 
         // Enlaces administrativos ocultos
         $response->assertDontSee('<i class="bi bi-boxes me-2"></i> Productos', false);
@@ -237,5 +254,74 @@ class RestaurantRbacTest extends TestCase
         $response->assertDontSee('Reportes');
         $response->assertDontSee('Mi negocio');
         $response->assertDontSee('Equipo');
+    }
+
+    public function test_sidebar_renders_categorization_and_admin_modules_for_admin_in_restaurant(): void
+    {
+        $response = $this->actingAs($this->restaurantAdmin)
+            ->withSession(['current_business_id' => $this->restaurantBiz->id])
+            ->get(route('dashboard'));
+
+        $response->assertOk();
+
+        // Ambas categorías visibles para administrador
+        $response->assertSee('OPERACIÓN Y ATENCIÓN');
+        $response->assertSee('GESTIÓN Y ADMINISTRACIÓN');
+
+        // Módulos operativos
+        $response->assertSee('Dashboard');
+        $response->assertSee('Salón y Mesas');
+        $response->assertSee('Comandas');
+        $response->assertSee('Domicilios y Despacho');
+        $response->assertSee('Ventas de Mostrador');
+        $response->assertSee('Cuadre de Caja');
+        $response->assertSee('Clientes');
+        $response->assertSee('Asistente IA');
+
+        // Módulos administrativos
+        $response->assertSee('Inventario');
+        $response->assertSee('Menú / Productos');
+        $response->assertSee('Categorías');
+        $response->assertSee('Proveedores');
+        $response->assertSee('Gastos');
+        $response->assertSee('Reportes');
+        $response->assertSee('Mi negocio');
+        $response->assertSee('Equipo');
+    }
+
+    public function test_sidebar_renders_categorization_and_admin_modules_for_admin_in_retail(): void
+    {
+        $retailAdmin = User::factory()->create();
+        $this->retailBiz->users()->attach($retailAdmin->id, [
+            'role_id' => $this->adminRole->id,
+            'is_active' => true,
+        ]);
+
+        $response = $this->actingAs($retailAdmin)
+            ->withSession(['current_business_id' => $this->retailBiz->id])
+            ->get(route('dashboard'));
+
+        $response->assertOk();
+
+        // Ambas categorías visibles para administrador
+        $response->assertSee('OPERACIÓN Y ATENCIÓN');
+        $response->assertSee('GESTIÓN Y ADMINISTRACIÓN');
+
+        // Módulos operativos de retail
+        $response->assertSee('Dashboard');
+        $response->assertSee('<i class="bi bi-cart-check me-2"></i> Ventas', false);
+        $response->assertSee('Cuadre de Caja');
+        $response->assertSee('Clientes');
+        $response->assertSee('Asistente IA');
+
+        // Módulos administrativos de retail
+        $response->assertSee('Inventario');
+        $response->assertSee('<i class="bi bi-boxes me-2"></i> Productos', false);
+        $response->assertSee('Categorías');
+        $response->assertSee('Proveedores');
+        $response->assertSee('Gastos');
+        $response->assertSee('Reportes');
+        $response->assertSee('Mi negocio');
+        $response->assertSee('Equipo');
     }
 }

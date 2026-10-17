@@ -136,6 +136,14 @@ class User extends Authenticatable
     }
 
     /**
+     * Alias for isCurrentAdmin in current active tenant business.
+     */
+    public function isAdmin(): bool
+    {
+        return $this->isCurrentAdmin();
+    }
+
+    /**
      * Check if user is an employee in the currently active tenant business.
      */
      public function isCurrentEmployee(): bool

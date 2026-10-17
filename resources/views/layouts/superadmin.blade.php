@@ -303,6 +303,84 @@
 
     <!-- Bootstrap 5 JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Prevenir que la rueda del ratón (wheel) altere valores numéricos
+        document.addEventListener('wheel', function (e) {
+            if (document.activeElement && document.activeElement.type === 'number') {
+                document.activeElement.blur();
+            }
+        }, { passive: true });
+
+        // Motor declarativo de higienización y restricción de inputs en tiempo real (Superadmin)
+        document.addEventListener('input', function (e) {
+            const target = e.target;
+            if (!target || !target.tagName || (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA')) return;
+
+            // 1. Teléfono / WhatsApp: Solo dígitos y prefijo + opcional al inicio (máx 15)
+            if (target.matches('input[type="tel"], input[name*="phone"], input[data-input-type="phone"]')) {
+                const val = target.value;
+                let cleaned = val.replace(/[^0-9+]/g, '');
+                if (cleaned.startsWith('+')) {
+                    cleaned = '+' + cleaned.substring(1).replace(/\+/g, '');
+                } else {
+                    cleaned = cleaned.replace(/\+/g, '');
+                }
+                if (cleaned.length > 15) {
+                    cleaned = cleaned.slice(0, 15);
+                }
+                if (val !== cleaned) {
+                    target.value = cleaned;
+                }
+                return;
+            }
+
+            // 2. Documento / Cédula / NIT: Solo dígitos y máximo un guion para DV
+            if (target.matches('input[name="document"], input[name="nit"], input[name="identification_number"], input[data-input-type="document"]')) {
+                const val = target.value;
+                let cleaned = val.replace(/[^0-9-]/g, '');
+                const firstDash = cleaned.indexOf('-');
+                if (firstDash !== -1) {
+                    cleaned = cleaned.substring(0, firstDash + 1) + cleaned.substring(firstDash + 1).replace(/-/g, '');
+                }
+                if (cleaned.length > 15) {
+                    cleaned = cleaned.slice(0, 15);
+                }
+                if (val !== cleaned) {
+                    target.value = cleaned;
+                }
+                return;
+            }
+
+            // 3. Nombre de Personas: Solo letras, acentos, espacios, puntos y apóstrofes (máx 80)
+            if (target.matches('input[name="admin_name"], input[name="name"]:not([data-business-name]), input[data-person-name]')) {
+                // Si estamos en formulario de creación de usuario colaborador
+                if (target.closest('#tenantUserForm') || target.name === 'admin_name') {
+                    const val = target.value;
+                    let cleaned = val.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s.']/g, '').replace(/\s{2,}/g, ' ');
+                    if (cleaned.length > 80) {
+                        cleaned = cleaned.slice(0, 80);
+                    }
+                    if (val !== cleaned) {
+                        target.value = cleaned;
+                    }
+                }
+                return;
+            }
+
+            // 4. Dirección / Ubicación
+            if (target.matches('input[name="address"], textarea[name="address"]')) {
+                const val = target.value;
+                let cleaned = val.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑüÜ\s#\-\.,\/°]/g, '');
+                if (cleaned.length > 150) {
+                    cleaned = cleaned.slice(0, 150);
+                }
+                if (val !== cleaned) {
+                    target.value = cleaned;
+                }
+                return;
+            }
+        });
+    </script>
     @stack('scripts')
 </body>
 </html>

@@ -173,19 +173,29 @@
                                         <i class="bi bi-key"></i>
                                     </button>
                                 </form>
-                                <form method="POST" action="{{ route('superadmin.businesses.toggleStatus', $biz) }}" class="d-inline m-0"
-                                      onsubmit="return confirm('¿Seguro que deseas cambiar el estado de {{ $biz->name }}?');">
-                                    @csrf
-                                    @if ($biz->status === 'active')
-                                        <button type="submit" class="btn btn-outline-danger btn-action-table" title="Suspender negocio">
-                                            <i class="bi bi-pause-fill"></i>
-                                        </button>
-                                    @else
-                                        <button type="submit" class="btn btn-outline-success btn-action-table" title="Reactivar negocio">
-                                            <i class="bi bi-play-fill"></i>
-                                        </button>
-                                    @endif
-                                </form>
+                                @if ($biz->status === 'active')
+                                    <button type="button" 
+                                            class="btn btn-outline-danger btn-action-table btn-toggle-biz-status" 
+                                            title="Suspender negocio"
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#toggleBusinessStatusModal"
+                                            data-action-url="{{ route('superadmin.businesses.toggleStatus', $biz) }}"
+                                            data-business-name="{{ $biz->name }}"
+                                            data-business-status="active">
+                                        <i class="bi bi-pause-fill"></i>
+                                    </button>
+                                @else
+                                    <button type="button" 
+                                            class="btn btn-outline-success btn-action-table btn-toggle-biz-status" 
+                                            title="Reactivar negocio"
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#toggleBusinessStatusModal"
+                                            data-action-url="{{ route('superadmin.businesses.toggleStatus', $biz) }}"
+                                            data-business-name="{{ $biz->name }}"
+                                            data-business-status="inactive">
+                                        <i class="bi bi-play-fill"></i>
+                                    </button>
+                                @endif
                             </div>
                         </td>
                     </tr>
@@ -207,4 +217,123 @@
         {{ $businesses->links() }}
     </div>
 @endif
+
+{{-- Modal Superadmin de Cambio de Estado de Negocio --}}
+<div class="modal fade" id="toggleBusinessStatusModal" tabindex="-1" aria-labelledby="toggleBusinessStatusModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content card-dark border-secondary border-opacity-50 shadow rounded-4 overflow-hidden text-light">
+            <div class="modal-header py-3" id="toggleBizModalHeader">
+                <h5 class="modal-title fw-bold d-flex align-items-center text-white" id="toggleBusinessStatusModalLabel">
+                    <i class="bi me-2 fs-5" id="toggleBizModalIcon"></i>
+                    <span id="toggleBizModalTitle">Cambiar Estado</span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="alert d-flex align-items-start mb-0 rounded-3" id="toggleBizModalAlert" role="alert">
+                    <i class="bi fs-3 me-3 flex-shrink-0" id="toggleBizAlertIcon"></i>
+                    <div>
+                        <div class="fw-semibold text-white mb-1" id="toggleBizModalMessage"></div>
+                        <div class="small text-secondary" id="toggleBizModalSubtext"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer bg-dark border-top border-secondary border-opacity-25 px-4 py-3 d-flex justify-content-end gap-2">
+                <button type="button" class="btn btn-outline-secondary rounded-pill px-4 fw-semibold" data-bs-dismiss="modal">
+                    Cancelar
+                </button>
+                <form action="" method="POST" id="toggleBusinessStatusForm" class="d-inline m-0" data-no-disable>
+                    @csrf
+                    <button type="submit" class="btn rounded-pill px-4 fw-bold" id="btnConfirmToggleBiz">
+                        Confirmar
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
 @endsection
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const modalEl = document.getElementById('toggleBusinessStatusModal');
+    if (!modalEl) return;
+
+    const modalHeader = document.getElementById('toggleBizModalHeader');
+    const modalTitle = document.getElementById('toggleBizModalTitle');
+    const modalIcon = document.getElementById('toggleBizModalIcon');
+    const modalAlert = document.getElementById('toggleBizModalAlert');
+    const alertIcon = document.getElementById('toggleBizAlertIcon');
+    const modalMessage = document.getElementById('toggleBizModalMessage');
+    const modalSubtext = document.getElementById('toggleBizModalSubtext');
+    const statusForm = document.getElementById('toggleBusinessStatusForm');
+    const btnConfirm = document.getElementById('btnConfirmToggleBiz');
+
+    modalEl.addEventListener('show.bs.modal', function (event) {
+        const triggerBtn = event.relatedTarget;
+        if (!triggerBtn) return;
+
+        const actionUrl = triggerBtn.getAttribute('data-action-url') || '';
+        const bizName = triggerBtn.getAttribute('data-business-name') || '';
+        const currentStatus = triggerBtn.getAttribute('data-business-status') || 'active';
+
+        if (statusForm) statusForm.action = actionUrl;
+
+        if (currentStatus === 'active') {
+            modalHeader.className = 'modal-header py-3 bg-danger text-white';
+            modalTitle.textContent = 'Suspender Negocio';
+            modalIcon.className = 'bi bi-pause-circle-fill me-2 fs-5';
+
+            modalAlert.className = 'alert alert-warning bg-warning bg-opacity-10 border border-warning border-opacity-25 d-flex align-items-start mb-0 rounded-3';
+            alertIcon.className = 'bi bi-exclamation-triangle-fill text-warning fs-3 me-3 flex-shrink-0';
+            modalMessage.innerHTML = `¿Seguro que deseas suspender las operaciones de <strong>${escapeHtml(bizName)}</strong>?`;
+            modalSubtext.textContent = 'Los usuarios vinculados a este negocio no podrán ingresar hasta que sea reactivado.';
+
+            btnConfirm.className = 'btn btn-danger rounded-pill px-4 fw-bold';
+            btnConfirm.innerHTML = '<i class="bi bi-pause-fill me-1"></i> Suspender';
+        } else {
+            modalHeader.className = 'modal-header py-3 bg-success text-white';
+            modalTitle.textContent = 'Reactivar Negocio';
+            modalIcon.className = 'bi bi-play-circle-fill me-2 fs-5';
+
+            modalAlert.className = 'alert alert-success bg-success bg-opacity-10 border border-success border-opacity-25 d-flex align-items-start mb-0 rounded-3';
+            alertIcon.className = 'bi bi-check-circle-fill text-success fs-3 me-3 flex-shrink-0';
+            modalMessage.innerHTML = `¿Seguro que deseas reactivar el negocio <strong>${escapeHtml(bizName)}</strong>?`;
+            modalSubtext.textContent = 'El negocio volverá a tener acceso operativo inmediato al sistema.';
+
+            btnConfirm.className = 'btn btn-success rounded-pill px-4 fw-bold';
+            btnConfirm.innerHTML = '<i class="bi bi-play-fill me-1"></i> Reactivar';
+        }
+
+        btnConfirm.disabled = false;
+        btnConfirm.removeAttribute('data-original-html');
+    });
+
+    if (statusForm) {
+        statusForm.addEventListener('submit', function () {
+            if (!btnConfirm) return;
+            btnConfirm.setAttribute('data-original-html', btnConfirm.innerHTML);
+            btnConfirm.disabled = true;
+            btnConfirm.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Procesando...';
+        });
+    }
+
+    modalEl.addEventListener('hidden.bs.modal', function () {
+        if (!btnConfirm) return;
+        btnConfirm.disabled = false;
+        const orig = btnConfirm.getAttribute('data-original-html');
+        if (orig) {
+            btnConfirm.innerHTML = orig;
+            btnConfirm.removeAttribute('data-original-html');
+        }
+    });
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+});
+</script>
+@endpush

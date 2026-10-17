@@ -54,6 +54,8 @@ class ReportService
         $salesCount = $sales->count();
         $averageTicket = $salesCount > 0 ? round($totalRevenue / $salesCount, 2) : 0.0;
         $totalDiscounts = (float) $sales->sum('discount');
+        $totalTips = round((float) $sales->sum('service_fee'), 2);
+        $totalTaxes = round((float) $sales->sum('tax_inc'), 2);
 
         $methodTotals = [];
         foreach ($sales as $sale) {
@@ -96,6 +98,8 @@ class ReportService
             'sales_count' => $salesCount,
             'average_ticket' => $averageTicket,
             'total_discounts' => $totalDiscounts,
+            'total_tips' => $totalTips,
+            'total_taxes' => $totalTaxes,
             'by_payment_method' => $byPaymentMethod,
             'date_from' => $dateFrom->format('Y-m-d'),
             'date_to' => $dateTo->format('Y-m-d'),
@@ -609,6 +613,43 @@ class ReportService
         $netDigitalMoney = round($digitalSales - $digitalExpenses, 2);
         $netTurnBalance = round($totalRevenue - $totalExpenses, 2);
 
+        // Trazabilidad de Propinas (Bolsa de Servicio para Personal) e Impuestos
+        $totalTips = round((float) $sales->sum('service_fee'), 2);
+        $totalTaxes = round((float) $sales->sum('tax_inc'), 2);
+
+        $cashTips = 0.00;
+        $digitalTips = 0.00;
+
+        foreach ($sales as $sale) {
+            $tip = (float) ($sale->service_fee ?? 0);
+            if ($tip <= 0) {
+                continue;
+            }
+
+            if ($sale->payments->isNotEmpty()) {
+                $totalPaid = (float) $sale->payments->sum('amount');
+                if ($totalPaid > 0) {
+                    $cashPaid = (float) $sale->payments->where('method', 'cash')->sum('amount');
+                    $cashRatio = min(1.0, max(0.0, $cashPaid / $totalPaid));
+                    $tipCash = round($tip * $cashRatio, 2);
+                    $tipDigital = round($tip - $tipCash, 2);
+                    $cashTips += $tipCash;
+                    $digitalTips += $tipDigital;
+                } else {
+                    $digitalTips += $tip;
+                }
+            } else {
+                if ($sale->payment_method === 'cash') {
+                    $cashTips += $tip;
+                } else {
+                    $digitalTips += $tip;
+                }
+            }
+        }
+
+        $cashTips = round($cashTips, 2);
+        $digitalTips = round($digitalTips, 2);
+
         $cashiers = \App\Models\User::whereHas('businesses', function ($q) use ($businessId) {
             $q->where('businesses.id', $businessId);
         })->orderBy('name')->get();
@@ -620,6 +661,10 @@ class ReportService
             'by_method' => $byMethod,
             'channels' => $channels,
             'total_delivery_fee' => $totalDeliveryFee,
+            'total_tips' => $totalTips,
+            'cash_tips' => $cashTips,
+            'digital_tips' => $digitalTips,
+            'total_taxes' => $totalTaxes,
             'cash_in_drawer' => $cashSales,
             'digital_money' => $digitalSales,
             'cash_expenses' => $cashExpenses,

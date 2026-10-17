@@ -112,8 +112,18 @@ Route::middleware('auth')->group(function () {
             Route::post('/orders/{order}/items', [RestaurantOrderController::class, 'addItems'])->name('orders.items.store');
             Route::match(['get', 'post'], '/orders/{order}/kitchen-ticket', [RestaurantOrderController::class, 'kitchenTicket'])->name('orders.kitchen-ticket');
             Route::match(['get', 'post'], '/orders/{order}/pre-bill', [RestaurantOrderController::class, 'preBill'])->name('orders.prebill');
+            Route::match(['get', 'post'], '/orders/{order}/print-precount', [RestaurantOrderController::class, 'preBill'])->name('orders.print-precount');
             Route::post('/orders/{order}/cancel-empty', [RestaurantOrderController::class, 'cancelEmpty'])->name('orders.cancel-empty');
             Route::post('/orders/{order}/change-table', [RestaurantOrderController::class, 'changeTable'])->name('orders.change-table');
+
+            // Cobro y Facturación de Comanda (Cierre estándar o de Saldo Pendiente)
+            Route::post('/orders/{order}/charge', [RestaurantOrderController::class, 'charge'])->name('orders.charge');
+            Route::post('/orders/{order}/bill', [RestaurantOrderController::class, 'bill'])->name('orders.bill');
+
+            // División de Cuenta por Platos (Split Bill)
+            Route::post('/orders/{order}/split-payment', [RestaurantOrderController::class, 'splitPayment'])->name('orders.split-payment');
+            Route::get('/orders/{order}/print-split-precount', [RestaurantOrderController::class, 'printSplitPrecount'])->name('orders.print-split-precount');
+            Route::get('/orders/{order}/print-split-ticket/{payment}', [RestaurantOrderController::class, 'printSplitTicket'])->name('orders.print-split-ticket');
 
             // Domicilios y Despacho
             Route::get('/deliveries', [RestaurantOrderController::class, 'deliveries'])->name('orders.deliveries');
@@ -155,6 +165,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/api/products/search', ProductSearchController::class)->name('api.products.search');
 
         // Asistente de Consultas en Lenguaje Natural (IA)
+        Route::get('/ai', fn() => redirect()->route('ai.index'));
         Route::get('/ai/assistant', [AiAssistantController::class, 'index'])->name('ai.index');
         Route::post('/ai/ask', [AiAssistantController::class, 'ask'])->middleware('throttle:30,1')->name('ai.ask');
 

@@ -63,19 +63,61 @@ class BusinessController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
+        if ($request->has('phone') && $request->filled('phone')) {
+            $rawPhone = trim((string)$request->input('phone'));
+            if (!preg_match('/[a-zA-Z]/', $rawPhone)) {
+                $request->merge(['phone' => preg_replace('/[\s\-()]/', '', $rawPhone)]);
+            }
+        }
+        if ($request->has('nit') && trim((string)$request->input('nit')) === '') {
+            $request->merge(['nit' => null]);
+        }
+        if ($request->has('address') && trim((string)$request->input('address')) === '') {
+            $request->merge(['address' => null]);
+        }
+        if ($request->has('email') && trim((string)$request->input('email')) === '') {
+            $request->merge(['email' => null]);
+        }
+
         $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
+            'name' => ['required', 'string', 'min:2', 'max:100'],
             'business_type' => ['nullable', 'string', 'in:retail,restaurant'],
-            'nit' => ['nullable', 'string', 'max:30'],
-            'phone' => ['nullable', 'string', 'max:30'],
+            'nit' => ['nullable', 'string', 'min:5', 'max:15', 'regex:/^\d{5,15}(-\d)?$/'],
+            'phone' => ['nullable', 'string', 'min:7', 'max:15', 'regex:/^\+?[0-9]{7,15}$/'],
             'email' => ['nullable', 'email', 'max:255'],
-            'address' => ['nullable', 'string', 'max:255'],
-            'admin_name' => ['required', 'string', 'max:255'],
+            'address' => [
+                'nullable',
+                'string',
+                'min:5',
+                'max:150',
+                'regex:/^(?!.*(.)\1{5,})[a-zA-Z0-9áéíóúÁÉÍÓÚñÑüÜ\s#\-\.,\/°]+$/u',
+            ],
+            'admin_name' => [
+                'required',
+                'string',
+                'min:2',
+                'max:80',
+                'regex:/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s.\'-]+$/u',
+            ],
             'admin_email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
             'admin_password' => ['nullable', 'string', 'min:8'],
         ], [
             'name.required' => 'El nombre del negocio es obligatorio.',
+            'name.min' => 'El nombre del negocio debe tener al menos 2 caracteres.',
+            'name.max' => 'El nombre del negocio no puede superar los 100 caracteres.',
+            'nit.min' => 'El NIT debe tener al menos 5 dígitos.',
+            'nit.max' => 'El NIT no puede superar los 15 caracteres.',
+            'nit.regex' => 'El NIT debe contener entre 5 y 15 dígitos numéricos (con guion opcional).',
+            'phone.min' => 'El teléfono debe tener al menos 7 dígitos.',
+            'phone.max' => 'El teléfono no puede superar los 15 caracteres.',
+            'phone.regex' => 'El teléfono debe contener únicamente números (entre 7 y 15 dígitos) y opcionalmente el prefijo +.',
+            'address.min' => 'La dirección debe tener al menos 5 caracteres.',
+            'address.max' => 'La dirección no puede superar los 150 caracteres.',
+            'address.regex' => 'La dirección contiene caracteres no válidos o repetición indebida de caracteres.',
             'admin_name.required' => 'El nombre del administrador es obligatorio.',
+            'admin_name.min' => 'El nombre del administrador debe tener al menos 2 caracteres.',
+            'admin_name.max' => 'El nombre del administrador no puede superar los 80 caracteres.',
+            'admin_name.regex' => 'El nombre del administrador solo debe contener letras, espacios, puntos o guiones.',
             'admin_email.required' => 'El correo del administrador es obligatorio.',
             'admin_email.unique' => 'Ese correo ya está registrado en la plataforma.',
             'admin_password.min' => 'La contraseña debe tener al menos 8 caracteres.',
@@ -150,14 +192,49 @@ class BusinessController extends Controller
      */
     public function update(Request $request, Business $business): RedirectResponse
     {
+        if ($request->has('phone') && $request->filled('phone')) {
+            $rawPhone = trim((string)$request->input('phone'));
+            if (!preg_match('/[a-zA-Z]/', $rawPhone)) {
+                $request->merge(['phone' => preg_replace('/[\s\-()]/', '', $rawPhone)]);
+            }
+        }
+        if ($request->has('nit') && trim((string)$request->input('nit')) === '') {
+            $request->merge(['nit' => null]);
+        }
+        if ($request->has('address') && trim((string)$request->input('address')) === '') {
+            $request->merge(['address' => null]);
+        }
+        if ($request->has('email') && trim((string)$request->input('email')) === '') {
+            $request->merge(['email' => null]);
+        }
+
         $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
+            'name' => ['required', 'string', 'min:2', 'max:100'],
             'business_type' => ['nullable', 'string', 'in:retail,restaurant'],
-            'nit' => ['nullable', 'string', 'max:30'],
-            'phone' => ['nullable', 'string', 'max:30'],
+            'nit' => ['nullable', 'string', 'min:5', 'max:15', 'regex:/^\d{5,15}(-\d)?$/'],
+            'phone' => ['nullable', 'string', 'min:7', 'max:15', 'regex:/^\+?[0-9]{7,15}$/'],
             'email' => ['nullable', 'email', 'max:255'],
-            'address' => ['nullable', 'string', 'max:255'],
+            'address' => [
+                'nullable',
+                'string',
+                'min:5',
+                'max:150',
+                'regex:/^(?!.*(.)\1{5,})[a-zA-Z0-9áéíóúÁÉÍÓÚñÑüÜ\s#\-\.,\/°]+$/u',
+            ],
             'subscription_ends_at' => ['nullable', 'date'],
+        ], [
+            'name.required' => 'El nombre del negocio es obligatorio.',
+            'name.min' => 'El nombre del negocio debe tener al menos 2 caracteres.',
+            'name.max' => 'El nombre del negocio no puede superar los 100 caracteres.',
+            'nit.min' => 'El NIT debe tener al menos 5 dígitos.',
+            'nit.max' => 'El NIT no puede superar los 15 caracteres.',
+            'nit.regex' => 'El NIT debe contener entre 5 y 15 dígitos numéricos (con guion opcional).',
+            'phone.min' => 'El teléfono debe tener al menos 7 dígitos.',
+            'phone.max' => 'El teléfono no puede superar los 15 caracteres.',
+            'phone.regex' => 'El teléfono debe contener únicamente números (entre 7 y 15 dígitos) y opcionalmente el prefijo +.',
+            'address.min' => 'La dirección debe tener al menos 5 caracteres.',
+            'address.max' => 'La dirección no puede superar los 150 caracteres.',
+            'address.regex' => 'La dirección contiene caracteres no válidos o repetición indebida de caracteres.',
         ]);
 
         if (! empty($validated['subscription_ends_at'])) {

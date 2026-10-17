@@ -22,7 +22,13 @@ class StoreTenantUserRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => ['required', 'string', 'max:255'],
+            'name' => [
+                'required',
+                'string',
+                'min:2',
+                'max:80',
+                'regex:/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s.\'-]+$/u',
+            ],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
             'role' => ['required', 'string', 'in:admin,employee'],
             'password' => ['nullable', 'string', 'min:8'],
@@ -38,7 +44,9 @@ class StoreTenantUserRequest extends FormRequest
     {
         return [
             'name.required' => 'El nombre completo del colaborador es obligatorio.',
-            'name.max' => 'El nombre no puede superar los 255 caracteres.',
+            'name.min' => 'El nombre del colaborador debe tener al menos 2 caracteres.',
+            'name.max' => 'El nombre no puede superar los 80 caracteres.',
+            'name.regex' => 'El nombre del colaborador solo debe contener letras, espacios, puntos o guiones.',
             'email.required' => 'El correo electrónico es obligatorio.',
             'email.email' => 'El formato del correo electrónico es inválido.',
             'email.max' => 'El correo no puede superar los 255 caracteres.',

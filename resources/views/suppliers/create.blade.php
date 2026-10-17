@@ -39,6 +39,9 @@
                                name="name" 
                                value="{{ old('name') }}" 
                                placeholder="Ej. Distribuidora Cuero Valle SAS" 
+                               minlength="2"
+                               maxlength="100"
+                               autocomplete="off"
                                required 
                                autofocus>
                     </div>
@@ -50,6 +53,10 @@
                                id="identification_number" 
                                name="identification_number" 
                                value="{{ old('identification_number') }}" 
+                               minlength="5"
+                               maxlength="15"
+                               inputmode="numeric"
+                               autocomplete="off"
                                placeholder="Ej. 900876543-2">
                     </div>
                 </div>
@@ -62,16 +69,23 @@
                                id="contact_name" 
                                name="contact_name" 
                                value="{{ old('contact_name') }}" 
+                               minlength="2"
+                               maxlength="80"
+                               autocomplete="off"
                                placeholder="Ej. Carlos Gómez (Asesor Comercial)">
                     </div>
 
                     <div class="col-md-6">
                         <label for="phone" class="form-label small fw-semibold text-secondary">Teléfono / WhatsApp</label>
-                        <input type="text" 
-                               class="form-control @error('phone') is-invalid @enderror" 
+                        <input type="tel" 
+                               class="form-control font-monospace @error('phone') is-invalid @enderror" 
                                id="phone" 
                                name="phone" 
                                value="{{ old('phone') }}" 
+                               minlength="7"
+                               maxlength="15"
+                               inputmode="tel"
+                               autocomplete="off"
                                placeholder="Ej. 312 987 6543">
                     </div>
                 </div>
@@ -94,6 +108,8 @@
                                id="address" 
                                name="address" 
                                value="{{ old('address') }}" 
+                               minlength="5"
+                               maxlength="150"
                                placeholder="Ej. Calle 15 # 10-25, Cali">
                     </div>
                 </div>

@@ -122,11 +122,17 @@ class DashboardService
                 ->whereIn('status', ['open', 'in_kitchen', 'dispatched'])
                 ->count();
 
+            $todayTips = (float) Sale::where('business_id', $businessId)
+                ->where('status', 'completed')
+                ->whereDate('sale_date', $today->toDateString())
+                ->sum('service_fee');
+
             $restaurantMetrics = [
                 'is_restaurant' => true,
                 'total_tables' => $totalTables,
                 'occupied_tables' => $occupiedTables,
                 'active_deliveries' => $activeDeliveries,
+                'today_tips' => round($todayTips, 2),
             ];
         } else {
             $restaurantMetrics = [
@@ -134,6 +140,7 @@ class DashboardService
                 'total_tables' => 0,
                 'occupied_tables' => 0,
                 'active_deliveries' => 0,
+                'today_tips' => 0.00,
             ];
         }
 

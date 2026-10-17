@@ -91,4 +91,14 @@ class Sale extends Model
 
         return \App\Enums\PaymentMethod::tryFrom((string) $this->payment_method)?->label() ?? (string) $this->payment_method;
     }
+
+    public function getTipAmountAttribute(): float
+    {
+        return (float) ($this->service_fee ?? 0);
+    }
+
+    public function getTaxAmountAttribute(): float
+    {
+        return (float) ($this->tax_inc ?? 0);
+    }
 }

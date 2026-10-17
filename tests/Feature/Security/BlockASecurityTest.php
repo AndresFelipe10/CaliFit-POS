@@ -125,7 +125,20 @@ class BlockASecurityTest extends TestCase
         $business = Business::create(['name' => 'Negocio Principal']);
         $business->users()->attach($admin->id, ['role_id' => $this->adminRole->id, 'is_active' => true]);
 
+        // Intentar pasar is_superadmin en formulario de edición de equipo se ignora
         $response = $this->actingAs($admin)
+            ->withSession(['current_business_id' => $business->id])
+            ->put(route('users.update', $admin), [
+                'role_id' => $this->adminRole->id,
+                'is_superadmin' => true,
+                'is_superadmin' => 1,
+            ]);
+
+        $response->assertRedirect(route('users.index'));
+        $this->assertFalse((bool) $admin->fresh()->is_superadmin);
+
+        // Intentar aprovisionar usuarios por fuera de superadmin se bloquea con 403
+        $responseStore = $this->actingAs($admin)
             ->withSession(['current_business_id' => $business->id])
             ->post(route('users.store'), [
                 'name' => 'Usuario Con Trampa',
@@ -133,13 +146,10 @@ class BlockASecurityTest extends TestCase
                 'password' => 'password123',
                 'role_id' => $this->employeeRole->id,
                 'is_superadmin' => true,
-                'is_superadmin' => 1,
             ]);
 
-        $response->assertRedirect(route('users.index'));
-
-        $createdUser = User::where('email', 'trampa@test.com')->firstOrFail();
-        $this->assertFalse((bool) $createdUser->is_superadmin);
+        $responseStore->assertStatus(403);
+        $this->assertDatabaseMissing('users', ['email' => 'trampa@test.com']);
     }
 
     /**
@@ -315,7 +325,7 @@ class BlockASecurityTest extends TestCase
                 'role_id' => $this->employeeRole->id,
             ]);
 
-        $response->assertSessionHasErrors(['email' => 'Ese correo no está disponible.']);
+        $response->assertStatus(403);
 
         // El usuario de Negocio B no fue adjuntado a Negocio A
         $this->assertFalse($businessA->users()->where('users.id', $otherUser->id)->exists());

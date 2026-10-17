@@ -39,6 +39,9 @@
                                id="name" 
                                name="name" 
                                value="{{ old('name', $customer->name) }}" 
+                               minlength="2"
+                               maxlength="100"
+                               autocomplete="off"
                                required 
                                autofocus>
                     </div>
@@ -51,7 +54,10 @@
                                name="document" 
                                value="{{ old('document', $customer->document ?? $customer->identification_number) }}" 
                                placeholder="Ej. 1144123456 o 900123456-1"
+                               minlength="5"
+                               maxlength="15"
                                inputmode="numeric"
+                               autocomplete="off"
                                required>
                         @error('document')
                             <div class="invalid-feedback">{{ $message }}</div>
@@ -62,13 +68,16 @@
                 <div class="row g-3 mb-3">
                     <div class="col-md-6">
                         <label for="phone" class="form-label small fw-semibold text-secondary">Teléfono / WhatsApp</label>
-                        <input type="text" 
+                        <input type="tel" 
                                class="form-control font-monospace @error('phone') is-invalid @enderror" 
                                id="phone" 
                                name="phone" 
                                value="{{ old('phone', $customer->phone) }}"
                                placeholder="Ej. 315 123 4567"
-                               inputmode="tel">
+                               minlength="7"
+                               maxlength="15"
+                               inputmode="tel"
+                               autocomplete="off">
                         @error('phone')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
@@ -90,7 +99,9 @@
                            class="form-control @error('address') is-invalid @enderror" 
                            id="address" 
                            name="address" 
-                           value="{{ old('address', $customer->address) }}">
+                           value="{{ old('address', $customer->address) }}"
+                           minlength="5"
+                           maxlength="150">
                 </div>
 
                 <div class="mb-4 form-check form-switch">

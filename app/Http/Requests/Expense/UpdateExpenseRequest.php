@@ -37,7 +37,7 @@ class UpdateExpenseRequest extends FormRequest
             'due_date' => ['nullable', 'date', 'after_or_equal:issue_date'],
             'category' => ['required', 'string', Rule::in(ExpenseCategory::values())],
             'description' => ['nullable', 'string', 'max:255'],
-            'amount' => ['required', 'numeric', 'gt:0'],
+            'amount' => ['required', 'numeric', 'gt:0', 'max:999999999'],
             'status' => ['required', Rule::in(['paid', 'pending'])],
             'paid_at' => [
                 Rule::requiredIf(fn() => $this->input('status') === 'paid'),

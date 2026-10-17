@@ -3,6 +3,7 @@
 namespace App\Policies;
 
 use App\Models\User;
+use App\Services\Tenant\TenantManager;
 
 class UserPolicy
 {
@@ -16,10 +17,11 @@ class UserPolicy
 
     /**
      * Determine whether the user can invite/add team members to the current business.
+     * El aprovisionamiento de credenciales de usuario es exclusivo del Superadministrador de la plataforma.
      */
     public function create(User $user): bool
     {
-        return $user->isCurrentAdmin();
+        return false;
     }
 
     /**
@@ -31,9 +33,9 @@ class UserPolicy
             return false;
         }
 
-        $businessId = session('current_business_id');
+        $businessId = app(TenantManager::class)->get()?->id ?: session('current_business_id');
 
-        return $model->businesses()
+        return (bool) $model->businesses()
             ->where('businesses.id', $businessId)
             ->exists();
     }
@@ -47,9 +49,9 @@ class UserPolicy
             return false;
         }
 
-        $businessId = session('current_business_id');
+        $businessId = app(TenantManager::class)->get()?->id ?: session('current_business_id');
 
-        return $model->businesses()
+        return (bool) $model->businesses()
             ->where('businesses.id', $businessId)
             ->exists();
     }

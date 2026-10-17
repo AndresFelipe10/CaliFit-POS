@@ -40,39 +40,17 @@ class UserController extends Controller
     /**
      * Show the form for inviting/adding a user to the business.
      */
-    public function create(): View
+    public function create(): never
     {
-        Gate::authorize('create', User::class);
-
-        $roles = Role::all();
-
-        return view('users.create', [
-            'roles' => $roles,
-        ]);
+        abort(403, 'El aprovisionamiento de nuevas credenciales de usuario es exclusivo del administrador de la plataforma PuntoStock.');
     }
 
     /**
      * Store a newly attached user in the current business.
      */
-    public function store(StoreUserRequest $request): RedirectResponse
+    public function store(Request $request): never
     {
-        $currentBusiness = app(TenantManager::class)->get();
-
-        DB::transaction(function () use ($request, $currentBusiness) {
-            $user = User::create([
-                'name' => $request->string('name'),
-                'email' => $request->string('email'),
-                'password' => Hash::make($request->string('password')),
-            ]);
-
-            $currentBusiness->users()->attach($user->id, [
-                'role_id' => $request->role_id,
-                'is_active' => true,
-            ]);
-        });
-
-        return redirect()->route('users.index')
-            ->with('status', "Colaborador '{$request->name}' registrado exitosamente en el equipo.");
+        abort(403, 'El aprovisionamiento de nuevas credenciales de usuario es exclusivo del administrador de la plataforma PuntoStock.');
     }
 
     /**
@@ -83,12 +61,16 @@ class UserController extends Controller
         Gate::authorize('update', $user);
 
         $currentBusiness = app(TenantManager::class)->get();
+        if (! $currentBusiness) {
+            abort(403, 'No hay un negocio activo seleccionado.');
+        }
+
         $member = $currentBusiness->users()
             ->where('users.id', $user->id)
             ->withPivot('role_id', 'is_active')
             ->firstOrFail();
 
-        $roles = Role::all();
+        $roles = Role::whereIn('slug', [Role::ROLE_ADMIN, Role::ROLE_EMPLOYEE])->get();
 
         return view('users.edit', [
             'member' => $member,
@@ -104,8 +86,22 @@ class UserController extends Controller
         Gate::authorize('update', $user);
 
         $currentBusiness = app(TenantManager::class)->get();
+        if (! $currentBusiness) {
+            abort(403, 'No hay un negocio activo seleccionado.');
+        }
+
+        $member = $currentBusiness->users()
+            ->where('users.id', $user->id)
+            ->firstOrFail();
+
         $adminRole = Role::where('slug', Role::ROLE_ADMIN)->first();
+        $employeeRole = Role::where('slug', Role::ROLE_EMPLOYEE)->first();
         $newRoleId = (int) $request->role_id;
+
+        $validRoleIds = array_values(array_filter([$adminRole?->id, $employeeRole?->id]));
+        if (! in_array($newRoleId, $validRoleIds, true)) {
+            abort(403, 'El rol seleccionado no es válido para el negocio.');
+        }
 
         // Prevent sole active admin demotion
         if ($adminRole && $newRoleId !== $adminRole->id) {
@@ -127,7 +123,7 @@ class UserController extends Controller
         }
 
         $currentBusiness->users()->updateExistingPivot($user->id, [
-            'role_id' => $request->role_id,
+            'role_id' => $newRoleId,
         ]);
 
         return redirect()->route('users.index')
@@ -141,7 +137,15 @@ class UserController extends Controller
     {
         Gate::authorize('deactivate', $user);
 
+        if (auth()->id() === $user->id) {
+            abort(403, 'No puedes desactivar tu propia cuenta.');
+        }
+
         $currentBusiness = app(TenantManager::class)->get();
+        if (! $currentBusiness) {
+            abort(403, 'No hay un negocio activo seleccionado.');
+        }
+
         $member = $currentBusiness->users()
             ->where('users.id', $user->id)
             ->withPivot('role_id', 'is_active')

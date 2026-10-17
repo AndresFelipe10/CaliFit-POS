@@ -34,7 +34,7 @@
 
     {{-- Módulo Operativo de Restaurante (Bloque R-D) --}}
     @if(!empty($is_restaurant))
-        <div class="col-sm-6 col-xl-6">
+        <div class="col-sm-6 col-xl-4">
             <div class="card card-custom p-3 bg-white h-100 border-0 shadow-sm border-start border-4 border-warning">
                 <div class="d-flex align-items-center justify-content-between">
                     <div>
@@ -55,7 +55,7 @@
             </div>
         </div>
 
-        <div class="col-sm-6 col-xl-6">
+        <div class="col-sm-6 col-xl-4">
             <div class="card card-custom p-3 bg-white h-100 border-0 shadow-sm border-start border-4 border-info">
                 <div class="d-flex align-items-center justify-content-between">
                     <div>
@@ -71,6 +71,25 @@
                     </div>
                     <div class="bg-info-subtle text-info p-3 rounded-circle d-flex align-items-center justify-content-center" style="width: 52px; height: 52px;">
                         <i class="bi bi-bicycle fs-4"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-sm-6 col-xl-4">
+            <div class="card card-custom p-3 bg-white h-100 border-0 shadow-sm border-start border-4 border-success">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <span class="text-muted small fw-semibold text-uppercase">Propinas Recaudadas Hoy</span>
+                        <h3 class="fw-bold mb-0 mt-1 text-success">
+                            ${{ number_format($today_tips ?? 0, 0, ',', '.') }}
+                        </h3>
+                        <small class="text-muted">
+                            Fondo voluntario de servicio
+                        </small>
+                    </div>
+                    <div class="bg-success-subtle text-success p-3 rounded-circle d-flex align-items-center justify-content-center" style="width: 52px; height: 52px;">
+                        <i class="bi bi-heart-fill fs-4"></i>
                     </div>
                 </div>
             </div>

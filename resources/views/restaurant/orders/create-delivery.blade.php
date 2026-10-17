@@ -3,13 +3,13 @@
 @section('title', 'Nuevo Pedido Domicilio / Para Llevar')
 
 @section('content')
-<div class="container py-4" style="max-width: 900px;">
-    <div class="d-flex align-items-center mb-4">
+<div class="container py-4 pt-2 pt-md-3" style="max-width: 900px;">
+    <div class="d-flex align-items-center mb-4 mt-1">
         <a href="{{ route('restaurant.orders.deliveries') }}" class="btn btn-outline-secondary btn-sm me-3">
             <i class="bi bi-arrow-left"></i>
         </a>
         <div>
-            <h1 class="h3 fw-bold mb-0">Nuevo Pedido a Domicilio / Para Llevar</h1>
+            <h1 class="h3 fw-bold mb-0" style="line-height: 1.35; padding-top: 3px;">Nuevo Pedido a Domicilio / Para Llevar</h1>
             <p class="text-muted small mb-0">Registra pedidos de entrega o recogida en el restaurante con tirilla de despacho.</p>
         </div>
     </div>
@@ -49,7 +49,7 @@
                     <div class="row g-3">
                         <div class="col-12 col-md-6">
                             <label for="customer_name" class="form-label fw-bold small">Nombre del Cliente <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control @error('customer_name') is-invalid @enderror" id="customer_name" name="customer_name" value="{{ old('customer_name') }}" placeholder="Ej: María Camila López" required>
+                            <input type="text" class="form-control @error('customer_name') is-invalid @enderror" id="customer_name" name="customer_name" value="{{ old('customer_name') }}" placeholder="Ej: María Camila López" minlength="2" maxlength="80" autocomplete="off" required>
                             @error('customer_name')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
@@ -57,7 +57,7 @@
 
                         <div class="col-12 col-md-6">
                             <label for="delivery_phone" class="form-label fw-bold small" id="phone_label">Teléfono / WhatsApp <span class="text-danger delivery-req">*</span></label>
-                            <input type="text" class="form-control @error('delivery_phone') is-invalid @enderror" id="delivery_phone" name="delivery_phone" value="{{ old('delivery_phone') }}" placeholder="Ej: 315 123 4567">
+                            <input type="tel" class="form-control font-monospace @error('delivery_phone') is-invalid @enderror" id="delivery_phone" name="delivery_phone" value="{{ old('delivery_phone') }}" placeholder="Ej: 315 123 4567" minlength="7" maxlength="15" inputmode="tel" autocomplete="off">
                             @error('delivery_phone')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
@@ -65,7 +65,7 @@
 
                         <div class="col-12" id="address_group">
                             <label for="delivery_address" class="form-label fw-bold small">Dirección Exacta de Entrega <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control @error('delivery_address') is-invalid @enderror" id="delivery_address" name="delivery_address" value="{{ old('delivery_address') }}" placeholder="Ej: Cra 100 # 15-20, Apto 302, Barrio San Fernando">
+                            <input type="text" class="form-control @error('delivery_address') is-invalid @enderror" id="delivery_address" name="delivery_address" value="{{ old('delivery_address') }}" placeholder="Ej: Cra 100 # 15-20, Apto 302, Barrio San Fernando" minlength="5" maxlength="150" autocomplete="off">
                             @error('delivery_address')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
@@ -73,7 +73,7 @@
 
                         <div class="col-12 col-md-8">
                             <label for="delivery_notes" class="form-label fw-bold small">Instrucciones de Entrega / Referencia</label>
-                            <input type="text" class="form-control @error('delivery_notes') is-invalid @enderror" id="delivery_notes" name="delivery_notes" value="{{ old('delivery_notes') }}" placeholder="Ej: Timbre blanco, dejar en portería, edificio frente al parque">
+                            <input type="text" class="form-control @error('delivery_notes') is-invalid @enderror" id="delivery_notes" name="delivery_notes" value="{{ old('delivery_notes') }}" placeholder="Ej: Timbre blanco, dejar en portería, edificio frente al parque" maxlength="255">
                             @error('delivery_notes')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
@@ -81,7 +81,7 @@
 
                         <div class="col-12 col-md-4" id="fee_group">
                             <label for="delivery_fee" class="form-label fw-bold small">Costo de Domicilio ($)</label>
-                            <input type="number" step="100" min="0" class="form-control @error('delivery_fee') is-invalid @enderror" id="delivery_fee" name="delivery_fee" value="{{ old('delivery_fee', '0') }}">
+                            <input type="number" step="500" min="0" max="9999999" class="form-control @error('delivery_fee') is-invalid @enderror" id="delivery_fee" name="delivery_fee" value="{{ old('delivery_fee', '0') }}">
                             @error('delivery_fee')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
@@ -95,8 +95,9 @@
                         <h5 class="fw-bold mb-0 text-dark">
                             <i class="bi bi-cart-plus-fill text-primary me-2"></i>Platos o Productos
                         </h5>
-                        <button type="button" class="btn btn-outline-primary fw-semibold px-3 py-2 d-inline-flex align-items-center" id="btn-add-item" style="min-height: 44px;">
-                            <i class="bi bi-plus-circle fs-5 me-2"></i> + Agregar plato
+                        <button type="button" class="btn btn-outline-primary fw-semibold px-3 py-2 d-inline-flex align-items-center gap-2" id="btn-add-item" style="min-height: 44px;">
+                            <i class="bi bi-plus-circle fs-5"></i>
+                            <span>Agregar otro plato</span>
                         </button>
                     </div>
 
@@ -134,13 +135,13 @@
                                     <label class="form-label small fw-semibold">Cantidad <span class="text-danger">*</span></label>
                                     <div class="input-group input-group-sm" style="max-width: 130px;">
                                         <button type="button" class="btn btn-outline-secondary btn-qty-minus fw-bold px-2">−</button>
-                                        <input type="number" name="items[0][quantity]" class="form-control text-center input-qty input-stepper" value="1" min="1" max="999" required>
+                                        <input type="number" name="items[0][quantity]" class="form-control text-center input-qty input-stepper" value="1" min="1" max="9999" required>
                                         <button type="button" class="btn btn-outline-secondary btn-qty-plus fw-bold px-2">+</button>
                                     </div>
                                 </div>
                                 <div class="col-6 col-md-4">
                                     <label class="form-label small fw-semibold">Observación</label>
-                                    <input type="text" class="form-control form-select-sm" name="items[0][notes]" placeholder="Ej: Sin cebolla, extra salsa">
+                                    <input type="text" class="form-control form-select-sm" name="items[0][notes]" placeholder="Ej: Sin cebolla, extra salsa" maxlength="255">
                                 </div>
                                 <div class="col-12 col-md-1 text-end pt-md-4">
                                     <button type="button" class="btn btn-sm btn-outline-danger remove-item-btn" disabled>
@@ -154,7 +155,7 @@
 
                 <div class="mb-4">
                     <label for="notes" class="form-label fw-bold small">Notas Generales de la Orden</label>
-                    <textarea class="form-control" id="notes" name="notes" rows="2" placeholder="Opcional: Paga con billete de $50.000, llevar cambio de $20.000">{{ old('notes') }}</textarea>
+                    <textarea class="form-control" id="notes" name="notes" rows="2" maxlength="500" placeholder="Opcional: Paga con billete de $50.000, llevar cambio de $20.000">{{ old('notes') }}</textarea>
                 </div>
 
                 <div class="d-flex justify-content-end gap-2 pt-3 border-top">
@@ -197,13 +198,13 @@
                 <label class="form-label small fw-semibold">Cantidad <span class="text-danger">*</span></label>
                 <div class="input-group input-group-sm" style="max-width: 130px;">
                     <button type="button" class="btn btn-outline-secondary btn-qty-minus fw-bold px-2">−</button>
-                    <input type="number" name="items[INDEX][quantity]" class="form-control text-center input-qty input-stepper" value="1" min="1" max="999" required>
+                    <input type="number" name="items[INDEX][quantity]" class="form-control text-center input-qty input-stepper" value="1" min="1" max="9999" required>
                     <button type="button" class="btn btn-outline-secondary btn-qty-plus fw-bold px-2">+</button>
                 </div>
             </div>
             <div class="col-6 col-md-4">
                 <label class="form-label small fw-semibold">Observación</label>
-                <input type="text" class="form-control form-select-sm" name="items[INDEX][notes]" placeholder="Ej: Sin cebolla, extra salsa">
+                <input type="text" class="form-control form-select-sm" name="items[INDEX][notes]" placeholder="Ej: Sin cebolla, extra salsa" maxlength="255">
             </div>
             <div class="col-12 col-md-1 text-end pt-md-4">
                 <button type="button" class="btn btn-sm btn-outline-danger remove-item-btn">

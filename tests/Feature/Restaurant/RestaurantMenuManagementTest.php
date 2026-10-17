@@ -255,8 +255,12 @@ class RestaurantMenuManagementTest extends TestCase
 
         $order->status = 'billed';
         $order->order_type = 'delivery';
-        $this->assertEquals('En Cobro / Pre-cuenta emitida', $order->status_label);
+        $this->assertEquals('Cerrada / Pagada', $order->status_label);
         $this->assertEquals('Domicilio', $order->order_type_label);
+
+        $order->status = 'open';
+        $order->precount_printed_at = now();
+        $this->assertEquals('En Cobro / Pre-cuenta emitida', $order->status_label);
 
         $order->status = 'closed';
         $order->order_type = 'takeout';
@@ -354,8 +358,8 @@ class RestaurantMenuManagementTest extends TestCase
         $responseShow->assertSee('Limonada de Coco');
         $responseShow->assertSee('btn-qty-minus');
         $responseShow->assertSee('btn-qty-plus');
-        $responseShow->assertSee('product-search-input');
-        $responseShow->assertSee('+ Agregar otro plato');
+        $responseShow->assertSee('Agregar otro plato');
+        $responseShow->assertDontSee('+ Agregar otro plato');
         $responseShow->assertSee('Confirmar y Enviar a Cocina');
     }
 

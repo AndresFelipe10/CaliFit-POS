@@ -203,8 +203,8 @@ class KitchenOrderTest extends TestCase
             'unit_price' => 35000.00,
             'subtotal' => 70000.00,
             'notes' => 'Término 3/4, sin sal marina',
-            'status' => 'pending',
-            'printed_to_kitchen' => false,
+            'status' => 'kitchen',
+            'printed_to_kitchen' => true,
             'batch_number' => 1,
         ]);
 
@@ -215,8 +215,8 @@ class KitchenOrderTest extends TestCase
             'unit_price' => 28000.00,
             'subtotal' => 28000.00,
             'notes' => 'Picante bajo, ají aparte',
-            'status' => 'pending',
-            'printed_to_kitchen' => false,
+            'status' => 'kitchen',
+            'printed_to_kitchen' => true,
             'batch_number' => 1,
         ]);
 
@@ -268,8 +268,8 @@ class KitchenOrderTest extends TestCase
 
         $item2 = $order->items()->where('product_id', $this->dishB->id)->first();
         $this->assertEquals(2, $item2->batch_number);
-        $this->assertFalse((bool) $item2->printed_to_kitchen);
-        $this->assertEquals('pending', $item2->status);
+        $this->assertTrue((bool) $item2->printed_to_kitchen);
+        $this->assertEquals('kitchen', $item2->status);
     }
 
     public function test_kitchen_ticket_generation_only_includes_unprinted_items_marks_printed_and_omits_prices(): void
