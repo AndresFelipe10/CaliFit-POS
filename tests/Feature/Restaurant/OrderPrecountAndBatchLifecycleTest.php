@@ -431,10 +431,12 @@ class OrderPrecountAndBatchLifecycleTest extends TestCase
 
         $response->assertOk();
 
-        // 1. Botones [+] para crear cliente rápido en ambos modales
+        // 1. Botones [bi-person-plus] para crear cliente rápido en ambos modales
         $response->assertSee('data-target-select="#settlement_customer_id"', false);
         $response->assertSee('data-target-select="#split_customer_id"', false);
         $response->assertSee('btn-open-quick-customer');
+        $response->assertSee('btn-quick-customer-trigger');
+        $response->assertSee('bi-person-plus');
 
         // 2. Modal estandarizado #quickCustomerModal
         $response->assertSee('id="quickCustomerModal"', false);

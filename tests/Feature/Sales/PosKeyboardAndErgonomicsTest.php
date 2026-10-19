@@ -371,6 +371,33 @@ class PosKeyboardAndErgonomicsTest extends TestCase
         $response->assertSee('productDropdownPos.addEventListener', false);
         $response->assertSee('window.addProductToSale = addToCart;', false);
     }
+
+    /**
+     * Test de interfaz: sales.create renderiza el botón estandarizado de creación rápida
+     * de cliente con ícono bi-person-plus y clases corporativas.
+     */
+    public function test_sales_create_renders_standardized_quick_customer_button_with_person_plus_icon(): void
+    {
+        $response = $this->actingAs($this->retailAdmin)
+            ->withSession(['current_business_id' => $this->retailBusiness->id])
+            ->get(route('sales.create'));
+
+        $response->assertOk();
+
+        // 1. Botón disparador con id, clase y atributo modal
+        $response->assertSee('id="btnOpenQuickCustomer"', false);
+        $response->assertSee('btn-quick-customer-trigger');
+        $response->assertSee('btn-open-quick-customer');
+        $response->assertSee('data-bs-target="#quickCustomerModal"', false);
+        $response->assertSee('title="Crear Cliente Rápido"', false);
+
+        // 2. Ícono delineado bi-person-plus (no bi-plus-lg)
+        $response->assertSee('bi-person-plus');
+        $response->assertDontSee('data-bs-target="#quickCustomerModal" title="Crear cliente rápido"><i class="bi bi-plus-lg"', false);
+
+        // 3. Modal estandarizado presente
+        $response->assertSee('id="quickCustomerModal"', false);
+    }
 }
 
 

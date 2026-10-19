@@ -155,8 +155,8 @@
                                 <input type="text" id="customer_search" class="form-control" 
                                        placeholder="Buscar cliente (Cédula/NIT o nombre)..." 
                                        autocomplete="off">
-                                <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#quickCustomerModal" title="Crear cliente rápido">
-                                    <i class="bi bi-plus-lg"></i>
+                                <button type="button" id="btnOpenQuickCustomer" class="btn btn-outline-primary bg-white text-primary d-inline-flex align-items-center justify-content-center px-3 flex-shrink-0 btn-quick-customer-trigger btn-open-quick-customer" data-bs-toggle="modal" data-bs-target="#quickCustomerModal" title="Crear Cliente Rápido" aria-label="Crear Cliente Rápido">
+                                    <i class="bi bi-person-plus fs-5" style="line-height: 1;"></i>
                                 </button>
                             </div>
                             {{-- Dropdown de resultados --}}

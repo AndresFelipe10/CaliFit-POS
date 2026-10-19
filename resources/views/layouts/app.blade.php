@@ -204,6 +204,27 @@
             max-height: 16px !important;
             vertical-align: middle;
         }
+
+        /* Botón Estandarizado de Creación Rápida de Cliente */
+        .btn-open-quick-customer,
+        #btnOpenQuickCustomer,
+        .btn-quick-customer-trigger {
+            background-color: #ffffff !important;
+            color: #0d6efd !important;
+            border: 1px solid #0d6efd !important;
+            min-width: 42px;
+            transition: all 0.15s ease-in-out;
+        }
+        .btn-open-quick-customer:hover,
+        #btnOpenQuickCustomer:hover,
+        .btn-quick-customer-trigger:hover,
+        .btn-open-quick-customer:focus,
+        #btnOpenQuickCustomer:focus,
+        .btn-quick-customer-trigger:focus {
+            background-color: #eff6ff !important;
+            color: #0a58ca !important;
+            border-color: #0a58ca !important;
+        }
     </style>
 </head>
 <body>

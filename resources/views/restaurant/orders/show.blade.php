@@ -665,11 +665,11 @@
                                     @endforeach
                                 </select>
                                 <button type="button" 
-                                        class="btn btn-outline-primary d-flex align-items-center justify-content-center px-3 flex-shrink-0 btn-open-quick-customer" 
+                                        class="btn btn-outline-primary bg-white text-primary d-inline-flex align-items-center justify-content-center px-3 flex-shrink-0 btn-open-quick-customer btn-quick-customer-trigger" 
                                         data-target-select="#settlement_customer_id"
                                         title="Crear Cliente Rápido"
                                         aria-label="Crear Cliente Rápido">
-                                    <i class="bi bi-plus-lg"></i>
+                                    <i class="bi bi-person-plus fs-5" style="line-height: 1;"></i>
                                 </button>
                             </div>
                             <small class="text-muted d-block" style="font-size: 0.72rem;">Por defecto asignado a Consumidor Final</small>
@@ -2350,11 +2350,11 @@ document.addEventListener('DOMContentLoaded', function () {
                                                 @endforeach
                                             </select>
                                             <button type="button" 
-                                                    class="btn btn-outline-primary d-flex align-items-center justify-content-center px-3 flex-shrink-0 btn-open-quick-customer" 
+                                                    class="btn btn-outline-primary bg-white text-primary d-inline-flex align-items-center justify-content-center px-3 flex-shrink-0 btn-open-quick-customer btn-quick-customer-trigger" 
                                                     data-target-select="#split_customer_id"
                                                     title="Crear Cliente Rápido"
                                                     aria-label="Crear Cliente Rápido">
-                                                <i class="bi bi-plus-lg"></i>
+                                                <i class="bi bi-person-plus fs-5" style="line-height: 1;"></i>
                                             </button>
                                         </div>
                                         <small class="text-muted d-block" style="font-size: 0.72rem;">Opcional para facturación individual</small>
