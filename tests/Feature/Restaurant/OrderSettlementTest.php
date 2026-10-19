@@ -619,5 +619,173 @@ class OrderSettlementTest extends TestCase
         // Verificar que no se creó ningún ítem nuevo
         $this->assertEquals(0, RestaurantOrderItem::where('order_id', $order->id)->count());
     }
+
+    /**
+     * Test: Corrección de raíz del doble cobro de domicilio (ORD-0398).
+     * 1 plato de $20.000 + delivery_fee de $3.000 = total $23.000.
+     * El HTML no debe renderizar $26.000, el subtotal de consumo debe ser $20.000,
+     * el flete $3.000 y el total a liquidar $23.000.
+     * Al cobrar con $23.000 en efectivo, la orden pasa a 'billed' y la venta almacena total = 23000, subtotal = 20000, delivery_fee = 3000.
+     */
+    public function test_delivery_order_settlement_avoids_double_charging_delivery_fee(): void
+    {
+        $order = RestaurantOrder::create([
+            'business_id' => $this->businessA->id,
+            'user_id' => $this->adminA->id,
+            'order_number' => 'ORD-0398',
+            'order_type' => 'delivery',
+            'status' => 'open',
+            'customer_name' => 'Cliente Domicilio',
+            'delivery_address' => 'Calle 10 # 5-20, Cali',
+            'delivery_phone' => '3123456789',
+            'delivery_fee' => 3000.00,
+            'subtotal' => 20000.00,
+            'total' => 23000.00,
+        ]);
+
+        RestaurantOrderItem::create([
+            'business_id' => $this->businessA->id,
+            'order_id' => $order->id,
+            'product_id' => $this->dishPasta->id,
+            'quantity' => 1,
+            'unit_price' => 20000.00,
+            'subtotal' => 20000.00,
+            'status' => 'served',
+            'payment_status' => 'pending',
+            'batch_number' => 1,
+        ]);
+
+        $order->load(['items', 'sales']);
+
+        // 1. Verificación en el modelo
+        $this->assertEquals(20000.00, $order->itemsSubtotal());
+        $this->assertEquals(3000.00, $order->deliveryFeeAmount());
+        $this->assertEquals(23000.00, $order->totalAmount());
+        $this->assertEquals(20000.00, $order->pendingItemsSubtotal());
+        $this->assertEquals(3000.00, $order->pendingDeliveryFee());
+        $this->assertEquals(23000.00, $order->pendingBalance());
+
+        // 2. Verificación de la vista show
+        $response = $this->actingAs($this->adminA)
+            ->withSession(['current_business_id' => $this->businessA->id])
+            ->get(route('restaurant.orders.show', $order));
+
+        $response->assertOk();
+        $html = $response->getContent();
+
+        // No debe mostrar $26.000 ni $26,000 en ningún lugar
+        $this->assertStringNotContainsString('26.000', $html);
+        $this->assertStringNotContainsString('26,000', $html);
+
+        // Subtotal de consumo en $20,000.00, flete en $3,000.00
+        $response->assertSee('20,000.00');
+        $response->assertSee('3,000.00');
+
+        // 3. POST de cobro/facturación enviando exactamente $23.000
+        $chargePayload = [
+            'payments' => [
+                [
+                    'method' => 'cash',
+                    'amount' => 23000.00,
+                    'cash_received' => 23000.00,
+                    'change_given' => 0.00,
+                ],
+            ],
+            'discount_percentage' => 0,
+        ];
+
+        $postResponse = $this->actingAs($this->adminA)
+            ->withSession(['current_business_id' => $this->businessA->id])
+            ->post(route('restaurant.orders.charge', $order), $chargePayload);
+
+        $postResponse->assertRedirect(route('restaurant.orders.show', $order));
+        $postResponse->assertSessionHasNoErrors();
+
+        $order->refresh();
+        $this->assertEquals('billed', $order->status);
+        $this->assertEquals(0.00, $order->pendingBalance());
+
+        $sale = Sale::where('restaurant_order_id', $order->id)->first();
+        $this->assertNotNull($sale);
+        $this->assertEquals(20000.00, (float) $sale->subtotal);
+        $this->assertEquals(3000.00, (float) $sale->delivery_fee);
+        $this->assertEquals(23000.00, (float) $sale->total);
+        $this->assertEquals('completed', $sale->status);
+    }
+
+    /**
+     * Test: Domicilio con descuento e impuesto INC.
+     * Platos: $50.000, Flete: $5.000.
+     * Descuento: 10% (-$5.000 sobre platos -> netItems = $45.000).
+     * INC 8%: (+$3.600 sobre netItems).
+     * Domicilio: (+$5.000).
+     * Total esperado: $45.000 + $3.600 + $5.000 = $53.600.
+     */
+    public function test_delivery_order_settlement_with_discount_and_tax_inc(): void
+    {
+        $order = RestaurantOrder::create([
+            'business_id' => $this->businessA->id,
+            'user_id' => $this->adminA->id,
+            'order_number' => 'ORD-0399',
+            'order_type' => 'delivery',
+            'status' => 'open',
+            'customer_name' => 'Cliente Gourmet',
+            'delivery_address' => 'Av Colombia # 12-34',
+            'delivery_phone' => '3159998877',
+            'delivery_fee' => 5000.00,
+            'subtotal' => 50000.00,
+            'total' => 55000.00,
+        ]);
+
+        RestaurantOrderItem::create([
+            'business_id' => $this->businessA->id,
+            'order_id' => $order->id,
+            'product_id' => $this->dishPasta->id,
+            'quantity' => 2,
+            'unit_price' => 25000.00,
+            'subtotal' => 50000.00,
+            'status' => 'served',
+            'payment_status' => 'pending',
+            'batch_number' => 1,
+        ]);
+
+        $order->load(['items', 'sales']);
+
+        // Base items = 50.000, Delivery fee = 5.000
+        $this->assertEquals(50000.00, $order->itemsSubtotal());
+        $this->assertEquals(5000.00, $order->deliveryFeeAmount());
+
+        $chargePayload = [
+            'discount_percentage' => 10,
+            'include_tax' => true,
+            'payments' => [
+                [
+                    'method' => 'cash',
+                    'amount' => 53600.00,
+                    'cash_received' => 53600.00,
+                    'change_given' => 0.00,
+                ],
+            ],
+        ];
+
+        $postResponse = $this->actingAs($this->adminA)
+            ->withSession(['current_business_id' => $this->businessA->id])
+            ->post(route('restaurant.orders.charge', $order), $chargePayload);
+
+        $postResponse->assertRedirect(route('restaurant.orders.show', $order));
+        $postResponse->assertSessionHasNoErrors();
+
+        $order->refresh();
+        $this->assertEquals('billed', $order->status);
+
+        $sale = Sale::where('restaurant_order_id', $order->id)->first();
+        $this->assertNotNull($sale);
+        $this->assertEquals(50000.00, (float) $sale->subtotal);
+        $this->assertEquals(5000.00, (float) $sale->discount);
+        $this->assertEquals(10.0, (float) $sale->discount_percentage);
+        $this->assertEquals(3600.00, (float) $sale->tax_inc);
+        $this->assertEquals(5000.00, (float) $sale->delivery_fee);
+        $this->assertEquals(53600.00, (float) $sale->total);
+    }
 }
 

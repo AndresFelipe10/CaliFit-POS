@@ -44,6 +44,10 @@ class RestaurantOrder extends Model
         'paid_amount',
         'total_amount',
         'has_partial_payments',
+        'items_subtotal',
+        'delivery_fee_amount',
+        'pending_items_subtotal',
+        'pending_delivery_fee',
     ];
 
     protected function casts(): array
@@ -132,17 +136,42 @@ class RestaurantOrder extends Model
     }
 
     /**
-     * Suma del subtotal de todos los ítems activos (no cancelados) de la comanda (+ flete de domicilio si aplica).
+     * Suma únicamente el subtotal de los ítems activos (no cancelados) de la comanda.
+     * Jamás suma delivery_fee aquí.
      */
-    public function totalAmount(): float
+    public function itemsSubtotal(): float
     {
         $sum = $this->relationLoaded('items')
             ? (float) $this->items->where('status', '!=', 'cancelled')->sum('subtotal')
             : (float) $this->items()->where('status', '!=', 'cancelled')->sum('subtotal');
 
-        $deliveryFee = (float) ($this->delivery_fee ?? 0);
+        return round($sum, 2);
+    }
 
-        return round($sum + $deliveryFee, 2);
+    public function getItemsSubtotalAttribute(): float
+    {
+        return $this->itemsSubtotal();
+    }
+
+    /**
+     * Retorna el monto del flete de domicilio registrado en la comanda.
+     */
+    public function deliveryFeeAmount(): float
+    {
+        return round((float) ($this->delivery_fee ?? 0), 2);
+    }
+
+    public function getDeliveryFeeAmountAttribute(): float
+    {
+        return $this->deliveryFeeAmount();
+    }
+
+    /**
+     * Suma del consumo de platos más el flete de domicilio de la comanda.
+     */
+    public function totalAmount(): float
+    {
+        return round($this->itemsSubtotal() + $this->deliveryFeeAmount(), 2);
     }
 
     public function getTotalAmountAttribute(): float
@@ -151,7 +180,7 @@ class RestaurantOrder extends Model
     }
 
     /**
-     * Suma del subtotal de los ítems con payment_status === 'paid' (no cancelados).
+     * Suma únicamente el subtotal de los ítems activos con payment_status === 'paid' (no cancelados).
      */
     public function paidAmount(): float
     {
@@ -168,17 +197,54 @@ class RestaurantOrder extends Model
     }
 
     /**
-     * Suma del subtotal de los ítems con payment_status === 'pending' (+ flete de domicilio si aún no se ha liquidado).
+     * Suma únicamente el subtotal de los ítems activos pendientes de pago (payment_status === 'pending').
      */
-    public function pendingBalance(): float
+    public function pendingItemsSubtotal(): float
     {
         $sum = $this->relationLoaded('items')
             ? (float) $this->items->where('payment_status', 'pending')->where('status', '!=', 'cancelled')->sum('subtotal')
             : (float) $this->items()->where('payment_status', 'pending')->where('status', '!=', 'cancelled')->sum('subtotal');
 
-        $fee = (float) ($this->delivery_fee ?? 0);
+        return round(max(0, $sum), 2);
+    }
 
-        return round(max(0, $sum + $fee), 2);
+    public function getPendingItemsSubtotalAttribute(): float
+    {
+        return $this->pendingItemsSubtotal();
+    }
+
+    /**
+     * Retorna el flete de domicilio pendiente de cobro si la comanda no está cerrada o ya facturada.
+     */
+    public function pendingDeliveryFee(): float
+    {
+        if ($this->isClosedOrBilled()) {
+            return 0.00;
+        }
+
+        $fee = $this->deliveryFeeAmount();
+        if ($fee <= 0) {
+            return 0.00;
+        }
+
+        $alreadyChargedFee = $this->relationLoaded('sales')
+            ? (float) $this->sales->sum(fn ($s) => (float) ($s->delivery_fee ?? 0))
+            : (float) $this->sales()->sum('delivery_fee');
+
+        return round(max(0.00, $fee - $alreadyChargedFee), 2);
+    }
+
+    public function getPendingDeliveryFeeAttribute(): float
+    {
+        return $this->pendingDeliveryFee();
+    }
+
+    /**
+     * Saldo total pendiente de cubrir en la comanda (consumo pendiente de platos + flete de domicilio pendiente).
+     */
+    public function pendingBalance(): float
+    {
+        return round($this->pendingItemsSubtotal() + $this->pendingDeliveryFee(), 2);
     }
 
     public function getPendingBalanceAttribute(): float

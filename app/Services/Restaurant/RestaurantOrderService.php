@@ -1139,19 +1139,28 @@ class RestaurantOrderService
             }
 
             // 3. Validación Financiera Estricta del Saldo a Cubrir
-            $discountPercentage = (float) ($data['discount_percentage'] ?? 0);
-            $discount = round($pendingBalance * ($discountPercentage / 100), 2);
-            $netBase = max(0, round($pendingBalance - $discount, 2));
+            $baseItems = round((float) $lockedOrder->pendingItemsSubtotal(), 2);
+            $deliveryFee = round((float) $lockedOrder->pendingDeliveryFee(), 2);
 
-            $serviceFee = isset($data['service_fee']) ? max(0, round((float) $data['service_fee'], 2)) : 0.00;
-            $taxInc = isset($data['tax_inc']) ? max(0, round((float) $data['tax_inc'], 2)) : 0.00;
-            $expectedTotal = round($netBase + $serviceFee + $taxInc, 2);
+            $discountPercentage = max(0, min(100, (float) ($data['discount_percentage'] ?? 0)));
+            $discountAmount = round($baseItems * ($discountPercentage / 100), 2);
+            $netItems = max(0, round($baseItems - $discountAmount, 2));
+
+            $tipAmount = ! empty($data['include_tip'])
+                ? round($netItems * 0.10, 2)
+                : (isset($data['service_fee']) ? max(0, round((float) $data['service_fee'], 2)) : 0.00);
+
+            $taxAmount = ! empty($data['include_tax'])
+                ? round($netItems * 0.08, 2)
+                : (isset($data['tax_inc']) ? max(0, round((float) $data['tax_inc'], 2)) : 0.00);
+
+            $expectedTotalToSettle = round($netItems + $tipAmount + $taxAmount + $deliveryFee, 2);
 
             $sumPayments = round(array_sum(array_column($payments, 'amount')), 2);
 
-            if (abs($sumPayments - $expectedTotal) > 0.05) {
+            if (abs($sumPayments - $expectedTotalToSettle) > 0.05) {
                 throw ValidationException::withMessages([
-                    'payments' => 'El saldo a cubrir es de $' . number_format($expectedTotal, 0, ',', '.') . ' (Total recibido: $' . number_format($sumPayments, 0, ',', '.') . ').',
+                    'payments' => 'El saldo a cubrir es de $' . number_format($expectedTotalToSettle, 0, ',', '.') . ' (Total recibido: $' . number_format($sumPayments, 0, ',', '.') . ').',
                 ]);
             }
 
@@ -1170,13 +1179,13 @@ class RestaurantOrderService
                 'order_type' => $lockedOrder->order_type ?? 'table',
                 'invoice_number' => $invoiceNumber,
                 'sale_date' => now('America/Bogota'),
-                'subtotal' => $pendingBalance,
-                'discount' => $discount,
+                'subtotal' => $baseItems,
+                'discount' => $discountAmount,
                 'discount_percentage' => $discountPercentage,
-                'delivery_fee' => 0.00,
-                'service_fee' => $serviceFee,
-                'tax_inc' => $taxInc,
-                'total' => $expectedTotal,
+                'delivery_fee' => $deliveryFee,
+                'service_fee' => $tipAmount,
+                'tax_inc' => $taxAmount,
+                'total' => $expectedTotalToSettle,
                 'payment_method' => $derivedPaymentMethod,
                 'status' => 'completed',
                 'notes' => $data['notes'] ?? "Cobro final de comanda {$lockedOrder->order_number}",
@@ -1229,7 +1238,7 @@ class RestaurantOrderService
 
             // 9. Cierre y Liberación Atómica de la Comanda y Mesa
             $timestamp = now('America/Bogota')->format('d/m/Y H:i');
-            $auditNote = "[AUDITORÍA] {$timestamp}: Comanda cerrada y liquidada en su totalidad por {$user->name}. Cobro de saldo pendiente: $" . number_format($expectedTotal, 0, ',', '.') . ".";
+            $auditNote = "[AUDITORÍA] {$timestamp}: Comanda cerrada y liquidada en su totalidad por {$user->name}. Cobro de saldo pendiente: $" . number_format($expectedTotalToSettle, 0, ',', '.') . ".";
             $existingNotes = $lockedOrder->notes ? trim($lockedOrder->notes) . "\n" : '';
 
             $lockedOrder->update([

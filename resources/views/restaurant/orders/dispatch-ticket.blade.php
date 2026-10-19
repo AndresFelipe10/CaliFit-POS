@@ -384,19 +384,19 @@
         <div class="totals-section">
             <div class="total-line">
                 <span>Subtotal Comida:</span>
-                <strong>${{ number_format($order->subtotal, 2) }}</strong>
+                <strong>${{ number_format($order->itemsSubtotal(), 2) }}</strong>
             </div>
 
-            @if($order->order_type === 'delivery')
+            @if($order->order_type === 'delivery' && $order->deliveryFeeAmount() > 0)
                 <div class="total-line">
                     <span>Costo de Domicilio:</span>
-                    <strong>${{ number_format($order->delivery_fee, 2) }}</strong>
+                    <strong>${{ number_format($order->deliveryFeeAmount(), 2) }}</strong>
                 </div>
             @endif
 
             <div class="cod-box">
                 <div class="cod-label">TOTAL A COBRAR EN DESTINO:</div>
-                <div class="cod-amount">${{ number_format($order->total, 2) }}</div>
+                <div class="cod-amount">${{ number_format($order->totalAmount(), 2) }}</div>
             </div>
         </div>
 

@@ -331,26 +331,29 @@
 
         {{-- Totales --}}
         @php
-            $suggestedTip = round($order->subtotal * 0.10);
-            $totalWithTip = round($order->subtotal + $order->delivery_fee + $suggestedTip);
+            $itemsSubtotal = $order->itemsSubtotal();
+            $deliveryFee = $order->deliveryFeeAmount();
+            $orderTotal = round($itemsSubtotal + $deliveryFee, 2);
+            $suggestedTip = round($itemsSubtotal * 0.10);
+            $totalWithTip = round($orderTotal + $suggestedTip);
         @endphp
 
         <div class="totals-section">
             <div class="total-row">
                 <span>Subtotal Consumo:</span>
-                <strong>${{ number_format($order->subtotal, 0, ',', '.') }}</strong>
+                <strong>${{ number_format($itemsSubtotal, 0, ',', '.') }}</strong>
             </div>
 
-            @if($order->delivery_fee > 0)
+            @if($deliveryFee > 0)
                 <div class="total-row">
                     <span>Servicio Entrega / Domicilio:</span>
-                    <strong>${{ number_format($order->delivery_fee, 0, ',', '.') }}</strong>
+                    <strong>${{ number_format($deliveryFee, 0, ',', '.') }}</strong>
                 </div>
             @endif
 
             <div class="total-row grand-total">
                 <span>SUBTOTAL A PAGAR:</span>
-                <span>${{ number_format($order->total, 0, ',', '.') }}</span>
+                <span>${{ number_format($orderTotal, 0, ',', '.') }}</span>
             </div>
 
             {{-- Desglose sugerido de propina voluntaria (10%) --}}

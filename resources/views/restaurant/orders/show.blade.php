@@ -441,13 +441,13 @@
                 <div class="card-body px-4 pb-4">
                     <div class="d-flex justify-content-between py-2 border-bottom">
                         <span class="text-muted">Subtotal Consumo:</span>
-                        <span class="fw-semibold text-dark">${{ number_format($order->totalAmount(), 2) }}</span>
+                        <span class="fw-semibold text-dark">${{ number_format($order->itemsSubtotal(), 2) }}</span>
                     </div>
 
-                    @if($order->delivery_fee > 0)
+                    @if($order->deliveryFeeAmount() > 0)
                         <div class="d-flex justify-content-between py-2 border-bottom">
                             <span class="text-muted">Flete Domicilio:</span>
-                            <span class="fw-semibold text-dark">${{ number_format($order->delivery_fee, 2) }}</span>
+                            <span class="fw-semibold text-dark">${{ number_format($order->deliveryFeeAmount(), 2) }}</span>
                         </div>
                     @endif
 
@@ -478,10 +478,15 @@
                             <span class="small text-muted fw-semibold">Recaudado hasta ahora:</span>
                             <span class="fw-bold text-primary">${{ number_format($order->totalCollected(), 2) }}</span>
                         </div>
+                    @elseif($order->totalCollected() == 0)
+                        <div class="d-flex justify-content-between align-items-center border-top pt-2 mt-2">
+                            <span class="fw-bold">Total a Cobrar:</span>
+                            <span class="fs-4 fw-bold text-primary">${{ number_format($order->pendingBalance(), 2) }}</span>
+                        </div>
                     @else
                         <div class="d-flex justify-content-between align-items-center border-top pt-2 mt-2">
                             <span class="fw-bold">Total Recaudado:</span>
-                            <span class="fs-4 fw-bold text-primary">${{ number_format($order->totalCollected() ?: $order->totalAmount(), 2) }}</span>
+                            <span class="fs-4 fw-bold text-primary">${{ number_format($order->totalCollected(), 2) }}</span>
                         </div>
                     @endif
 
@@ -601,7 +606,7 @@
                 <input type="hidden" name="sale_date" value="{{ now()->format('Y-m-d\TH:i:s') }}">
                 <input type="hidden" name="restaurant_order_id" value="{{ $order->id }}">
                 <input type="hidden" name="order_type" value="{{ $order->order_type }}">
-                <input type="hidden" name="delivery_fee" id="settlement_delivery_fee" value="{{ $order->hasPartialPayments() ? 0 : $order->delivery_fee }}">
+                <input type="hidden" name="delivery_fee" id="settlement_delivery_fee" value="{{ $order->pendingDeliveryFee() }}">
 
                 {{-- Productos pendientes de la comanda agrupados para facturación --}}
                 @php
@@ -745,16 +750,16 @@
                     <div class="card bg-light border-0 p-3 mb-3 rounded-3">
                         <div class="d-flex justify-content-between small mb-1">
                             <span class="text-muted">Subtotal Base a Cobrar ({{ count($groupedItems) }} ref):</span>
-                            <span class="fw-semibold text-dark" id="display_subtotal">${{ number_format($order->pendingBalance(), 2) }}</span>
+                            <span class="fw-semibold text-dark" id="display_subtotal">${{ number_format($order->pendingItemsSubtotal(), 2) }}</span>
                         </div>
                         <div class="d-flex justify-content-between small mb-1">
                             <span class="text-muted">Descuento (<span id="display_discount_pct_label">0%</span>):</span>
                             <span class="fw-semibold text-danger" id="display_discount">-$0.00</span>
                         </div>
-                        @if($order->order_type === 'delivery' && !$order->hasPartialPayments())
+                        @if($order->pendingDeliveryFee() > 0)
                             <div class="d-flex justify-content-between small mb-1">
                                 <span class="text-muted">Flete de Domicilio:</span>
-                                <span class="fw-semibold text-dark" id="display_delivery_fee">+${{ number_format($order->delivery_fee, 2) }}</span>
+                                <span class="fw-semibold text-dark" id="display_delivery_fee">+${{ number_format($order->pendingDeliveryFee(), 2) }}</span>
                             </div>
                         @endif
                         <div class="d-flex justify-content-between small mb-1" id="row_service_fee" style="display: none !important;">
@@ -1380,10 +1385,11 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // 2. Lógica Reactiva de la Pasarela de Liquidación / Cobro
-    const BASE_AMOUNT_TO_PAY = parseFloat("{{ $order->pendingBalance() }}");
-    const subtotal = BASE_AMOUNT_TO_PAY;
-    const dishSubtotal = parseFloat("{{ $pendingDishSubtotal ?? 0 }}");
-    const deliveryFee = parseFloat("{{ $order->hasPartialPayments() ? 0 : (float)$order->delivery_fee }}");
+    const BASE_ITEMS_PENDING = parseFloat("{{ $order->pendingItemsSubtotal() }}") || 0;
+    const DELIVERY_FEE = parseFloat("{{ $order->pendingDeliveryFee() }}") || 0;
+    const subtotal = BASE_ITEMS_PENDING;
+    const dishSubtotal = parseFloat("{{ $pendingDishSubtotal ?? 0 }}") || 0;
+    const deliveryFee = DELIVERY_FEE;
     const discountInput = document.getElementById('settlement_discount_pct');
     const displaySubtotal = document.getElementById('display_subtotal');
     const displayDiscount = document.getElementById('display_discount');
@@ -1411,7 +1417,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const btnSubmitSettlement = document.getElementById('btnSubmitSettlement');
     const quickCashContainer = document.getElementById('quickCashButtons');
 
-    let currentTotal = Math.max(0, Math.round((subtotal + deliveryFee) * 100) / 100);
+    let currentTotal = Math.max(0, Math.round((BASE_ITEMS_PENDING + DELIVERY_FEE) * 100) / 100);
     let paymentLineCount = 1;
 
     function formatMoney(amount) {
@@ -1430,18 +1436,18 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function recalculateTotal(source) {
         // Blindaje normativo colombiano de liquidación (Gastronomía y Restaurantes):
-        // 1. Base Gravable / Consumo neto = Subtotal - Descuento (Art. 512-1 del Estatuto Tributario).
+        // 1. Base Gravable / Consumo neto = Subtotal Platos - Descuento (Art. 512-1 del Estatuto Tributario).
         // 2. Propina Voluntaria / Servicio (Ley 1935 de 2018 y Circular Única SIC):
         //    Liberalidad de los trabajadores. NO hace parte de la base gravable de INC ni IVA.
         // 3. Impuesto Nacional al Consumo - INC 8% (Art. 512-1 E.T.):
         //    Grava exclusivamente el consumo neto de platos preparados del menú (dishSubtotal).
-        // 4. Total a Liquidar = Base Gravable (Subtotal - Descuento) + Domicilio + Servicio + INC.
+        // 4. Total a Liquidar = Base Gravable (Subtotal Platos - Descuento) + Flete Domicilio + Servicio + INC.
         const discountPct = parseFloat(discountInput?.value || 0) || 0;
-        const discountAmount = Math.round(subtotal * (discountPct / 100) * 100) / 100;
-        const netFoodBase = Math.max(0, Math.round((subtotal - discountAmount) * 100) / 100);
+        const discountAmount = Math.round(BASE_ITEMS_PENDING * (discountPct / 100) * 100) / 100;
+        const netFoodBase = Math.max(0, Math.round((BASE_ITEMS_PENDING - discountAmount) * 100) / 100);
 
         // Descuento proporcional sobre platos preparados
-        const dishDiscountAmount = subtotal > 0 ? Math.round(dishSubtotal * (discountPct / 100) * 100) / 100 : 0;
+        const dishDiscountAmount = BASE_ITEMS_PENDING > 0 ? Math.round(dishSubtotal * (discountPct / 100) * 100) / 100 : 0;
         const netDishBase = Math.max(0, Math.round((dishSubtotal - dishDiscountAmount) * 100) / 100);
 
         // Servicio / Propina (Ley 1935 de 2018 - 10% sugerido editable o monto en pesos)
@@ -1482,7 +1488,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (rowTaxInc) rowTaxInc.style.setProperty('display', 'none', 'important');
         }
 
-        currentTotal = Math.max(0, Math.round((netFoodBase + deliveryFee + serviceFee + taxInc) * 100) / 100);
+        currentTotal = Math.max(0, Math.round((netFoodBase + DELIVERY_FEE + serviceFee + taxInc) * 100) / 100);
 
         if (displayDiscount) displayDiscount.textContent = '-' + formatMoney(discountAmount);
         if (displayDiscountLabel) displayDiscountLabel.textContent = discountPct + '%';
