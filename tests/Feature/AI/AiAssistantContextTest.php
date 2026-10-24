@@ -1,6 +1,6 @@
 <?php
 
-namespace Tests\Feature\Ai;
+namespace Tests\Feature\AI;
 
 use App\AI\Contracts\AiProviderInterface;
 use App\AI\Providers\FakeAiProvider;
