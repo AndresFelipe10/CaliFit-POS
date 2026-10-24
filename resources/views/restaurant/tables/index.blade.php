@@ -132,13 +132,13 @@
                                             @if(!$isOccupied && !$isBilled)
                                                 <li><hr class="dropdown-divider my-1"></li>
                                                 <li>
-                                                    <form action="{{ route('restaurant.tables.destroy', $table) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas eliminar esta mesa?');">
-                                                        @csrf
-                                                        @method('DELETE')
-                                                        <button type="submit" class="dropdown-item text-danger py-1.5 small">
-                                                            <i class="bi bi-trash me-1.5"></i> Eliminar
-                                                        </button>
-                                                    </form>
+                                                    <button type="button" class="dropdown-item text-danger py-1.5 small btn-delete-table"
+                                                            data-bs-toggle="modal"
+                                                            data-bs-target="#deleteTableModal"
+                                                            data-action-url="{{ route('restaurant.tables.destroy', $table) }}"
+                                                            data-table-name="{{ $table->name }}">
+                                                        <i class="bi bi-trash me-1.5"></i> Eliminar
+                                                    </button>
                                                 </li>
                                             @endif
                                         </ul>
@@ -193,4 +193,66 @@
         </div>
     @endif
 </div>
+
+{{-- Modal Corporativo de Eliminación de Mesa --}}
+<div class="modal fade" id="deleteTableModal" tabindex="-1" aria-labelledby="deleteTableModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow rounded-4 overflow-hidden">
+            <div class="modal-header bg-danger text-white py-3 px-4">
+                <h5 class="modal-title fw-bold d-flex align-items-center" id="deleteTableModalLabel">
+                    <i class="bi bi-trash3-fill me-2 fs-5"></i> Eliminar Mesa
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4 text-center">
+                <div class="text-danger mb-3">
+                    <i class="bi bi-exclamation-triangle-fill display-4"></i>
+                </div>
+                <h5 class="fw-bold text-dark mb-2">¿Estás seguro de eliminar esta mesa?</h5>
+                <div class="alert alert-light border rounded-3 p-3 text-start small mb-3">
+                    <div>
+                        <span class="text-muted">Mesa:</span>
+                        <strong class="text-dark" id="deleteTableName">-</strong>
+                    </div>
+                </div>
+                <p class="text-muted small mb-0">
+                    Esta acción eliminará la mesa de la configuración del salón y <strong>no se puede deshacer</strong>.
+                </p>
+            </div>
+            <div class="modal-footer bg-light px-4 py-3 justify-content-end gap-2 border-0">
+                <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">
+                    Cancelar
+                </button>
+                <form id="deleteTableForm" method="POST" action="">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit" class="btn btn-danger rounded-pill px-4 fw-bold">
+                        <i class="bi bi-trash3 me-1"></i> Sí, Eliminar
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const deleteModal = document.getElementById('deleteTableModal');
+    if (!deleteModal) return;
+
+    deleteModal.addEventListener('show.bs.modal', function (event) {
+        const button = event.relatedTarget;
+        if (!button) return;
+
+        const actionUrl = button.getAttribute('data-action-url');
+        const tableName = button.getAttribute('data-table-name');
+
+        const form = document.getElementById('deleteTableForm');
+        const nameEl = document.getElementById('deleteTableName');
+
+        if (form) form.action = actionUrl;
+        if (nameEl) nameEl.textContent = tableName || '-';
+    });
+});
+</script>
 @endsection

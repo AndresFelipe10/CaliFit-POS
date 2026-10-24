@@ -108,19 +108,30 @@
             @endphp
 
             @if(!in_array($order->status, ['closed', 'cancelled', 'billed']))
-                <form action="{{ route('restaurant.orders.kitchen-ticket', $order) }}" method="POST" target="_blank" class="d-inline">
+                <form action="{{ route('restaurant.orders.kitchen-ticket', ['order' => $order] + ($hasPendingKitchen ? [] : ['reprint' => 1])) }}"
+                      method="POST"
+                      target="_blank"
+                      class="d-inline"
+                      data-no-disable="true"
+                      data-no-spinner="true">
                     @csrf
-                    <button type="submit" class="btn {{ $hasPendingKitchen ? 'btn-warning text-dark fw-bold animate-pulse' : 'btn-outline-secondary' }}">
-                        <i class="bi bi-printer-fill me-1"></i>
-                        {{ $hasPendingKitchen ? 'Enviar a Cocina (80mm)' : 'Reimprimir Cocina (80mm)' }}
+                    @if(!$hasPendingKitchen)
+                        <input type="hidden" name="reprint" value="1">
+                    @endif
+                    <button type="submit"
+                            class="btn {{ $hasPendingKitchen ? 'btn-warning text-dark fw-bold animate-pulse' : 'btn-outline-secondary' }}"
+                            data-no-disable="true"
+                            data-no-spinner="true">
+                        <i class="bi bi-printer me-1"></i>
+                        {{ $hasPendingKitchen ? 'Enviar a Cocina' : 'Reimprimir en cocina' }}
                     </button>
                 </form>
             @endif
 
             {{-- Botón Pre-cuenta (Mesas) --}}
             @if($order->order_type === 'table' && !in_array($order->status, ['closed', 'cancelled', 'billed']))
-                <a href="{{ route('restaurant.orders.prebill', $order) }}" target="_blank" class="btn btn-outline-warning text-dark fw-bold">
-                    <i class="bi bi-file-earmark-text me-1"></i> Pre-cuenta (80mm)
+                <a href="{{ route('restaurant.orders.prebill', $order) }}" target="_blank" class="btn btn-outline-warning text-dark fw-bold" data-no-disable="true">
+                    <i class="bi bi-file-earmark-text me-1"></i> Pre-cuenta
                 </a>
             @endif
 
@@ -151,8 +162,8 @@
                     <a href="{{ route('sales.show', $headerSaleId) }}" class="btn btn-outline-primary fw-bold">
                         <i class="bi bi-receipt me-1"></i> Factura de Venta
                     </a>
-                    <a href="{{ route('sales.print.receipt', $headerSaleId) }}" target="_blank" class="btn btn-outline-secondary">
-                        <i class="bi bi-printer me-1"></i> Ticket Fiscal (80mm)
+                    <a href="{{ route('sales.print.receipt', $headerSaleId) }}" target="_blank" class="btn btn-outline-secondary" data-no-disable="true">
+                        <i class="bi bi-printer me-1"></i> Ticket Fiscal
                     </a>
                 @endif
             @endif
@@ -577,8 +588,8 @@
                                 <a href="{{ route('sales.show', $sideSaleId) }}" class="btn btn-outline-primary w-100 fw-bold mb-2">
                                     <i class="bi bi-receipt me-1"></i> Ver Factura
                                 </a>
-                                <a href="{{ route('sales.print.receipt', $sideSaleId) }}" target="_blank" class="btn btn-outline-secondary w-100">
-                                    <i class="bi bi-printer me-1"></i> Imprimir Ticket Fiscal (80mm)
+                                <a href="{{ route('sales.print.receipt', $sideSaleId) }}" target="_blank" class="btn btn-outline-secondary w-100" data-no-disable="true">
+                                    <i class="bi bi-printer me-1"></i> Imprimir Ticket Fiscal
                                 </a>
                             </div>
                         @endif
@@ -795,6 +806,10 @@
                             <button type="button" class="btn btn-sm btn-outline-success py-1 px-2 quick-cash-btn fw-bold" data-amt="{{ (float)$order->pendingBalance() }}" style="font-size: 0.75rem; min-height: 32px;">
                                 <i class="bi bi-check2 me-1"></i>Exacto (${{ number_format($order->pendingBalance(), 0, ',', '.') }})
                             </button>
+                        </div>
+
+                        <div id="maxPaymentsAlert" class="alert alert-warning py-1.5 px-3 small rounded-3 mb-2 d-none" role="alert">
+                            <i class="bi bi-exclamation-triangle-fill me-1"></i> Se permite un máximo de 5 medios de pago por venta.
                         </div>
 
                         <div id="paymentsContainer">
@@ -1710,7 +1725,11 @@ document.addEventListener('DOMContentLoaded', function () {
         btnAddPaymentLine.addEventListener('click', function () {
             const lines = paymentsContainer.querySelectorAll('.payment-line');
             if (lines.length >= 5) {
-                alert('Se permite un máximo de 5 medios de pago por venta.');
+                const maxAlert = document.getElementById('maxPaymentsAlert');
+                if (maxAlert) {
+                    maxAlert.classList.remove('d-none');
+                    setTimeout(() => maxAlert.classList.add('d-none'), 4000);
+                }
                 return;
             }
 

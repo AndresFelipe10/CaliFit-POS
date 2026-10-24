@@ -168,6 +168,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/ai', fn() => redirect()->route('ai.index'));
         Route::get('/ai/assistant', [AiAssistantController::class, 'index'])->name('ai.index');
         Route::post('/ai/ask', [AiAssistantController::class, 'ask'])->middleware('throttle:30,1')->name('ai.ask');
+        Route::post('/ai/clear-context', [AiAssistantController::class, 'clearContext'])->name('ai.clear-context');
 
         // Rutas exclusivas para el rol Administrador del emprendimiento
         Route::middleware('role:admin')->group(function () {

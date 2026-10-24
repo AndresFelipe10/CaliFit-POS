@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\AI\Services\AiQueryService;
+use App\Models\Business;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -12,21 +13,37 @@ class AiAssistantController extends Controller
     /**
      * Show the natural language query assistant interface.
      */
-    public function index(): View
+    public function index(Request $request): View
     {
-        $suggestions = [
-            '¿Qué productos tienen bajo stock o requieren reposición?',
-            '¿Cuáles son los productos completamente agotados?',
-            '¿Cuáles son los productos más vendidos?',
-            'Resumen de ventas de hoy',
-            '¿Cuántos clientes activos tenemos registrados?',
-            '¿Cuál es el valor total de nuestro inventario?',
-            'Listar los primeros productos del catálogo',
-        ];
+        $businessId = (int) (session('current_business_id') ?? $request->user()->current_business_id);
+        $business = Business::find($businessId);
+
+        if ($business && $business->isRestaurant()) {
+            $suggestions = [
+                '¿Cuál es el estado de las mesas en el salón?',
+                '¿Cuáles son las comandas abiertas en este momento?',
+                '¿Cuántos pedidos a domicilio tenemos hoy?',
+                '¿Cuánto se ha recaudado hoy en propinas?',
+                '¿Cuántos clientes activos tenemos registrados?',
+                'Resumen de ventas de hoy',
+                '¿Cuáles son los productos más vendidos?',
+            ];
+        } else {
+            $suggestions = [
+                '¿Qué productos tienen bajo stock o requieren reposición?',
+                '¿Cuáles son los productos completamente agotados?',
+                '¿Cuáles son los productos más vendidos?',
+                'Resumen de ventas de hoy',
+                '¿Cuántos clientes activos tenemos registrados?',
+                '¿Cuál es el valor total de nuestro inventario?',
+                'Listar los primeros productos del catálogo',
+            ];
+        }
 
         return view('ai.index', [
             'enabled' => (bool) config('ai.enabled', false),
             'suggestions' => $suggestions,
+            'business' => $business,
         ]);
     }
 
@@ -40,9 +57,25 @@ class AiAssistantController extends Controller
         ]);
 
         $businessId = (int) (session('current_business_id') ?? $request->user()->current_business_id);
+        $business = Business::find($businessId);
+        $businessType = $business?->business_type;
 
-        $result = $aiQueryService->query($validated['query'], $businessId);
+        $result = $aiQueryService->query($validated['query'], $businessId, $businessType);
 
         return response()->json($result->toArray());
+    }
+
+    /**
+     * Clear conversational memory for the current tenant.
+     */
+    public function clearContext(Request $request, AiQueryService $aiQueryService): JsonResponse
+    {
+        $businessId = (int) (session('current_business_id') ?? $request->user()->current_business_id);
+        $aiQueryService->clearContext($businessId);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Memoria conversacional reiniciada exitosamente.',
+        ]);
     }
 }

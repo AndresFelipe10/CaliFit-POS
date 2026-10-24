@@ -35,7 +35,7 @@ Resultado → respuesta formateada y amigable
 ```
 
 ## Intenciones permitidas (whitelist — únicas soportadas en esta versión)
-`list_customers`, `count_customers`, `list_products`, `low_stock_products`, `out_of_stock_products`, `top_selling_products`, `sales_summary`, `sales_by_period`, `inventory_summary`.
+`list_customers`, `count_customers`, `list_products`, `low_stock_products`, `out_of_stock_products`, `top_selling_products`, `sales_summary`, `sales_by_period`, `inventory_summary`, `list_suppliers`, `expenses_summary`, `restaurant_tables_status`, `restaurant_orders_open`, `restaurant_deliveries_today`, `restaurant_tips_collected`.
 
 Cualquier intención fuera de esta lista se rechaza en código, sin excepción, aunque el modelo la devuelva.
 

@@ -223,13 +223,17 @@
                                     <a href="{{ route('expenses.edit', $expense) }}" class="btn btn-outline-secondary" title="Editar">
                                         <i class="bi bi-pencil"></i>
                                     </a>
-                                    <form action="{{ route('expenses.destroy', $expense) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Seguro que deseas eliminar este registro de gasto?');">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="btn btn-outline-danger" title="Eliminar">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
-                                    </form>
+                                    <button type="button"
+                                            class="btn btn-outline-danger btn-delete-expense"
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#deleteExpenseModal"
+                                            data-action-url="{{ route('expenses.destroy', $expense) }}"
+                                            data-expense-desc="{{ $expense->invoice_number ? 'Factura ' . $expense->invoice_number : ($expense->description ?: 'Gasto #' . $expense->id) }}"
+                                            data-expense-amount="${{ number_format($expense->amount, 0, ',', '.') }}"
+                                            data-expense-category="{{ $expense->category_label }}"
+                                            title="Eliminar">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
                                 </div>
                             </td>
                         </tr>
@@ -287,6 +291,55 @@
     </div>
 </div>
 
+{{-- Modal Corporativo de Eliminación de Gasto --}}
+<div class="modal fade" id="deleteExpenseModal" tabindex="-1" aria-labelledby="deleteExpenseModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow rounded-4 overflow-hidden">
+            <div class="modal-header bg-danger text-white py-3 px-4">
+                <h5 class="modal-title fw-bold d-flex align-items-center" id="deleteExpenseModalLabel">
+                    <i class="bi bi-trash3-fill me-2 fs-5"></i> Eliminar Registro de Gasto
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4 text-center">
+                <div class="text-danger mb-3">
+                    <i class="bi bi-exclamation-triangle-fill display-4"></i>
+                </div>
+                <h5 class="fw-bold text-dark mb-2">¿Estás seguro de eliminar este registro de gasto?</h5>
+                <div class="alert alert-light border rounded-3 p-3 text-start small mb-3">
+                    <div class="mb-1">
+                        <span class="text-muted">Descripción / Factura:</span>
+                        <strong class="text-dark d-block text-truncate" id="deleteExpenseDesc">-</strong>
+                    </div>
+                    <div class="mb-1">
+                        <span class="text-muted">Categoría:</span>
+                        <strong class="text-dark" id="deleteExpenseCategory">-</strong>
+                    </div>
+                    <div>
+                        <span class="text-muted">Monto:</span>
+                        <strong class="text-dark" id="deleteExpenseAmount">-</strong>
+                    </div>
+                </div>
+                <p class="text-muted small mb-0">
+                    Esta acción eliminará el registro de los movimientos contables y <strong>no se puede deshacer</strong>.
+                </p>
+            </div>
+            <div class="modal-footer bg-light px-4 py-3 justify-content-end gap-2 border-0">
+                <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">
+                    Cancelar
+                </button>
+                <form id="deleteExpenseForm" method="POST" action="">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit" class="btn btn-danger rounded-pill px-4 fw-bold">
+                        <i class="bi bi-trash3 me-1"></i> Sí, Eliminar
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 function openPayModal(expenseId, invoiceNumber, amount) {
     var form = document.getElementById('payForm');
@@ -296,5 +349,30 @@ function openPayModal(expenseId, invoiceNumber, amount) {
     var modal = new bootstrap.Modal(document.getElementById('payModal'));
     modal.show();
 }
+
+document.addEventListener('DOMContentLoaded', function () {
+    const deleteModal = document.getElementById('deleteExpenseModal');
+    if (!deleteModal) return;
+
+    deleteModal.addEventListener('show.bs.modal', function (event) {
+        const button = event.relatedTarget;
+        if (!button) return;
+
+        const actionUrl = button.getAttribute('data-action-url');
+        const expenseDesc = button.getAttribute('data-expense-desc');
+        const expenseAmount = button.getAttribute('data-expense-amount');
+        const expenseCategory = button.getAttribute('data-expense-category');
+
+        const form = document.getElementById('deleteExpenseForm');
+        const descEl = document.getElementById('deleteExpenseDesc');
+        const amountEl = document.getElementById('deleteExpenseAmount');
+        const categoryEl = document.getElementById('deleteExpenseCategory');
+
+        if (form) form.action = actionUrl;
+        if (descEl) descEl.textContent = expenseDesc || '-';
+        if (amountEl) amountEl.textContent = expenseAmount || '-';
+        if (categoryEl) categoryEl.textContent = expenseCategory || '-';
+    });
+});
 </script>
 @endsection

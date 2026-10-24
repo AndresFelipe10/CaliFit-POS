@@ -405,9 +405,27 @@
         document.addEventListener('submit', function (e) {
             if (e.defaultPrevented) return;
             const form = e.target;
-            if (form.hasAttribute('data-no-disable')) return;
+            if (!form || !(form instanceof HTMLFormElement)) return;
+
+            // Ignorar formularios que abren en nueva pestaña/ventana o marcados para no deshabilitar
+            if (form.getAttribute('target') === '_blank' ||
+                form.hasAttribute('data-no-disable') ||
+                form.hasAttribute('data-no-spinner') ||
+                form.dataset.noDisable !== undefined ||
+                form.dataset.noSpinner !== undefined) {
+                return;
+            }
+
             const submitBtn = form.querySelector('button[type="submit"]:not([disabled])');
             if (submitBtn) {
+                if (submitBtn.getAttribute('formtarget') === '_blank' ||
+                    submitBtn.hasAttribute('data-no-disable') ||
+                    submitBtn.hasAttribute('data-no-spinner') ||
+                    submitBtn.dataset.noDisable !== undefined ||
+                    submitBtn.dataset.noSpinner !== undefined) {
+                    return;
+                }
+
                 setTimeout(() => {
                     if (e.defaultPrevented) return;
                     submitBtn.disabled = true;

@@ -71,19 +71,44 @@ class FakeAiProvider implements AiProviderInterface
             return new AiQueryIntent(AiIntent::TOP_SELLING_PRODUCTS);
         }
 
-        if (str_contains($query, 'ventas de hoy') || str_contains($query, 'ventas del mes') || str_contains($query, 'resumen de ventas')) {
-            return new AiQueryIntent(AiIntent::SALES_SUMMARY);
+        if (str_contains($query, 'ventas de hoy') || str_contains($query, 'ventas del mes') || str_contains($query, 'resumen de ventas') || str_contains($query, 'ventas de ayer')) {
+            $period = str_contains($query, 'ayer') ? 'yesterday' : (str_contains($query, 'mes') ? 'month' : 'today');
+            return new AiQueryIntent(AiIntent::SALES_SUMMARY, ['period' => $period]);
         }
 
         if (str_contains($query, 'ventas')) {
             return new AiQueryIntent(AiIntent::SALES_BY_PERIOD);
         }
 
+        if (str_contains($query, 'mesa')) {
+            return new AiQueryIntent(AiIntent::RESTAURANT_TABLES_STATUS);
+        }
+
+        if (str_contains($query, 'comanda') || str_contains($query, 'pedidos abiertos') || str_contains($query, 'ordenes abiertas')) {
+            return new AiQueryIntent(AiIntent::RESTAURANT_ORDERS_OPEN);
+        }
+
+        if (str_contains($query, 'domicilio')) {
+            return new AiQueryIntent(AiIntent::RESTAURANT_DELIVERIES_TODAY);
+        }
+
+        if (str_contains($query, 'propina') || str_contains($query, 'servicio voluntario')) {
+            return new AiQueryIntent(AiIntent::RESTAURANT_TIPS_COLLECTED);
+        }
+
+        if (str_contains($query, 'proveedor')) {
+            return new AiQueryIntent(AiIntent::LIST_SUPPLIERS);
+        }
+
+        if (str_contains($query, 'gasto')) {
+            return new AiQueryIntent(AiIntent::EXPENSES_SUMMARY);
+        }
+
         if (str_contains($query, 'inventario') || str_contains($query, 'valoracion') || str_contains($query, 'valoración')) {
             return new AiQueryIntent(AiIntent::INVENTORY_SUMMARY);
         }
 
-        if (str_contains($query, 'producto') || str_contains($query, 'catalogo') || str_contains($query, 'catálogo')) {
+        if (str_contains($query, 'producto') || str_contains($query, 'catalogo') || str_contains($query, 'catálogo') || str_contains($query, 'plato')) {
             return new AiQueryIntent(AiIntent::LIST_PRODUCTS);
         }
 

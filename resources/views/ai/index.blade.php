@@ -244,6 +244,58 @@ document.addEventListener('DOMContentLoaded', () => {
         scrollToBottom();
     };
 
+    const columnLabels = {
+        'name': 'NOMBRE',
+        'sku': 'CÓDIGO / SKU',
+        'category': 'CATEGORÍA',
+        'stock': 'STOCK',
+        'sale_price': 'PRECIO VENTA',
+        'price': 'PRECIO VENTA',
+        'document': 'DOCUMENTO / NIT',
+        'identification_number': 'DOCUMENTO / NIT',
+        'document_number': 'DOCUMENTO / NIT',
+        'phone': 'TELÉFONO',
+        'email': 'CORREO',
+        'total': 'TOTAL',
+        'status': 'ESTADO',
+        'invoice': 'N° FACTURA',
+        'invoice_number': 'N° FACTURA',
+        'date': 'FECHA',
+        'customer': 'CLIENTE',
+        'customer_name': 'CLIENTE',
+        'payment_method': 'MÉTODO DE PAGO',
+        'min_stock': 'STOCK MÍNIMO',
+        'deficit': 'DÉFICIT / REPOSICIÓN',
+        'order_number': 'N° COMANDA / PEDIDO',
+        'type': 'TIPO',
+        'table': 'MESA',
+        'capacity': 'CAPACIDAD',
+        'opened_at': 'HORA APERTURA',
+        'address': 'DIRECCIÓN',
+        'quantity_sold': 'CANTIDAD VENDIDA',
+        'revenue_generated': 'TOTAL RECAUDADO',
+        'description': 'DESCRIPCIÓN',
+        'supplier': 'PROVEEDOR',
+        'contact_name': 'CONTACTO',
+        'city': 'CIUDAD',
+        'period': 'PERÍODO',
+        'sales_count': 'VENTAS REGISTRADAS',
+        'total_revenue': 'TOTAL INGRESOS',
+        'average_ticket': 'TICKET PROMEDIO',
+        'total_products': 'TOTAL PRODUCTOS',
+        'total_units': 'TOTAL UNIDADES',
+        'total_cost_valuation': 'VALOR AL COSTO',
+        'total_retail_valuation': 'VALOR COMERCIAL',
+        'potential_profit': 'UTILIDAD PROYECTADA',
+        'potential_margin': 'MARGEN POTENCIAL',
+        'total_tips': 'PROPINAS RECAUDADAS',
+        'orders_with_tip': 'PEDIDOS CON PROPINA',
+    };
+
+    const getColumnLabel = (key) => {
+        return columnLabels[key.toLowerCase()] || key.replace(/_/g, ' ').toUpperCase();
+    };
+
     const appendAssistantMessage = (summary, data = []) => {
         const wrapper = document.createElement('div');
         wrapper.className = 'd-flex gap-3 mb-4';
@@ -258,7 +310,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <table class="table table-sm table-hover mb-0 small">
                         <thead class="table-light">
                             <tr>
-                                ${keys.map(k => `<th class="text-uppercase">${escapeHtml(k.replace('_', ' '))}</th>`).join('')}
+                                ${keys.map(k => `<th>${escapeHtml(getColumnLabel(k))}</th>`).join('')}
                             </tr>
                         </thead>
                         <tbody>
@@ -366,14 +418,27 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    clearBtn.addEventListener('click', () => {
+    clearBtn.addEventListener('click', async () => {
+        try {
+            await fetch("{{ route('ai.clear-context') }}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'Accept': 'application/json',
+                }
+            });
+        } catch (err) {
+            console.error('Error al reiniciar contexto:', err);
+        }
+
         chatContainer.innerHTML = `
             <div class="d-flex gap-3 mb-4">
                 <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width: 38px; height: 38px;">
                     <i class="bi bi-stars fs-5"></i>
                 </div>
                 <div class="bg-light p-3 rounded-4 shadow-sm" style="max-width: 85%;">
-                    <p class="mb-0 small text-muted">Historial reiniciado. Formula tu pregunta cuando desees.</p>
+                    <p class="mb-0 small text-muted">Historial y contexto reiniciados. Formula tu pregunta cuando desees.</p>
                 </div>
             </div>
         `;

@@ -87,13 +87,15 @@
                                 @endcan
 
                                 @can('delete', $category)
-                                    <form method="POST" action="{{ route('categories.destroy', $category) }}" class="d-inline">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="btn btn-outline-danger btn-sm rounded-pill px-3" onclick="return confirm('¿Estás seguro de eliminar esta categoría?')">
-                                            <i class="bi bi-trash-fill me-1"></i> Eliminar
-                                        </button>
-                                    </form>
+                                    <button type="button" 
+                                            class="btn btn-outline-danger btn-sm rounded-pill px-3 btn-delete-category" 
+                                            data-bs-toggle="modal" 
+                                            data-bs-target="#deleteCategoryModal" 
+                                            data-action-url="{{ route('categories.destroy', $category) }}" 
+                                            data-category-name="{{ $category->name }}"
+                                            title="Eliminar">
+                                        <i class="bi bi-trash-fill me-1"></i> Eliminar
+                                    </button>
                                 @endcan
                             </div>
                         </td>
@@ -116,4 +118,64 @@
         </div>
     @endif
 </div>
+
+{{-- Modal Corporativo de Eliminación de Categoría --}}
+<div class="modal fade" id="deleteCategoryModal" tabindex="-1" aria-labelledby="deleteCategoryModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow rounded-4 overflow-hidden">
+            <div class="modal-header bg-danger text-white py-3 px-4">
+                <h5 class="modal-title fw-bold d-flex align-items-center" id="deleteCategoryModalLabel">
+                    <i class="bi bi-trash3-fill me-2 fs-5"></i> Eliminar Categoría
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4 text-center">
+                <div class="text-danger mb-3">
+                    <i class="bi bi-exclamation-triangle-fill display-4"></i>
+                </div>
+                <h5 class="fw-bold text-dark mb-2">¿Estás seguro de eliminar esta categoría?</h5>
+                <div class="alert alert-light border rounded-3 p-3 text-start small mb-3">
+                    <span class="text-muted">Categoría:</span>
+                    <strong class="text-dark d-block text-truncate" id="deleteCategoryName">-</strong>
+                </div>
+                <p class="text-muted small mb-0">
+                    Esta acción eliminará la categoría del sistema y <strong>no se puede deshacer</strong>.
+                </p>
+            </div>
+            <div class="modal-footer bg-light px-4 py-3 justify-content-end gap-2 border-0">
+                <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">
+                    Cancelar
+                </button>
+                <form id="deleteCategoryForm" method="POST" action="">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit" class="btn btn-danger rounded-pill px-4 fw-bold">
+                        <i class="bi bi-trash3 me-1"></i> Sí, Eliminar
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const deleteModal = document.getElementById('deleteCategoryModal');
+    if (!deleteModal) return;
+
+    deleteModal.addEventListener('show.bs.modal', function (event) {
+        const button = event.relatedTarget;
+        if (!button) return;
+
+        const actionUrl = button.getAttribute('data-action-url');
+        const categoryName = button.getAttribute('data-category-name');
+
+        const form = document.getElementById('deleteCategoryForm');
+        const nameEl = document.getElementById('deleteCategoryName');
+
+        if (form) form.action = actionUrl;
+        if (nameEl) nameEl.textContent = categoryName || '-';
+    });
+});
+</script>
 @endsection

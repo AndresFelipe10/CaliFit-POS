@@ -21,6 +21,10 @@ class SaleAiTools
             $dateFrom = Carbon::now()->startOfMonth();
             $dateTo = Carbon::now()->endOfMonth();
             $periodLabel = "este mes (" . Carbon::now()->translatedFormat('F Y') . ")";
+        } elseif ($period === 'yesterday') {
+            $dateFrom = Carbon::yesterday()->startOfDay();
+            $dateTo = Carbon::yesterday()->endOfDay();
+            $periodLabel = "el día de ayer";
         } else {
             $dateFrom = Carbon::today()->startOfDay();
             $dateTo = Carbon::today()->endOfDay();
@@ -47,6 +51,10 @@ class SaleAiTools
                 'sales_count' => $count,
                 'total_revenue' => '$' . number_format($totalRevenue, 0, ',', '.'),
                 'average_ticket' => '$' . number_format($avgTicket, 0, ',', '.'),
+            ],
+            meta: [
+                'domain' => 'sales',
+                'period' => $period,
             ]
         );
     }

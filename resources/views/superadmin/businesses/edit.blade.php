@@ -60,13 +60,10 @@
                             @endif
                         </div>
                     </div>
-                    <form method="POST" action="{{ route('superadmin.businesses.renewSubscription', $business) }}"
-                          onsubmit="return confirm('¿Renovar 30 días calendario la suscripción de {{ $business->name }}?');">
-                        @csrf
-                        <button type="submit" class="btn btn-success btn-sm px-3 fw-semibold">
-                            <i class="bi bi-arrow-repeat me-1"></i> Renovar 30 días
-                        </button>
-                    </form>
+                    <button type="button" class="btn btn-success btn-sm px-3 fw-semibold"
+                            data-bs-toggle="modal" data-bs-target="#renewSubscriptionModal">
+                        <i class="bi bi-arrow-repeat me-1"></i> Renovar 30 días
+                    </button>
                 </div>
             </div>
 
@@ -146,6 +143,40 @@
                     </button>
                 </div>
             </form>
+        </div>
+    </div>
+</div>
+
+{{-- Modal Superadmin de Renovación de Suscripción --}}
+<div class="modal fade" id="renewSubscriptionModal" tabindex="-1" aria-labelledby="renewSubscriptionModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content card-dark border-secondary border-opacity-50 shadow rounded-4 overflow-hidden text-light">
+            <div class="modal-header py-3 bg-success text-white">
+                <h5 class="modal-title fw-bold d-flex align-items-center text-white" id="renewSubscriptionModalLabel">
+                    <i class="bi bi-arrow-repeat me-2 fs-5"></i> Renovar Suscripción (30 Días)
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="alert alert-success bg-success bg-opacity-10 border border-success border-opacity-25 d-flex align-items-start mb-0 rounded-3">
+                    <i class="bi bi-calendar-check-fill text-success fs-3 me-3 flex-shrink-0"></i>
+                    <div>
+                        <div class="fw-semibold text-white mb-1">¿Renovar 30 días calendario la suscripción de {{ $business->name }}?</div>
+                        <div class="small text-secondary">Se extenderá la fecha de corte 30 días calendario manteniendo intactos los datos del negocio.</div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer bg-dark border-top border-secondary border-opacity-25 px-4 py-3 d-flex justify-content-end gap-2">
+                <button type="button" class="btn btn-outline-secondary rounded-pill px-4 fw-semibold" data-bs-dismiss="modal">
+                    Cancelar
+                </button>
+                <form action="{{ route('superadmin.businesses.renewSubscription', $business) }}" method="POST" class="d-inline m-0">
+                    @csrf
+                    <button type="submit" class="btn btn-success rounded-pill px-4 fw-bold">
+                        <i class="bi bi-arrow-repeat me-1"></i> Confirmar Renovación
+                    </button>
+                </form>
+            </div>
         </div>
     </div>
 </div>

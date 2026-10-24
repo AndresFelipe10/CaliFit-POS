@@ -46,7 +46,8 @@ class InventoryAiTools
         return new AiQueryResult(
             intent: 'low_stock_products',
             summary: "Tienes {$products->count()} productos con existencias iguales o inferiores a su stock mínimo de seguridad.",
-            data: $data
+            data: $data,
+            meta: ['domain' => 'inventory', 'type' => 'low_stock', 'count' => $products->count()]
         );
     }
 
@@ -66,7 +67,8 @@ class InventoryAiTools
             return new AiQueryResult(
                 intent: 'out_of_stock_products',
                 summary: "No tienes productos agotados actualmente. Todo tu catálogo cuenta con inventario disponible.",
-                data: []
+                data: [],
+                meta: ['domain' => 'inventory', 'type' => 'out_of_stock', 'count' => 0]
             );
         }
 
@@ -80,7 +82,8 @@ class InventoryAiTools
         return new AiQueryResult(
             intent: 'out_of_stock_products',
             summary: "Atención: Tienes {$products->count()} productos completamente agotados (stock en cero).",
-            data: $data
+            data: $data,
+            meta: ['domain' => 'inventory', 'type' => 'out_of_stock', 'count' => $products->count()]
         );
     }
 
@@ -123,7 +126,8 @@ class InventoryAiTools
                 'total_retail_valuation' => '$' . number_format($totalRetail, 0, ',', '.'),
                 'potential_profit' => '$' . number_format($potentialProfit, 0, ',', '.'),
                 'potential_margin' => $marginPercent . '%',
-            ]
+            ],
+            meta: ['domain' => 'inventory', 'type' => 'summary']
         );
     }
 }

@@ -36,17 +36,20 @@ class CustomerAiTools
         }
 
         $data = $customers->map(fn($c) => [
-            'id' => $c->id,
             'name' => $c->name,
-            'email' => $c->email ?? 'N/A',
+            'document' => $c->document ?? 'N/A',
             'phone' => $c->phone ?? 'N/A',
-            'city' => $c->city ?? 'Cali',
+            'email' => $c->email ?? 'N/A',
         ])->toArray();
 
         return new AiQueryResult(
             intent: 'list_customers',
             summary: "Se encontraron {$count} clientes activos en tu emprendimiento.",
-            data: $data
+            data: $data,
+            meta: [
+                'domain' => 'customers',
+                'count' => $count,
+            ]
         );
     }
 
@@ -55,12 +58,33 @@ class CustomerAiTools
      */
     public function count(int $businessId): AiQueryResult
     {
-        $total = Customer::where('business_id', $businessId)->where('is_active', true)->count();
+        $customers = Customer::where('business_id', $businessId)
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get();
+        $total = $customers->count();
+
+        // Enriquecer con el listado si la cantidad es pequeña (<= 10 clientes)
+        $data = [];
+        if ($total > 0 && $total <= 10) {
+            $data = $customers->map(fn($c) => [
+                'name' => $c->name,
+                'document' => $c->document ?? 'N/A',
+                'phone' => $c->phone ?? 'N/A',
+                'email' => $c->email ?? 'N/A',
+            ])->toArray();
+        } else {
+            $data = ['total_customers' => $total];
+        }
 
         return new AiQueryResult(
             intent: 'count_customers',
             summary: "Actualmente tienes un total de {$total} clientes activos registrados.",
-            data: ['total_customers' => $total]
+            data: $data,
+            meta: [
+                'domain' => 'customers',
+                'total_customers' => $total,
+            ]
         );
     }
 }

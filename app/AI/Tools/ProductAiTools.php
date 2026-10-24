@@ -46,7 +46,8 @@ class ProductAiTools
         return new AiQueryResult(
             intent: 'list_products',
             summary: "Se encontraron {$products->count()} productos en el catálogo.",
-            data: $data
+            data: $data,
+            meta: ['domain' => 'products', 'count' => $products->count()]
         );
     }
 }

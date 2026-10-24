@@ -12,7 +12,7 @@
                 <div class="p-3 bg-light rounded-3 mb-3">
                     <div class="form-check form-switch d-flex justify-content-between align-items-center ps-0">
                         <label class="form-check-label fw-bold text-dark mb-0 pe-3" for="switchAutoPrintKitchen">
-                            Impresión automática a cocina (80mm)
+                            Impresión automática a cocina
                             <span class="d-block small fw-normal text-muted mt-1">
                                 Abre automáticamente el ticket térmico al abrir una comanda o agregar platos.
                             </span>

@@ -159,20 +159,25 @@
                                         $confirmRenew = "¿Confirmas la renovación de 30 días para {$biz->name}? Nueva fecha de corte: {$nextCutFormatted}.";
                                     }
                                 @endphp
-                                <form method="POST" action="{{ route('superadmin.businesses.renewSubscription', $biz) }}" class="d-inline m-0"
-                                      onsubmit="return confirm('{{ addslashes($confirmRenew) }}');">
-                                    @csrf
-                                    <button type="submit" class="btn btn-outline-success btn-action-table" title="Renovar 30 días">
-                                        <i class="bi bi-arrow-repeat"></i>
-                                    </button>
-                                </form>
-                                <form method="POST" action="{{ route('superadmin.businesses.resetPassword', $biz) }}" class="d-inline m-0"
-                                      onsubmit="return confirm('¿Restablecer la contraseña del administrador de {{ $biz->name }}? Se generará una clave temporal.');">
-                                    @csrf
-                                    <button type="submit" class="btn btn-outline-warning btn-action-table" title="Restablecer contraseña del admin">
-                                        <i class="bi bi-key"></i>
-                                    </button>
-                                </form>
+                                <button type="button"
+                                        class="btn btn-outline-success btn-action-table btn-renew-biz"
+                                        title="Renovar 30 días"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#renewSubscriptionModal"
+                                        data-action-url="{{ route('superadmin.businesses.renewSubscription', $biz) }}"
+                                        data-business-name="{{ $biz->name }}"
+                                        data-renew-message="{{ $confirmRenew }}">
+                                    <i class="bi bi-arrow-repeat"></i>
+                                </button>
+                                <button type="button"
+                                        class="btn btn-outline-warning btn-action-table btn-reset-biz-pwd"
+                                        title="Restablecer contraseña del admin"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#resetPasswordModal"
+                                        data-action-url="{{ route('superadmin.businesses.resetPassword', $biz) }}"
+                                        data-business-name="{{ $biz->name }}">
+                                    <i class="bi bi-key"></i>
+                                </button>
                                 @if ($biz->status === 'active')
                                     <button type="button" 
                                             class="btn btn-outline-danger btn-action-table btn-toggle-biz-status" 
@@ -252,11 +257,107 @@
         </div>
     </div>
 </div>
+
+{{-- Modal Superadmin de Renovación de Suscripción --}}
+<div class="modal fade" id="renewSubscriptionModal" tabindex="-1" aria-labelledby="renewSubscriptionModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content card-dark border-secondary border-opacity-50 shadow rounded-4 overflow-hidden text-light">
+            <div class="modal-header py-3 bg-success text-white">
+                <h5 class="modal-title fw-bold d-flex align-items-center text-white" id="renewSubscriptionModalLabel">
+                    <i class="bi bi-arrow-repeat me-2 fs-5"></i> Renovar Suscripción (30 Días)
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="alert alert-success bg-success bg-opacity-10 border border-success border-opacity-25 d-flex align-items-start mb-0 rounded-3">
+                    <i class="bi bi-calendar-check-fill text-success fs-3 me-3 flex-shrink-0"></i>
+                    <div>
+                        <div class="fw-semibold text-white mb-1" id="renewModalMessage">¿Confirmas la renovación de 30 días para este negocio?</div>
+                        <div class="small text-secondary">Se extenderá la fecha de corte 30 días calendario y se habilitarán las funciones de su plan.</div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer bg-dark border-top border-secondary border-opacity-25 px-4 py-3 d-flex justify-content-end gap-2">
+                <button type="button" class="btn btn-outline-secondary rounded-pill px-4 fw-semibold" data-bs-dismiss="modal">
+                    Cancelar
+                </button>
+                <form action="" method="POST" id="renewSubscriptionForm" class="d-inline m-0">
+                    @csrf
+                    <button type="submit" class="btn btn-success rounded-pill px-4 fw-bold">
+                        <i class="bi bi-arrow-repeat me-1"></i> Confirmar Renovación
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- Modal Superadmin de Restablecer Contraseña Admin --}}
+<div class="modal fade" id="resetPasswordModal" tabindex="-1" aria-labelledby="resetPasswordModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content card-dark border-secondary border-opacity-50 shadow rounded-4 overflow-hidden text-light">
+            <div class="modal-header py-3 bg-warning text-dark">
+                <h5 class="modal-title fw-bold d-flex align-items-center text-dark" id="resetPasswordModalLabel">
+                    <i class="bi bi-key-fill me-2 fs-5"></i> Restablecer Contraseña del Administrador
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="alert alert-warning bg-warning bg-opacity-10 border border-warning border-opacity-25 d-flex align-items-start mb-0 rounded-3">
+                    <i class="bi bi-shield-lock-fill text-warning fs-3 me-3 flex-shrink-0"></i>
+                    <div>
+                        <div class="fw-semibold text-white mb-1">¿Restablecer la contraseña del administrador de <strong id="resetPwdBizName" class="text-warning">-</strong>?</div>
+                        <div class="small text-secondary">Se generará una clave temporal que se mostrará en pantalla tras confirmar.</div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer bg-dark border-top border-secondary border-opacity-25 px-4 py-3 d-flex justify-content-end gap-2">
+                <button type="button" class="btn btn-outline-secondary rounded-pill px-4 fw-semibold" data-bs-dismiss="modal">
+                    Cancelar
+                </button>
+                <form action="" method="POST" id="resetPasswordForm" class="d-inline m-0">
+                    @csrf
+                    <button type="submit" class="btn btn-warning rounded-pill px-4 fw-bold text-dark">
+                        <i class="bi bi-key-fill me-1"></i> Restablecer Clave
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
 @endsection
 
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+    const renewModal = document.getElementById('renewSubscriptionModal');
+    if (renewModal) {
+        renewModal.addEventListener('show.bs.modal', function (event) {
+            const btn = event.relatedTarget;
+            if (!btn) return;
+            const actionUrl = btn.getAttribute('data-action-url') || '';
+            const msg = btn.getAttribute('data-renew-message') || '¿Confirmas la renovación de 30 días?';
+            const form = document.getElementById('renewSubscriptionForm');
+            const msgEl = document.getElementById('renewModalMessage');
+            if (form) form.action = actionUrl;
+            if (msgEl) msgEl.textContent = msg;
+        });
+    }
+
+    const resetPwdModal = document.getElementById('resetPasswordModal');
+    if (resetPwdModal) {
+        resetPwdModal.addEventListener('show.bs.modal', function (event) {
+            const btn = event.relatedTarget;
+            if (!btn) return;
+            const actionUrl = btn.getAttribute('data-action-url') || '';
+            const bizName = btn.getAttribute('data-business-name') || '';
+            const form = document.getElementById('resetPasswordForm');
+            const nameEl = document.getElementById('resetPwdBizName');
+            if (form) form.action = actionUrl;
+            if (nameEl) nameEl.textContent = bizName;
+        });
+    }
+
     const modalEl = document.getElementById('toggleBusinessStatusModal');
     if (!modalEl) return;
 

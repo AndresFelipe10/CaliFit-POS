@@ -13,6 +13,12 @@ class AiIntent
     public const SALES_SUMMARY = 'sales_summary';
     public const SALES_BY_PERIOD = 'sales_by_period';
     public const INVENTORY_SUMMARY = 'inventory_summary';
+    public const LIST_SUPPLIERS = 'list_suppliers';
+    public const EXPENSES_SUMMARY = 'expenses_summary';
+    public const RESTAURANT_TABLES_STATUS = 'restaurant_tables_status';
+    public const RESTAURANT_ORDERS_OPEN = 'restaurant_orders_open';
+    public const RESTAURANT_DELIVERIES_TODAY = 'restaurant_deliveries_today';
+    public const RESTAURANT_TIPS_COLLECTED = 'restaurant_tips_collected';
 
     /**
      * Complete immutable whitelist of authorized intents.
@@ -27,6 +33,12 @@ class AiIntent
         self::SALES_SUMMARY,
         self::SALES_BY_PERIOD,
         self::INVENTORY_SUMMARY,
+        self::LIST_SUPPLIERS,
+        self::EXPENSES_SUMMARY,
+        self::RESTAURANT_TABLES_STATUS,
+        self::RESTAURANT_ORDERS_OPEN,
+        self::RESTAURANT_DELIVERIES_TODAY,
+        self::RESTAURANT_TIPS_COLLECTED,
     ];
 
     /**
@@ -124,6 +136,56 @@ class AiIntent
             [
                 'name' => self::INVENTORY_SUMMARY,
                 'description' => 'Obtener el valor total del inventario al costo, precio de venta y total de unidades.',
+                'parameters' => [
+                    'type' => 'OBJECT',
+                    'properties' => (object)[],
+                ],
+            ],
+            [
+                'name' => self::LIST_SUPPLIERS,
+                'description' => 'Listar proveedores registrados en el negocio.',
+                'parameters' => [
+                    'type' => 'OBJECT',
+                    'properties' => [
+                        'search' => ['type' => 'STRING', 'description' => 'Buscar por nombre de proveedor (opcional)'],
+                    ],
+                ],
+            ],
+            [
+                'name' => self::EXPENSES_SUMMARY,
+                'description' => 'Consultar los gastos recientes registrados en el negocio.',
+                'parameters' => [
+                    'type' => 'OBJECT',
+                    'properties' => (object)[],
+                ],
+            ],
+            [
+                'name' => self::RESTAURANT_TABLES_STATUS,
+                'description' => 'Consultar el estado actual de las mesas del salón en un restaurante (libres vs ocupadas).',
+                'parameters' => [
+                    'type' => 'OBJECT',
+                    'properties' => (object)[],
+                ],
+            ],
+            [
+                'name' => self::RESTAURANT_ORDERS_OPEN,
+                'description' => 'Consultar las comandas y pedidos actualmente abiertos en el restaurante.',
+                'parameters' => [
+                    'type' => 'OBJECT',
+                    'properties' => (object)[],
+                ],
+            ],
+            [
+                'name' => self::RESTAURANT_DELIVERIES_TODAY,
+                'description' => 'Consultar los pedidos a domicilio registrados el día de hoy en el restaurante.',
+                'parameters' => [
+                    'type' => 'OBJECT',
+                    'properties' => (object)[],
+                ],
+            ],
+            [
+                'name' => self::RESTAURANT_TIPS_COLLECTED,
+                'description' => 'Consultar el total de propinas o servicio voluntario recaudado hoy en el restaurante.',
                 'parameters' => [
                     'type' => 'OBJECT',
                     'properties' => (object)[],

@@ -7,9 +7,12 @@ use App\AI\DTOs\AiQueryResult;
 use App\AI\Enums\AiIntent;
 use App\AI\Exceptions\AiProviderException;
 use App\AI\Tools\CustomerAiTools;
+use App\AI\Tools\ExpenseAiTools;
 use App\AI\Tools\InventoryAiTools;
 use App\AI\Tools\ProductAiTools;
+use App\AI\Tools\RestaurantAiTools;
 use App\AI\Tools\SaleAiTools;
+use App\AI\Tools\SupplierAiTools;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -22,18 +25,24 @@ class AiQueryService
         protected CustomerAiTools $customerTools,
         protected ProductAiTools $productTools,
         protected InventoryAiTools $inventoryTools,
-        protected SaleAiTools $saleTools
+        protected SaleAiTools $saleTools,
+        protected SupplierAiTools $supplierTools,
+        protected ExpenseAiTools $expenseTools,
+        protected RestaurantAiTools $restaurantTools,
+        protected AiContextService $contextService
     ) {
     }
 
     /**
-     * Process a natural language query with strict whitelist, read-only enforcement, and tenant isolation.
+     * Process a natural language query with strict whitelist, read-only enforcement,
+     * conversational memory context resolution, and tenant isolation.
      *
      * @param string $userQuery
      * @param int $businessId
+     * @param string|null $businessType ('retail'|'restaurant'|null)
      * @return AiQueryResult
      */
-    public function query(string $userQuery, int $businessId): AiQueryResult
+    public function query(string $userQuery, int $businessId, ?string $businessType = null): AiQueryResult
     {
         // 1. Verificación de módulo activado en .env
         if (!config('ai.enabled', false)) {
@@ -58,43 +67,67 @@ class AiQueryService
 
         // 2. Detección rápida de saludos y aperturas conversacionales (sin consumir cuota ni demoras)
         if ($this->isGreeting($cleanQuery)) {
+            $greetingSummary = $businessType === 'restaurant'
+                ? '¡Hola! Soy tu asistente de consultas de negocio. Puedes preguntarme sobre mesas libres u ocupadas, comandas abiertas, domicilios de hoy, propinas recaudadas, clientes y ventas. ¿Qué te gustaría consultar?'
+                : '¡Hola! Soy tu asistente de consultas de negocio. Puedes preguntarme sobre productos con stock bajo o agotados, balance de ventas de hoy o del mes, clientes registrados y valor del inventario. ¿Qué te gustaría consultar?';
+
             return new AiQueryResult(
                 intent: 'greeting',
-                summary: '¡Hola! Soy tu asistente de consultas de negocio. Puedes preguntarme sobre productos con stock bajo o agotados, balance de ventas de hoy o del mes, clientes registrados y valor del inventario. ¿Qué te gustaría consultar?',
+                summary: $greetingSummary,
                 data: [],
                 meta: ['type' => 'conversational'],
                 isSuccess: true
             );
         }
 
-        // 3. Extracción de intención mediante el proveedor (con captura de timeouts/errores)
-        try {
-            $extractedIntent = $this->provider->extractIntent($cleanQuery);
-        } catch (AiProviderException | Throwable $e) {
-            // Sanitizar mensaje eliminando query strings, URLs y tokens
-            $sanitizedMessage = preg_replace('/(\?|&)(key|apiKey|api_key|token)=[^&\s]+/i', '$1$2=[REDACTED]', $e->getMessage());
-            $sanitizedMessage = preg_replace('/AIza[0-9A-Za-z\-_]{10,}/', '[REDACTED]', $sanitizedMessage);
-            $sanitizedMessage = preg_replace('/https?:\/\/[^\s]+/i', '[URL]', $sanitizedMessage);
+        // 3. Resolución contextual de preguntas de seguimiento (Follow-up & Anaphora Resolver)
+        // Se ejecuta ANTES del proveedor para garantizar 0ms de latencia y consistencia conversacional
+        $contextualIntent = $this->contextService->resolveFollowUp($cleanQuery, $businessId);
 
-            Log::warning("Falla en proveedor de IA: {$sanitizedMessage}", [
-                'business_id' => $businessId,
-                'query' => $cleanQuery,
-            ]);
+        if ($contextualIntent !== null) {
+            $intent = $contextualIntent->intent;
+            $filters = $contextualIntent->filters;
+        } else {
+            // 4. Extracción de intención mediante el proveedor (con captura de timeouts/errores)
+            try {
+                $extractedIntent = $this->provider->extractIntent($cleanQuery);
+            } catch (AiProviderException | Throwable $e) {
+                // Sanitizar mensaje eliminando query strings, URLs y tokens
+                $sanitizedMessage = preg_replace('/(\?|&)(key|apiKey|api_key|token)=[^&\s]+/i', '$1$2=[REDACTED]', $e->getMessage());
+                $sanitizedMessage = preg_replace('/AIza[0-9A-Za-z\-_]{10,}/', '[REDACTED]', $sanitizedMessage);
+                $sanitizedMessage = preg_replace('/https?:\/\/[^\s]+/i', '[URL]', $sanitizedMessage);
 
-            return new AiQueryResult(
-                intent: 'fallback',
-                summary: self::FALLBACK_MESSAGE,
-                data: [],
-                meta: ['error' => 'provider_unavailable'],
-                isSuccess: false
-            );
+                Log::warning("Falla en proveedor de IA: {$sanitizedMessage}", [
+                    'business_id' => $businessId,
+                    'query' => $cleanQuery,
+                ]);
+
+                return new AiQueryResult(
+                    intent: 'fallback',
+                    summary: self::FALLBACK_MESSAGE,
+                    data: [],
+                    meta: ['error' => 'provider_unavailable'],
+                    isSuccess: false
+                );
+            }
+
+            $intent = $extractedIntent->intent;
+            $filters = $extractedIntent->filters;
         }
 
-        $intent = $extractedIntent->intent;
-        $filters = $extractedIntent->filters;
-
-        // 3. Verificación estricta contra Whitelist inmutable
+        // 5. Prohibición estricta de Fallback Silencioso al Catálogo:
+        // Si el intent no es válido: distinguir entre intento no autorizado vs consulta no reconocida
         if (!AiIntent::isValid($intent)) {
+            if ($intent === 'unknown_intent' || $intent === 'unrecognized' || empty($intent)) {
+                return new AiQueryResult(
+                    intent: 'unrecognized',
+                    summary: $this->contextService->getUnrecognizedGuidance($businessType),
+                    data: [],
+                    meta: ['attempted_intent' => $intent, 'business_type' => $businessType],
+                    isSuccess: false
+                );
+            }
+
             return new AiQueryResult(
                 intent: 'unauthorized',
                 summary: 'La consulta solicitada no corresponde a una operación de lectura permitida. Puedo ayudarte con información sobre stock, clientes, ventas y productos de tu negocio.',
@@ -104,9 +137,9 @@ class AiQueryService
             );
         }
 
-        // 4. Despacho a herramienta de solo lectura inyectando FORZOSAMENTE el $businessId de Laravel
+        // 6. Despacho a herramienta de solo lectura inyectando FORZOSAMENTE el $businessId de Laravel
         try {
-            return match ($intent) {
+            $result = match ($intent) {
                 AiIntent::LIST_CUSTOMERS => $this->customerTools->list($businessId, $filters),
                 AiIntent::COUNT_CUSTOMERS => $this->customerTools->count($businessId),
                 AiIntent::LIST_PRODUCTS => $this->productTools->list($businessId, $filters),
@@ -116,7 +149,20 @@ class AiQueryService
                 AiIntent::SALES_SUMMARY => $this->saleTools->summary($businessId, $filters),
                 AiIntent::SALES_BY_PERIOD => $this->saleTools->byPeriod($businessId, $filters),
                 AiIntent::TOP_SELLING_PRODUCTS => $this->saleTools->topSelling($businessId, $filters),
+                AiIntent::LIST_SUPPLIERS => $this->supplierTools->list($businessId, $filters),
+                AiIntent::EXPENSES_SUMMARY => $this->expenseTools->summary($businessId, $filters),
+                AiIntent::RESTAURANT_TABLES_STATUS => $this->restaurantTools->tablesStatus($businessId),
+                AiIntent::RESTAURANT_ORDERS_OPEN => $this->restaurantTools->openOrders($businessId),
+                AiIntent::RESTAURANT_DELIVERIES_TODAY => $this->restaurantTools->deliveriesToday($businessId),
+                AiIntent::RESTAURANT_TIPS_COLLECTED => $this->restaurantTools->tipsCollected($businessId),
             };
+
+            // 7. Persistir memoria conversacional en sesión del usuario
+            if ($result->isSuccess) {
+                $this->contextService->updateContext($businessId, $cleanQuery, $result, $filters);
+            }
+
+            return $result;
         } catch (Throwable $e) {
             Log::warning("Falla al ejecutar herramienta de IA para intent '{$intent}': " . $e->getMessage(), [
                 'business_id' => $businessId,
@@ -132,6 +178,14 @@ class AiQueryService
                 isSuccess: false
             );
         }
+    }
+
+    /**
+     * Clear conversational memory for the given tenant.
+     */
+    public function clearContext(int $businessId): void
+    {
+        $this->contextService->clearContext($businessId);
     }
 
     /**
@@ -164,4 +218,3 @@ class AiQueryService
         return (bool) preg_match('/^(hola|buenas|buenos\s*d[ií]as|buenas\s*tardes|buenas\s*noches|saludos|qu[eé]\s*tal)(\s+(c[oó]mo\s+est[aá]s|asistente|equipo|buen\s+d[ií]a))?$/iu', $normalized);
     }
 }
-

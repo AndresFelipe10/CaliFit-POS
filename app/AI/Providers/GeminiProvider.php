@@ -59,7 +59,7 @@ class GeminiProvider implements AiProviderInterface
             ],
             'tool_config' => [
                 'function_calling_config' => [
-                    'mode' => 'ANY',
+                    'mode' => 'AUTO',
                 ],
             ],
             'system_instruction' => [

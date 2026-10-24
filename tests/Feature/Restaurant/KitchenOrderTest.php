@@ -6,6 +6,7 @@ use App\Models\Business;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\RestaurantOrder;
+use App\Models\RestaurantOrderItem;
 use App\Models\RestaurantTable;
 use App\Models\Role;
 use App\Models\User;
@@ -478,5 +479,97 @@ class KitchenOrderTest extends TestCase
         $response->assertViewHas('pastOrders', function ($orders) use ($todayOrder, $pastOrder) {
             return $orders->contains('id', $pastOrder->id) && ! $orders->contains('id', $todayOrder->id);
         });
+    }
+
+    public function test_reprint_kitchen_button_renders_exact_label_and_no_disable_protection(): void
+    {
+        $this->actingAs($this->adminA)
+            ->withSession(['current_business_id' => $this->restaurantA->id]);
+
+        $order = RestaurantOrder::create([
+            'business_id' => $this->restaurantA->id,
+            'user_id' => $this->adminA->id,
+            'table_id' => $this->tableA->id,
+            'order_number' => 'ORD-PRINT-01',
+            'order_type' => 'table',
+            'status' => 'open',
+            'subtotal' => 20000.00,
+            'total' => 20000.00,
+        ]);
+
+        // Ítem ya enviado/impreso a cocina
+        RestaurantOrderItem::create([
+            'business_id' => $this->restaurantA->id,
+            'order_id' => $order->id,
+            'product_id' => $this->dishA->id,
+            'quantity' => 1,
+            'unit_price' => 20000.00,
+            'subtotal' => 20000.00,
+            'status' => 'kitchen',
+            'printed_to_kitchen' => true,
+            'batch_number' => 1,
+        ]);
+
+        $response = $this->get(route('restaurant.orders.show', $order));
+        $response->assertOk();
+        $response->assertSee('Reimprimir en cocina');
+        $response->assertDontSee('Reimprimir Cocina (80mm)');
+        $response->assertSee('data-no-disable', false);
+        $response->assertSee('reprint=1', false);
+    }
+
+    public function test_kitchen_ticket_original_emission_vs_manual_reprint(): void
+    {
+        $this->actingAs($this->adminA)
+            ->withSession(['current_business_id' => $this->restaurantA->id]);
+
+        // 1. Abrir comanda con 1 plato inicial
+        $storeResponse = $this->post(route('restaurant.orders.store'), [
+            'table_id' => $this->tableA->id,
+            'items' => [
+                ['product_id' => $this->dishA->id, 'quantity' => 1, 'notes' => 'Término medio'],
+            ],
+        ]);
+
+        $storeResponse->assertRedirect();
+        $order = RestaurantOrder::where('business_id', $this->restaurantA->id)->latest('id')->first();
+        $this->assertNotNull($order);
+
+        // Certificar que el flash session de apertura incluye ticket_id y batch
+        $storeResponse->assertSessionHas('print_kitchen_ticket_id', $order->id);
+        $storeResponse->assertSessionHas('print_kitchen_batch', 1);
+
+        // 2. Emisión inicial automática del ticket de cocina: assertDontSee('REIMPRESIÓN')
+        $initialTicketUrl = route('restaurant.orders.kitchen-ticket', [
+            'order' => $order,
+            'batch' => 1,
+        ]);
+        $ticketResponse = $this->get($initialTicketUrl);
+        $ticketResponse->assertOk();
+        $ticketResponse->assertSee('Lomo al Trapo');
+        $ticketResponse->assertDontSee('REIMPRESIÓN');
+        $ticketResponse->assertDontSee('*** REIMPRESIÓN ***');
+
+        // Emisión sin parámetro batch ni reprint (apertura directa tras enviar a cocina)
+        $directTicketUrl = route('restaurant.orders.kitchen-ticket', $order);
+        $directTicketResponse = $this->get($directTicketUrl);
+        $directTicketResponse->assertOk();
+        $directTicketResponse->assertDontSee('REIMPRESIÓN');
+
+        // 3. Reimpresión manual explícita (acción del botón 'Reimprimir en cocina') con reprint=1: assertSee('REIMPRESIÓN')
+        $reprintTicketUrl = route('restaurant.orders.kitchen-ticket', [
+            'order' => $order,
+            'reprint' => 1,
+        ]);
+        $reprintResponse = $this->get($reprintTicketUrl);
+        $reprintResponse->assertOk();
+        $reprintResponse->assertSee('*** REIMPRESIÓN ***');
+
+        // También con POST
+        $reprintPostResponse = $this->post(route('restaurant.orders.kitchen-ticket', $order), [
+            'reprint' => 1,
+        ]);
+        $reprintPostResponse->assertOk();
+        $reprintPostResponse->assertSee('*** REIMPRESIÓN ***');
     }
 }

@@ -380,4 +380,46 @@ class ProductTest extends TestCase
             'sku' => 'CUSTOM-SKU-999',
         ]);
     }
+
+    public function test_products_index_renders_corporate_delete_modal_and_zero_native_confirm(): void
+    {
+        Product::withoutGlobalScopes()->create([
+            'business_id' => $this->businessA->id,
+            'name' => 'Producto Para Borrar',
+            'sku' => 'DEL-001',
+            'cost_price' => 10000,
+            'sale_price' => 20000,
+            'stock' => 5,
+            'min_stock' => 1,
+            'is_active' => true,
+        ]);
+
+        $response = $this->actingAs($this->adminUser)
+            ->withSession(['current_business_id' => $this->businessA->id])
+            ->get(route('products.index'));
+
+        $response->assertOk();
+        $response->assertSee('#deleteProductModal', false);
+        $response->assertSee('btn-delete-product');
+        $response->assertSee('Eliminar Plato / Producto');
+        $response->assertDontSee('confirm(');
+    }
+
+    public function test_all_views_contain_zero_native_confirm_dialogs(): void
+    {
+        $viewsPath = resource_path('views');
+        $files = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($viewsPath));
+        $bladeFilesWithConfirm = [];
+
+        foreach ($files as $file) {
+            if ($file->isFile() && str_ends_with($file->getFilename(), '.blade.php')) {
+                $content = file_get_contents($file->getRealPath());
+                if (str_contains($content, 'confirm(')) {
+                    $bladeFilesWithConfirm[] = $file->getRealPath();
+                }
+            }
+        }
+
+        $this->assertEmpty($bladeFilesWithConfirm, 'Se encontraron llamadas a confirm() en las siguientes vistas: ' . implode(', ', $bladeFilesWithConfirm));
+    }
 }

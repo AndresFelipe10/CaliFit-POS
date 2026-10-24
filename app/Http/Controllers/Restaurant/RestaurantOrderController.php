@@ -121,7 +121,8 @@ class RestaurantOrderController extends Controller
 
         if ($order->items()->exists()) {
             $orderService->sendToKitchen($order);
-            $response->with('print_kitchen_ticket_id', $order->id);
+            $response->with('print_kitchen_ticket_id', $order->id)
+                ->with('print_kitchen_batch', 1);
         }
 
         return $response;
@@ -188,7 +189,7 @@ class RestaurantOrderController extends Controller
         Gate::authorize('view', $order);
 
         $batch = $request->query('batch') ?? $request->input('batch');
-        $isReprint = false;
+        $isReprint = $request->boolean('reprint');
 
         if ($batch) {
             $itemsToPrint = $order->items()
@@ -199,7 +200,7 @@ class RestaurantOrderController extends Controller
         } else {
             $itemsToPrint = $orderService->sendToKitchen($order);
 
-            // Si todos los ítems ya estaban impresos (reimpresión de la última tanda enviada)
+            // Si todos los ítems ya estaban impresos (se recuperan los de la última tanda enviada)
             if ($itemsToPrint->isEmpty()) {
                 $maxBatch = (int) ($order->items()->where('status', '!=', 'cancelled')->max('batch_number') ?? 1);
                 $itemsToPrint = $order->items()
@@ -207,7 +208,6 @@ class RestaurantOrderController extends Controller
                     ->where('status', '!=', 'cancelled')
                     ->with('product')
                     ->get();
-                $isReprint = true;
             }
         }
 
@@ -257,7 +257,8 @@ class RestaurantOrderController extends Controller
 
         return redirect()->route('restaurant.orders.deliveries')
             ->with('success', "Pedido {$order->order_number} registrado exitosamente.")
-            ->with('print_kitchen_ticket_id', $order->id);
+            ->with('print_kitchen_ticket_id', $order->id)
+            ->with('print_kitchen_batch', 1);
     }
 
     /**
