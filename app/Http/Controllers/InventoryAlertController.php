@@ -24,9 +24,7 @@ class InventoryAlertController extends Controller
     {
         Gate::authorize('viewAny', InventoryMovement::class);
 
-        $businessId = (int) (session('current_business_id') ?? $request->user()->current_business_id);
-
-        $analysis = $this->intelligenceService->getInventoryAnalysis($businessId, [
+        $analysis = $this->intelligenceService->getInventoryAnalysis([
             'status' => $request->input('status', 'all'),
             'search' => $request->input('search'),
             'category_id' => $request->input('category_id'),

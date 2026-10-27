@@ -6,7 +6,7 @@
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-3">
     <div>
         <h3 class="fw-bold mb-1">Panel Inteligente de Inventario</h3>
-        <p class="text-muted small mb-0">Clasificación determinística de existencias y recomendaciones de reposición para <strong>{{ $currentBusiness->name }}</strong>.</p>
+        <p class="text-muted small mb-0">Clasificación determinística de existencias y recomendaciones de reposición para <strong>SABORCALIFIT | BOCHALEMA</strong>.</p>
     </div>
     @can('create', App\Models\InventoryMovement::class)
         <a href="{{ route('inventory.create') }}" class="btn btn-primary rounded-pill px-4 fw-semibold shadow-sm">

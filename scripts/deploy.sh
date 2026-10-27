@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ==============================================================================
 # Script de Despliegue y Actualización en Producción
-# Proyecto: Sistema de Gestión de Ventas e Inventario
+# Proyecto: CaliFit Sistema POS — SABORCALIFIT | BOCHALEMA
 # ==============================================================================
 set -euo pipefail
 
@@ -9,7 +9,7 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${PROJECT_ROOT}"
 
 echo "=================================================================="
-echo " Invocando Despliegue en Producción - $(date '+%Y-%m-%d %H:%M:%S')"
+echo " CaliFit POS — Invocando Despliegue en Producción - $(date '+%Y-%m-%d %H:%M:%S')"
 echo "=================================================================="
 
 # 1. Verificar existencia de .env
@@ -25,7 +25,7 @@ if [ -f "scripts/backup-db.sh" ]; then
 fi
 
 # 3. Poner en modo mantenimiento si el contenedor está corriendo
-if docker ps --format '{{.Names}}' | grep -q "^sistema_app_prod$"; then
+if docker ps --format '{{.Names}}' | grep -q "^califit_app_prod$"; then
     echo ">> Activando modo mantenimiento temporal..."
     docker compose -f docker-compose.prod.yml exec app php artisan down --render="errors.500" --secret="deploy-bypass" || true
 fi
@@ -50,11 +50,11 @@ docker compose -f docker-compose.prod.yml exec app chown -R www-data:www-data st
 docker compose -f docker-compose.prod.yml exec app chmod -R 775 storage bootstrap/cache
 
 # 8. Desactivar modo mantenimiento
-if docker ps --format '{{.Names}}' | grep -q "^sistema_app_prod$"; then
+if docker ps --format '{{.Names}}' | grep -q "^califit_app_prod$"; then
     echo ">> Desactivando modo mantenimiento..."
     docker compose -f docker-compose.prod.yml exec app php artisan up || true
 fi
 
 echo "=================================================================="
-echo " Despliegue completado exitosamente a las $(date '+%Y-%m-%d %H:%M:%S')"
+echo " CaliFit POS — Despliegue completado exitosamente a las $(date '+%Y-%m-%d %H:%M:%S')"
 echo "=================================================================="

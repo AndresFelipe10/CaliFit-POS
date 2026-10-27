@@ -1,466 +1,403 @@
 @extends('layouts.app')
 
-@section('title', 'Dashboard')
+@section('title', 'Dashboard | SaborCaliFit POS')
 
 @section('content')
-<div class="row g-4">
-    {{-- Banner de Bienvenida y Datos del Emprendimiento --}}
-    <div class="col-12">
-        <div class="card card-custom p-4 bg-white border-0 shadow-sm">
-            <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
-                <div>
-                    <h2 class="h4 fw-bold mb-1 text-dark">¡Hola, {{ $user->name }}!</h2>
-                    <p class="text-muted mb-0">
-                        Gestionando: 
-                        <strong class="text-primary fs-6">{{ $currentBusiness->name }}</strong>
-                        @if ($currentBusiness->nit)
-                            <span class="badge bg-light text-dark ms-2 border">NIT: {{ $currentBusiness->nit }}</span>
-                        @endif
-                    </p>
-                </div>
-                <div class="d-flex align-items-center gap-2 flex-wrap">
-                    <span class="badge bg-primary-subtle text-primary px-3 py-2 rounded-pill fs-6">
-                        <i class="bi bi-calendar3 me-1"></i> {{ now()->translatedFormat('d M, Y') }}
-                    </span>
-                    @can('create', App\Models\Sale::class)
-                        <a href="{{ route('sales.create') }}" class="btn btn-primary rounded-pill px-4 fw-semibold shadow-sm">
-                            <i class="bi bi-cart-plus me-1"></i> Nueva Venta
-                        </a>
-                    @endcan
-                </div>
-            </div>
-        </div>
-    </div>
-
-    {{-- Módulo Operativo de Restaurante (Bloque R-D) --}}
-    @if(!empty($is_restaurant))
-        <div class="col-sm-6 col-xl-6">
-            <div class="card card-custom p-3 bg-white h-100 border-0 shadow-sm border-start border-4 border-warning">
-                <div class="d-flex align-items-center justify-content-between">
-                    <div>
-                        <span class="text-muted small fw-semibold text-uppercase">Mesas Activas / Ocupadas</span>
-                        <h3 class="fw-bold mb-0 mt-1 text-dark">
-                            {{ $occupied_tables }} <span class="fs-6 fw-normal text-muted">/ {{ $total_tables }} mesas</span>
-                        </h3>
-                        <small class="text-muted">
-                            <a href="{{ route('restaurant.tables.index') }}" class="text-decoration-none fw-semibold text-warning">
-                                Ver mapa de salón &rarr;
-                            </a>
-                        </small>
-                    </div>
-                    <div class="bg-warning-subtle text-warning p-3 rounded-circle d-flex align-items-center justify-content-center" style="width: 52px; height: 52px;">
-                        <i class="bi bi-aspect-ratio fs-4"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-sm-6 col-xl-6">
-            <div class="card card-custom p-3 bg-white h-100 border-0 shadow-sm border-start border-4 border-info">
-                <div class="d-flex align-items-center justify-content-between">
-                    <div>
-                        <span class="text-muted small fw-semibold text-uppercase">Domicilios en Curso</span>
-                        <h3 class="fw-bold mb-0 mt-1 text-info">
-                            {{ $active_deliveries }} <span class="fs-6 fw-normal text-muted">{{ $active_deliveries === 1 ? 'orden activa' : 'órdenes activas' }}</span>
-                        </h3>
-                        <small class="text-muted">
-                            <a href="{{ route('restaurant.orders.deliveries') }}" class="text-decoration-none fw-semibold text-info">
-                                Ver tablero de despachos &rarr;
-                            </a>
-                        </small>
-                    </div>
-                    <div class="bg-info-subtle text-info p-3 rounded-circle d-flex align-items-center justify-content-center" style="width: 52px; height: 52px;">
-                        <i class="bi bi-bicycle fs-4"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    @endif
-
-    {{-- Tarjetas KPI --}}
-    @if(!empty($isAdmin))
-        {{-- Tarjetas Financieras (Exclusivo Administrador) --}}
-        <div class="col-sm-6 col-xl-3">
-            <div class="card card-custom p-3 bg-white h-100 border-0 shadow-sm">
-                <div class="d-flex align-items-center justify-content-between">
-                    <div>
-                        <span class="text-muted small fw-semibold text-uppercase">Ventas Hoy</span>
-                        <h3 class="fw-bold mb-0 mt-1 text-success">
-                            ${{ number_format($today_sales_total ?? 0, 0, ',', '.') }}
-                        </h3>
-                        <small class="text-muted">{{ $today_sales_count }} {{ $today_sales_count === 1 ? 'venta realizada' : 'ventas realizadas' }}</small>
-                    </div>
-                    <div class="bg-success-subtle text-success p-3 rounded-circle d-flex align-items-center justify-content-center" style="width: 52px; height: 52px;">
-                        <i class="bi bi-cash-stack fs-4"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-sm-6 col-xl-3">
-            <div class="card card-custom p-3 bg-white h-100 border-0 shadow-sm">
-                <div class="d-flex align-items-center justify-content-between">
-                    <div>
-                        <span class="text-muted small fw-semibold text-uppercase">Ventas del Mes</span>
-                        <h3 class="fw-bold mb-0 mt-1 text-primary">
-                            ${{ number_format($month_sales_total ?? 0, 0, ',', '.') }}
-                        </h3>
-                        <small class="text-muted">{{ $month_sales_count }} {{ $month_sales_count === 1 ? 'transacción' : 'transacciones' }}</small>
-                    </div>
-                    <div class="bg-primary-subtle text-primary p-3 rounded-circle d-flex align-items-center justify-content-center" style="width: 52px; height: 52px;">
-                        <i class="bi bi-graph-up-arrow fs-4"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-sm-6 col-xl-3">
-            <div class="card card-custom p-3 bg-white h-100 border-0 shadow-sm">
-                <div class="d-flex align-items-center justify-content-between">
-                    <div>
-                        <span class="text-muted small fw-semibold text-uppercase">Gastos / Compras del mes</span>
-                        <h3 class="fw-bold mb-0 mt-1 text-danger">
-                            ${{ number_format($month_expenses_total ?? 0, 0, ',', '.') }}
-                        </h3>
-                        <small class="text-muted">de los cuales ${{ number_format($month_expenses_pending ?? 0, 0, ',', '.') }} pendientes</small>
-                    </div>
-                    <div class="bg-danger-subtle text-danger p-3 rounded-circle d-flex align-items-center justify-content-center" style="width: 52px; height: 52px;">
-                        <i class="bi bi-wallet2 fs-4"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-sm-6 col-xl-3">
-            <div class="card card-custom p-3 bg-white h-100 border-0 shadow-sm {{ ($estimated_net_profit ?? 0) < 0 ? 'border border-danger' : '' }}">
-                <div class="d-flex align-items-center justify-content-between">
-                    <div>
-                        <span class="text-muted small fw-semibold text-uppercase">Utilidad neta estimada</span>
-                        <h3 class="fw-bold mb-0 mt-1 {{ ($estimated_net_profit ?? 0) < 0 ? 'text-danger' : 'text-success' }}">
-                            ${{ number_format($estimated_net_profit ?? 0, 0, ',', '.') }}
-                        </h3>
-                        <small class="text-muted">Margen operativo (estimada)</small>
-                    </div>
-                    <div class="{{ ($estimated_net_profit ?? 0) < 0 ? 'bg-danger-subtle text-danger' : 'bg-success-subtle text-success' }} p-3 rounded-circle d-flex align-items-center justify-content-center" style="width: 52px; height: 52px;">
-                        <i class="bi bi-calculator fs-4"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        @if(empty($is_restaurant))
-            <div class="col-sm-6">
-                <div class="card card-custom p-3 bg-white h-100 border-0 shadow-sm">
-                    <div class="d-flex align-items-center justify-content-between">
-                        <div>
-                            <span class="text-muted small fw-semibold text-uppercase">Stock Crítico</span>
-                            <h3 class="fw-bold mb-0 mt-1 {{ $low_stock_count > 0 ? 'text-danger' : 'text-secondary' }}">
-                                {{ $low_stock_count }}
-                            </h3>
-                            <small class="text-muted">
-                                @if($out_of_stock_count > 0)
-                                    <span class="text-danger fw-semibold">{{ $out_of_stock_count }} agotados</span>
-                                @else
-                                    {{ $low_stock_count > 0 ? 'requieren reposición' : 'sin alertas de stock' }}
-                                @endif
-                            </small>
-                        </div>
-                        <div class="{{ $low_stock_count > 0 ? 'bg-danger-subtle text-danger' : 'bg-secondary-subtle text-secondary' }} p-3 rounded-circle d-flex align-items-center justify-content-center" style="width: 52px; height: 52px;">
-                            <i class="bi bi-exclamation-triangle fs-4"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        @endif
-
-        <div class="{{ empty($is_restaurant) ? 'col-sm-6' : 'col-12' }}">
-            <div class="card card-custom p-3 bg-white h-100 border-0 shadow-sm">
-                <div class="d-flex align-items-center justify-content-between">
-                    <div>
-                        <span class="text-muted small fw-semibold text-uppercase">{{ !empty($is_restaurant) ? 'Menú y Clientes' : 'Catálogo y Clientes' }}</span>
-                        <h3 class="fw-bold mb-0 mt-1 text-dark">
-                            {{ $total_products }} <span class="fs-6 fw-normal text-muted">{{ !empty($is_restaurant) ? 'platos y bebidas' : 'productos' }}</span>
-                        </h3>
-                        <small class="text-muted">{{ $total_customers }} clientes activos</small>
-                    </div>
-                    <div class="bg-info-subtle text-info p-3 rounded-circle d-flex align-items-center justify-content-center" style="width: 52px; height: 52px;">
-                        <i class="bi bi-boxes fs-4"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    @else
-        {{-- Tarjetas Operativas (Vendedores / Colaboradores) --}}
-        <div class="col-sm-6 {{ !empty($is_restaurant) ? 'col-xl-4' : 'col-xl-3' }}">
-            <div class="card card-custom p-3 bg-white h-100 border-0 shadow-sm">
-                <div class="d-flex align-items-center justify-content-between">
-                    <div>
-                        <span class="text-muted small fw-semibold text-uppercase">Ventas Hoy</span>
-                        <h3 class="fw-bold mb-0 mt-1 text-primary">
-                            {{ $today_sales_count }}
-                        </h3>
-                        <small class="text-muted">{{ $today_sales_count === 1 ? 'venta realizada' : 'ventas realizadas' }}</small>
-                    </div>
-                    <div class="bg-primary-subtle text-primary p-3 rounded-circle d-flex align-items-center justify-content-center" style="width: 52px; height: 52px;">
-                        <i class="bi bi-cart-check fs-4"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-sm-6 {{ !empty($is_restaurant) ? 'col-xl-4' : 'col-xl-3' }}">
-            <div class="card card-custom p-3 bg-white h-100 border-0 shadow-sm">
-                <div class="d-flex align-items-center justify-content-between">
-                    <div>
-                        <span class="text-muted small fw-semibold text-uppercase">Ventas del Mes</span>
-                        <h3 class="fw-bold mb-0 mt-1 text-primary">
-                            {{ $month_sales_count }}
-                        </h3>
-                        <small class="text-muted">{{ $month_sales_count === 1 ? 'transacción' : 'transacciones' }}</small>
-                    </div>
-                    <div class="bg-primary-subtle text-primary p-3 rounded-circle d-flex align-items-center justify-content-center" style="width: 52px; height: 52px;">
-                        <i class="bi bi-graph-up fs-4"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        @if(empty($is_restaurant))
-            <div class="col-sm-6 col-xl-3">
-                <div class="card card-custom p-3 bg-white h-100 border-0 shadow-sm">
-                    <div class="d-flex align-items-center justify-content-between">
-                        <div>
-                            <span class="text-muted small fw-semibold text-uppercase">Stock Crítico</span>
-                            <h3 class="fw-bold mb-0 mt-1 {{ $low_stock_count > 0 ? 'text-danger' : 'text-secondary' }}">
-                                {{ $low_stock_count }}
-                            </h3>
-                            <small class="text-muted">
-                                @if($out_of_stock_count > 0)
-                                    <span class="text-danger fw-semibold">{{ $out_of_stock_count }} agotados</span>
-                                @else
-                                    {{ $low_stock_count > 0 ? 'requieren reposición' : 'sin alertas de stock' }}
-                                @endif
-                            </small>
-                        </div>
-                        <div class="{{ $low_stock_count > 0 ? 'bg-danger-subtle text-danger' : 'bg-secondary-subtle text-secondary' }} p-3 rounded-circle d-flex align-items-center justify-content-center" style="width: 52px; height: 52px;">
-                            <i class="bi bi-exclamation-triangle fs-4"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        @endif
-
-        <div class="col-sm-6 {{ !empty($is_restaurant) ? 'col-xl-4' : 'col-xl-3' }}">
-            <div class="card card-custom p-3 bg-white h-100 border-0 shadow-sm">
-                <div class="d-flex align-items-center justify-content-between">
-                    <div>
-                        <span class="text-muted small fw-semibold text-uppercase">{{ !empty($is_restaurant) ? 'Menú y Clientes' : 'Catálogo y Clientes' }}</span>
-                        <h3 class="fw-bold mb-0 mt-1 text-dark">
-                            {{ $total_products }} <span class="fs-6 fw-normal text-muted">{{ !empty($is_restaurant) ? 'platos y bebidas' : 'productos' }}</span>
-                        </h3>
-                        <small class="text-muted">{{ $total_customers }} clientes activos</small>
-                    </div>
-                    <div class="bg-info-subtle text-info p-3 rounded-circle d-flex align-items-center justify-content-center" style="width: 52px; height: 52px;">
-                        <i class="bi bi-boxes fs-4"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    @endif
-
-    {{-- Accesos Rápidos --}}
-    <div class="col-12">
-        <div class="card card-custom p-3 bg-white border-0 shadow-sm">
-            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-                <span class="fw-semibold text-secondary small text-uppercase">Accesos directos:</span>
-                <div class="d-flex gap-2 flex-wrap">
-                    <a href="{{ route('sales.index') }}" class="btn btn-sm btn-outline-secondary rounded-pill px-3">
-                        <i class="bi bi-receipt me-1"></i> Ver Ventas
-                    </a>
-                    <a href="{{ route('inventory.index') }}" class="btn btn-sm btn-outline-secondary rounded-pill px-3">
-                        <i class="bi bi-arrow-left-right me-1"></i> Control de Stock
-                    </a>
-                    <a href="{{ route('products.index') }}" class="btn btn-sm btn-outline-secondary rounded-pill px-3">
-                        <i class="bi bi-box me-1"></i> Productos
-                    </a>
-                    <a href="{{ route('customers.index') }}" class="btn btn-sm btn-outline-secondary rounded-pill px-3">
-                        <i class="bi bi-people me-1"></i> Clientes
-                    </a>
-                    @if(!empty($isAdmin))
-                        <a href="{{ route('expenses.index') }}" class="btn btn-sm btn-outline-secondary rounded-pill px-3">
-                            <i class="bi bi-wallet2 me-1"></i> Gastos
-                        </a>
+<div class="container-fluid px-2 px-md-3 py-3">
+    {{-- Banner de Bienvenida --}}
+    <div class="card border-0 shadow-sm rounded-3 p-3 p-md-4 mb-3 bg-white">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+            <div>
+                <div class="d-flex align-items-center gap-2">
+                    <h2 class="h4 fw-bold text-dark mb-0">¡Hola, {{ $user->name }}!</h2>
+                    @if($isAdmin)
+                        <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">Admin / Gerencia</span>
+                    @else
+                        <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1">Operaciones POS</span>
                     @endif
                 </div>
+                <p class="text-muted small mb-0 mt-1">
+                    <i class="bi bi-geo-alt-fill text-danger me-1"></i>SABORCALIFIT | BOCHALEMA &bull; Arbolatta Mall, Cali, Colombia
+                </p>
+            </div>
+            <div class="d-flex flex-wrap gap-2 align-items-center">
+                <span class="badge bg-light text-muted border px-3 py-2 fs-6">
+                    <i class="bi bi-calendar3 me-1 text-success"></i>{{ now()->timezone('America/Bogota')->translatedFormat('d \d\e F \d\e Y') }}
+                </span>
+                <a href="{{ route('pos.index') }}" class="btn btn-califit btn-sm px-3 py-2 fw-bold shadow-sm">
+                    <i class="bi bi-calculator me-1"></i> Ir al POS
+                </a>
             </div>
         </div>
     </div>
 
-    {{-- Columna Izquierda: Ventas Recientes --}}
-    <div class="col-lg-7">
-        <div class="card card-custom h-100 bg-white border-0 shadow-sm">
-            <div class="card-header bg-transparent border-0 pt-4 px-4 pb-2 d-flex justify-content-between align-items-center">
-                <h5 class="fw-bold mb-0">Últimas Ventas</h5>
-                <a href="{{ route('sales.index') }}" class="text-primary small fw-semibold text-decoration-none">
-                    Ver todas <i class="bi bi-chevron-right"></i>
-                </a>
-            </div>
-            <div class="card-body px-4 pb-4">
-                @if($recent_sales->isEmpty())
-                    <div class="text-center py-5 text-muted">
-                        <i class="bi bi-cart-x fs-1 d-block mb-2 text-secondary opacity-50"></i>
-                        <p class="mb-2">Aún no se han registrado ventas en este emprendimiento.</p>
-                        @can('create', App\Models\Sale::class)
-                            <a href="{{ route('sales.create') }}" class="btn btn-sm btn-primary rounded-pill px-3">
-                                <i class="bi bi-cart-plus me-1"></i> Registrar primera venta
-                            </a>
-                        @endcan
+    @if($isAdmin)
+        {{-- ======================================================== --}}
+        {{-- PANEL GERENCIAL / ADMINISTRATIVO (MÉTRICAS FINANCIERAS)  --}}
+        {{-- ======================================================== --}}
+
+        {{-- Selector Ergonómico de Período (Día vs Mes) --}}
+        <div class="card border-0 shadow-sm rounded-3 p-3 mb-3 bg-white">
+            <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2 gap-sm-3">
+                <div class="d-flex flex-column flex-sm-row align-items-start align-items-sm-center gap-2 gap-sm-3 w-100 w-sm-auto">
+                    <div class="d-flex align-items-center justify-content-between w-100 w-sm-auto">
+                        <span class="small fw-bold text-muted text-uppercase d-flex align-items-center" style="font-size: 0.75rem; letter-spacing: 0.5px; white-space: nowrap;">
+                            <i class="bi bi-funnel-fill text-success me-1"></i>Período Financiero:
+                        </span>
+                        <span class="badge bg-light text-dark border d-inline-block d-sm-none small fw-semibold">
+                            {{ $periodLabel ?? 'Mes en curso' }}
+                        </span>
                     </div>
-                @else
+                    <div class="btn-group btn-group-sm w-100 w-sm-auto shadow-xs" role="group" aria-label="Alternar período">
+                        <a href="{{ route('dashboard', ['period' => 'day', 'date' => $selectedDate ?? now()->timezone('America/Bogota')->toDateString()]) }}" 
+                           class="btn {{ ($period ?? 'month') === 'day' ? 'btn-success fw-bold text-white' : 'btn-outline-secondary' }} d-inline-flex align-items-center justify-content-center" 
+                           style="{{ ($period ?? 'month') === 'day' ? 'background-color: #10B981; border-color: #10B981;' : '' }} min-height: 40px; padding: 0.5rem 0.85rem;">
+                            <i class="bi bi-calendar-event me-1"></i> Hoy (Día)
+                        </a>
+                        <a href="{{ route('dashboard', ['period' => 'month', 'month' => $selectedMonth ?? now()->timezone('America/Bogota')->format('Y-m')]) }}" 
+                           class="btn {{ ($period ?? 'month') === 'month' ? 'btn-success fw-bold text-white' : 'btn-outline-secondary' }} d-inline-flex align-items-center justify-content-center"
+                           style="{{ ($period ?? 'month') === 'month' ? 'background-color: #10B981; border-color: #10B981;' : '' }} min-height: 40px; padding: 0.5rem 0.85rem;">
+                            <i class="bi bi-calendar3 me-1"></i> Mes Actual
+                        </a>
+                    </div>
+                    <span class="badge bg-light text-dark border d-none d-sm-inline-block small fw-semibold py-2 px-2.5">
+                        {{ $periodLabel ?? 'Mes en curso' }}
+                    </span>
+                </div>
+
+                <form action="{{ route('dashboard') }}" method="GET" class="w-100 w-sm-auto d-flex align-items-center gap-2">
+                    <input type="hidden" name="period" value="{{ $period ?? 'month' }}">
+                    @if(($period ?? 'month') === 'day')
+                        <div class="input-group input-group-sm w-100">
+                            <span class="input-group-text bg-light border-end-0"><i class="bi bi-calendar-date text-muted"></i></span>
+                            <input type="date" name="date" class="form-control form-control-sm border-start-0" style="min-height: 40px;" value="{{ $selectedDate ?? now()->timezone('America/Bogota')->toDateString() }}" onchange="this.form.submit()">
+                        </div>
+                    @else
+                        <div class="input-group input-group-sm w-100">
+                            <span class="input-group-text bg-light border-end-0"><i class="bi bi-calendar-month text-muted"></i></span>
+                            <input type="month" name="month" class="form-control form-control-sm border-start-0" style="min-height: 40px;" value="{{ $selectedMonth ?? now()->timezone('America/Bogota')->format('Y-m') }}" onchange="this.form.submit()">
+                        </div>
+                    @endif
+                </form>
+            </div>
+        </div>
+
+        {{-- Fila de KPIs Financieros Superiores --}}
+        <div class="row g-2 g-md-3 mb-3">
+            {{-- 1. Ventas --}}
+            <div class="col-6 col-lg-3">
+                <div class="card border-0 shadow-sm p-3 rounded-3 h-100 border-start border-4 border-success">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <small class="text-muted fw-semibold text-uppercase" style="font-size: 0.72rem;">
+                            {{ ($period ?? 'month') === 'day' ? 'Ventas del Día' : 'Ventas del Mes' }}
+                        </small>
+                        <i class="bi bi-graph-up text-success fs-5"></i>
+                    </div>
+                    <h4 class="fw-bold text-dark mb-0">${{ number_format($periodSalesTotal ?? $monthSalesTotal, 0, ',', '.') }}</h4>
+                    <small class="text-muted" style="font-size: 0.72rem;">{{ $periodSalesCount ?? $monthSalesCount }} transacciones cerradas</small>
+                </div>
+            </div>
+
+            {{-- 2. Gastos --}}
+            <div class="col-6 col-lg-3">
+                <div class="card border-0 shadow-sm p-3 rounded-3 h-100 border-start border-4 border-danger">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <small class="text-muted fw-semibold text-uppercase" style="font-size: 0.72rem;">
+                            {{ ($period ?? 'month') === 'day' ? 'Gastos del Día' : 'Gastos del Mes' }}
+                        </small>
+                        <i class="bi bi-receipt-cutoff text-danger fs-5"></i>
+                    </div>
+                    <h4 class="fw-bold text-dark mb-0">${{ number_format($periodExpensesTotal ?? $monthExpensesTotal, 0, ',', '.') }}</h4>
+                    <small class="text-muted" style="font-size: 0.72rem;">Pendientes: ${{ number_format($pendingExpensesTotal, 0, ',', '.') }}</small>
+                </div>
+            </div>
+
+            {{-- 3. Utilidad Neta Estimada (Ventas - Gastos) --}}
+            <div class="col-6 col-lg-3">
+                <div class="card border-0 shadow-sm p-3 rounded-3 h-100 border-start border-4 {{ $netProfit >= 0 ? 'border-primary' : 'border-danger' }}">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <small class="text-muted fw-semibold text-uppercase" style="font-size: 0.72rem;">
+                            {{ ($period ?? 'month') === 'day' ? 'Utilidad Neta Día' : 'Utilidad Neta Mes' }}
+                        </small>
+                        <i class="bi bi-wallet2 {{ $netProfit >= 0 ? 'text-primary' : 'text-danger' }} fs-5"></i>
+                    </div>
+                    <h4 class="fw-bold mb-0 {{ $netProfit >= 0 ? 'text-primary' : 'text-danger' }}">
+                        ${{ number_format($netProfit, 0, ',', '.') }}
+                    </h4>
+                    <small class="text-muted" style="font-size: 0.72rem;">Ventas netas menos gastos</small>
+                </div>
+            </div>
+
+            {{-- 4. Ticket Promedio --}}
+            <div class="col-6 col-lg-3">
+                <div class="card border-0 shadow-sm p-3 rounded-3 h-100 border-start border-4 border-info">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <small class="text-muted fw-semibold text-uppercase" style="font-size: 0.72rem;">Ticket Promedio</small>
+                        <i class="bi bi-tag text-info fs-5"></i>
+                    </div>
+                    <h4 class="fw-bold text-dark mb-0">${{ number_format($averageTicket, 0, ',', '.') }}</h4>
+                    <small class="text-muted" style="font-size: 0.72rem;">Por compra realizada</small>
+                </div>
+            </div>
+        </div>
+
+        {{-- Fila de Resumen Diario y Operativo --}}
+        <div class="row g-2 g-md-3 mb-3">
+            <div class="col-6 col-lg-3">
+                <div class="card border-0 shadow-sm p-3 rounded-3 bg-white h-100">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <small class="text-muted fw-semibold d-block">Facturación de Hoy</small>
+                            <h4 class="fw-bold text-success mb-0">${{ number_format($todaySalesTotal, 0, ',', '.') }}</h4>
+                            <small class="text-muted">{{ $todaySalesCount }} ventas completadas</small>
+                        </div>
+                        <a href="{{ route('cash-register.index') }}" class="btn btn-outline-success btn-sm px-2 px-sm-3 py-1.5 fw-semibold d-inline-flex align-items-center" style="min-height: 38px;">
+                            Ver Cuadre &rarr;
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-lg-3">
+                <div class="card border-0 shadow-sm p-3 rounded-3 bg-white h-100 border-start border-4 border-success">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <small class="text-muted fw-semibold d-block">Propinas ({{ ($period ?? 'month') === 'day' ? 'Día' : 'Mes' }})</small>
+                            <h4 class="fw-bold text-success mb-0">${{ number_format($periodTipsTotal ?? 0, 0, ',', '.') }}</h4>
+                            <small class="text-muted">{{ $periodTipsCount ?? 0 }} ventas con propina</small>
+                        </div>
+                        <div class="p-2 bg-success-subtle text-success rounded-circle">
+                            <i class="bi bi-heart-fill fs-5"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-lg-3">
+                <div class="card border-0 shadow-sm p-3 rounded-3 bg-white h-100">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <small class="text-muted fw-semibold d-block">Salón: Mesas Ocupadas</small>
+                            <h4 class="fw-bold text-warning-emphasis mb-0">{{ $occupiedTablesCount }} mesas</h4>
+                            <small class="text-muted">Comensales en servicio</small>
+                        </div>
+                        <a href="{{ route('restaurant.tables.index') }}" class="btn btn-outline-secondary btn-sm px-2 px-sm-3 py-1.5 fw-semibold d-inline-flex align-items-center" style="min-height: 38px;">
+                            Ver Salón &rarr;
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-lg-3">
+                <div class="card border-0 shadow-sm p-3 rounded-3 bg-white h-100">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <small class="text-muted fw-semibold d-block">Despacho Activo</small>
+                            <h4 class="fw-bold text-info mb-0">{{ $activeOrdersCount }} pedidos</h4>
+                            <small class="text-muted">Domicilios y Para Llevar</small>
+                        </div>
+                        <a href="{{ route('restaurant.dispatch.index') }}" class="btn btn-outline-secondary btn-sm px-2 px-sm-3 py-1.5 fw-semibold d-inline-flex align-items-center" style="min-height: 38px;">
+                            Ver Despacho &rarr;
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {{-- Fila Inferior: Top 5 Productos y Alertas de Stock --}}
+        <div class="row g-2 g-md-3 mb-3">
+            {{-- Top 5 Productos --}}
+            <div class="col-12 col-lg-6">
+                <div class="card border-0 shadow-sm rounded-3 h-100">
+                    <div class="card-header bg-white border-0 pt-3 pb-2 d-flex justify-content-between align-items-center">
+                        <h6 class="fw-bold text-dark mb-0">
+                            <i class="bi bi-trophy text-warning me-2"></i>Top 5 Productos Más Vendidos ({{ ($period ?? 'month') === 'day' ? 'Día' : 'Mes' }})
+                        </h6>
+                    </div>
                     <div class="table-responsive">
-                        <table class="table table-hover align-middle mb-0">
+                        <table class="table table-hover align-middle mb-0 small">
                             <thead class="table-light">
                                 <tr>
-                                    <th class="small text-muted fw-semibold">Factura</th>
-                                    <th class="small text-muted fw-semibold">Cliente</th>
-                                    @if(!empty($isAdmin))
-                                        <th class="small text-muted fw-semibold text-end">Total</th>
-                                    @endif
-                                    <th class="small text-muted fw-semibold text-center">Método</th>
-                                    <th class="small text-muted fw-semibold text-center">Estado</th>
-                                    <th class="small text-muted fw-semibold text-end">Acción</th>
+                                    <th class="ps-3">Producto</th>
+                                    <th class="text-center" style="width: 100px;">Cantidad</th>
+                                    <th class="text-end pe-3" style="width: 130px;">Total Ventas</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach($recent_sales as $sale)
+                                @forelse($topProducts as $item)
                                     <tr>
-                                        <td class="fw-bold text-dark">
-                                            {{ $sale->invoice_number }}
-                                            <div class="small text-muted fw-normal">
-                                                {{ $sale->sale_date->format('d/m/Y H:i') }}
-                                            </div>
+                                        <td class="ps-3 fw-semibold text-dark">
+                                            {{ $item->product?->nombre ?? 'Producto #' . $item->product_id }}
                                         </td>
-                                        <td>
-                                            @if($sale->customer)
-                                                <span class="fw-semibold text-dark">{{ $sale->customer->name }}</span>
-                                            @else
-                                                <span class="text-muted fst-italic">Consumidor Final</span>
-                                            @endif
+                                        <td class="text-center font-monospace fw-bold text-success">
+                                            {{ number_format($item->total_qty, 0) }}
                                         </td>
-                                        @if(!empty($isAdmin))
-                                            <td class="text-end fw-bold text-dark">
-                                                ${{ number_format($sale->total, 0, ',', '.') }}
-                                            </td>
-                                        @endif
-                                        <td class="text-center">
-                                            @php
-                                                $methodLabels = [
-                                                    'cash' => 'Efectivo',
-                                                    'transfer' => 'Transf.',
-                                                    'card' => 'Tarjeta',
-                                                    'other' => 'Otro'
-                                                ];
-                                            @endphp
-                                            <span class="badge bg-light text-dark border">
-                                                {{ $methodLabels[$sale->payment_method] ?? $sale->payment_method }}
-                                            </span>
-                                        </td>
-                                        <td class="text-center">
-                                            @if($sale->status === 'completed')
-                                                <span class="badge bg-success-subtle text-success">Completada</span>
-                                            @else
-                                                <span class="badge bg-danger-subtle text-danger">Anulada</span>
-                                            @endif
-                                        </td>
-                                        <td class="text-end">
-                                            <a href="{{ route('sales.show', $sale) }}" class="btn btn-sm btn-outline-primary rounded-circle" title="Ver detalle">
-                                                <i class="bi bi-eye"></i>
-                                            </a>
+                                        <td class="text-end pe-3 font-monospace text-dark">
+                                            ${{ number_format($item->total_amount, 0, ',', '.') }}
                                         </td>
                                     </tr>
-                                @endforeach
+                                @empty
+                                    <tr>
+                                        <td colspan="3" class="text-center py-4 text-muted">
+                                            No hay registros de ventas para este mes aún.
+                                        </td>
+                                    </tr>
+                                @endforelse
                             </tbody>
                         </table>
                     </div>
-                @endif
+                </div>
+            </div>
+
+            {{-- Alertas de Stock Crítico --}}
+            <div class="col-12 col-lg-6">
+                <div class="card border-0 shadow-sm rounded-3 h-100">
+                    <div class="card-header bg-white border-0 pt-3 pb-2 d-flex justify-content-between align-items-center">
+                        <h6 class="fw-bold text-dark mb-0">
+                            <i class="bi bi-exclamation-triangle text-danger me-2"></i>Alertas de Reposición Inmediata
+                        </h6>
+                        <a href="{{ route('inventory.index') }}" class="btn btn-outline-success btn-sm" style="font-size: 0.75rem;">
+                            Gestionar Stock &rarr;
+                        </a>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0 small">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="ps-3">Insumo / Suplemento</th>
+                                    <th class="text-end" style="width: 110px;">Stock</th>
+                                    <th class="text-end" style="width: 100px;">Mínimo</th>
+                                    <th class="text-center pe-3" style="width: 110px;">Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse($criticalStockProducts as $prod)
+                                    @php
+                                        $isOut = (float) $prod->stock <= 0;
+                                    @endphp
+                                    <tr>
+                                        <td class="ps-3">
+                                            <span class="fw-semibold text-dark">{{ $prod->nombre }}</span>
+                                            <span class="badge bg-light text-muted border ms-1" style="font-size: 0.68rem;">{{ $prod->tipo_producto }}</span>
+                                        </td>
+                                        <td class="text-end font-monospace fw-bold {{ $isOut ? 'text-danger' : 'text-warning-emphasis' }}">
+                                            {{ number_format($prod->stock, 1) }} <span class="small">{{ $prod->unidad_base }}</span>
+                                        </td>
+                                        <td class="text-end font-monospace text-muted">
+                                            {{ number_format($prod->stock_minimo, 1) }}
+                                        </td>
+                                        <td class="text-center pe-3">
+                                            @if($isOut)
+                                                <span class="badge bg-danger text-white rounded-pill px-2 py-1">Agotado</span>
+                                            @else
+                                                <span class="badge bg-warning text-dark rounded-pill px-2 py-1">Bajo Stock</span>
+                                            @endif
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="4" class="text-center py-4 text-muted">
+                                            <i class="bi bi-check-circle text-success fs-5 d-block mb-1"></i>
+                                            Todos los insumos y suplementos tienen stock adecuado.
+                                        </td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
-    </div>
 
-    {{-- Columna Derecha: Alertas de Stock y Top Productos --}}
-    <div class="col-lg-5 d-flex flex-column gap-4">
-        {{-- Stock Crítico / Alertas (Exclusivo Comercio / Retail) --}}
-        @if(empty($is_restaurant))
-            <div class="card card-custom bg-white border-0 shadow-sm">
-                <div class="card-header bg-transparent border-0 pt-4 px-4 pb-2 d-flex justify-content-between align-items-center">
-                    <h5 class="fw-bold mb-0">Alertas de Stock</h5>
-                    <a href="{{ route('inventory.index') }}" class="text-primary small fw-semibold text-decoration-none">
-                        Inventario <i class="bi bi-chevron-right"></i>
+    @else
+        {{-- ======================================================== --}}
+        {{-- PANEL OPERATIVO PARA EMPLEADOS (CERO DINERO VISIBLE)     --}}
+        {{-- ======================================================== --}}
+
+        <div class="row g-2 g-md-3 mb-4">
+            {{-- 1. Ventas realizadas hoy (conteo numérico) --}}
+            <div class="col-12 col-md-4">
+                <div class="card border-0 shadow-sm p-4 rounded-3 text-center border-start border-4 border-success bg-white h-100">
+                    <i class="bi bi-bag-check-fill text-success fs-2 mb-2"></i>
+                    <small class="text-muted fw-semibold text-uppercase d-block">Ventas Cerradas Hoy</small>
+                    <h2 class="fw-bold text-dark my-2">{{ $todaySalesCount }}</h2>
+                    <small class="text-muted">Transacciones completadas en turno</small>
+                </div>
+            </div>
+
+            {{-- 2. Mesas ocupadas en salón --}}
+            <div class="col-6 col-md-4">
+                <div class="card border-0 shadow-sm p-4 rounded-3 text-center border-start border-4 border-warning bg-white h-100">
+                    <i class="bi bi-grid-3x3-gap-fill text-warning fs-2 mb-2"></i>
+                    <small class="text-muted fw-semibold text-uppercase d-block">Mesas Ocupadas</small>
+                    <h2 class="fw-bold text-dark my-2">{{ $occupiedTablesCount }}</h2>
+                    <a href="{{ route('restaurant.tables.index') }}" class="btn btn-outline-warning btn-sm fw-semibold">
+                        Ver Salón &rarr;
                     </a>
                 </div>
-                <div class="card-body px-4 pb-4">
-                    @if($low_stock_products->isEmpty())
-                        <div class="text-center py-3 text-success">
-                            <i class="bi bi-check-circle-fill fs-3 d-block mb-1"></i>
-                            <p class="mb-0 fw-semibold">¡Inventario en orden!</p>
-                            <small class="text-muted">No tienes productos con existencias críticas.</small>
-                        </div>
-                    @else
-                        <div class="list-group list-group-flush">
-                            @foreach($low_stock_products as $product)
-                                <div class="list-group-item px-0 d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <div class="fw-semibold text-dark">{{ $product->name }}</div>
-                                        <small class="text-muted">SKU: {{ $product->sku }} | Min: {{ $product->min_stock }}</small>
-                                    </div>
-                                    <div class="text-end">
-                                        <span class="badge {{ $product->stock <= 0 ? 'bg-danger' : 'bg-warning text-dark' }} rounded-pill px-3 py-1">
-                                            {{ $product->stock }} disp.
-                                        </span>
-                                    </div>
-                                </div>
-                            @endforeach
-                        </div>
-                    @endif
+            </div>
+
+            {{-- 3. Despacho activo --}}
+            <div class="col-6 col-md-4">
+                <div class="card border-0 shadow-sm p-4 rounded-3 text-center border-start border-4 border-info bg-white h-100">
+                    <i class="bi bi-bicycle text-info fs-2 mb-2"></i>
+                    <small class="text-muted fw-semibold text-uppercase d-block">Pedidos en Despacho</small>
+                    <h2 class="fw-bold text-dark my-2">{{ $activeOrdersCount }}</h2>
+                    <a href="{{ route('restaurant.dispatch.index') }}" class="btn btn-outline-info btn-sm fw-semibold">
+                        Ver Despacho &rarr;
+                    </a>
                 </div>
             </div>
-        @endif
+        </div>
 
-        {{-- Top 5 Productos / Platos Más Vendidos --}}
-        <div class="card card-custom bg-white border-0 shadow-sm">
-            <div class="card-header bg-transparent border-0 pt-4 px-4 pb-2">
-                <h5 class="fw-bold mb-0">{{ !empty($is_restaurant) ? 'Platos Más Vendidos' : 'Más Vendidos' }}</h5>
+        {{-- Existencias Críticas Físicas para Cocina / Barra (Sin Precios) --}}
+        <div class="card border-0 shadow-sm rounded-3">
+            <div class="card-header bg-white border-0 pt-3 pb-2">
+                <h6 class="fw-bold text-dark mb-0">
+                    <i class="bi bi-boxes text-danger me-2"></i>Insumos y Suplementos en Nivel Crítico (Cocina / Barra)
+                </h6>
+                <small class="text-muted">Avisar oportunamente a administración si algún insumo se agota durante el servicio.</small>
             </div>
-            <div class="card-body px-4 pb-4">
-                @if($top_products->isEmpty())
-                    <div class="text-center py-3 text-muted">
-                        <i class="bi bi-bar-chart fs-3 d-block mb-1 opacity-50"></i>
-                        <p class="mb-0 small">Sin datos de ventas completadas.</p>
-                    </div>
-                @else
-                    <div class="list-group list-group-flush">
-                        @foreach($top_products as $idx => $item)
-                            <div class="list-group-item px-0 d-flex justify-content-between align-items-center">
-                                <div class="d-flex align-items-center gap-3">
-                                    <span class="badge bg-light text-dark border rounded-circle" style="width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center;">
-                                        {{ $idx + 1 }}
-                                    </span>
-                                    <div>
-                                        <div class="fw-semibold text-dark">{{ $item->name }}</div>
-                                        <small class="text-muted">{{ $item->total_sold_quantity }} unid. vendidas</small>
-                                    </div>
-                                </div>
-                                @if(!empty($isAdmin))
-                                    <div class="text-end fw-bold text-dark">
-                                        ${{ number_format($item->total_sold_revenue, 0, ',', '.') }}
-                                    </div>
-                                @endif
-                            </div>
-                        @endforeach
-                    </div>
-                @endif
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0 small">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-3">Producto / Insumo</th>
+                            <th class="text-center" style="width: 140px;">Tipo</th>
+                            <th class="text-end" style="width: 150px;">Stock Disponible</th>
+                            <th class="text-center pe-3" style="width: 130px;">Alerta</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($criticalStockProducts as $prod)
+                            @php
+                                $isOut = (float) $prod->stock <= 0;
+                            @endphp
+                            <tr>
+                                <td class="ps-3 fw-bold text-dark">{{ $prod->nombre }}</td>
+                                <td class="text-center">
+                                    <span class="badge bg-light text-muted border">{{ $prod->tipo_producto }}</span>
+                                </td>
+                                <td class="text-end font-monospace fw-bold {{ $isOut ? 'text-danger' : 'text-warning-emphasis' }}">
+                                    {{ number_format($prod->stock, 1) }} {{ $prod->unidad_base }}
+                                </td>
+                                <td class="text-center pe-3">
+                                    @if($isOut)
+                                        <span class="badge bg-danger text-white rounded-pill px-2 py-1">Agotado</span>
+                                    @else
+                                        <span class="badge bg-warning text-dark rounded-pill px-2 py-1">Bajo Stock</span>
+                                    @endif
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="4" class="text-center py-4 text-muted">
+                                    <i class="bi bi-check-circle text-success fs-5 d-block mb-1"></i>
+                                    Todos los insumos operativos cuentan con existencias suficientes.
+                                </td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
             </div>
         </div>
-    </div>
+    @endif
 </div>
 @endsection

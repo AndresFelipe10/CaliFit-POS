@@ -2,161 +2,105 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Requests\User\StoreUserRequest;
-use App\Http\Requests\User\UpdateUserRequest;
+use App\Http\Requests\StoreUserRequest;
+use App\Http\Requests\UpdateUserRequest;
 use App\Models\Role;
 use App\Models\User;
-use App\Services\Tenant\TenantManager;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 class UserController extends Controller
 {
     /**
-     * Display a listing of the team members in the current business.
+     * Display a listing of collaborators for SaborCaliFit Admin.
      */
     public function index(): View
     {
-        Gate::authorize('viewAny', User::class);
+        $users = User::with('role')->orderBy('name')->get();
+        $roles = Role::orderBy('name')->get();
 
-        $currentBusiness = app(TenantManager::class)->get();
-        $members = $currentBusiness->users()
-            ->withPivot('role_id', 'is_active', 'created_at')
-            ->get();
-
-        $roles = Role::all()->keyBy('id');
-
-        return view('users.index', [
-            'members' => $members,
-            'roles' => $roles,
-            'currentBusiness' => $currentBusiness,
-        ]);
+        return view('users.index', compact('users', 'roles'));
     }
 
     /**
-     * Show the form for inviting/adding a user to the business.
-     */
-    public function create(): View
-    {
-        Gate::authorize('create', User::class);
-
-        $roles = Role::all();
-
-        return view('users.create', [
-            'roles' => $roles,
-        ]);
-    }
-
-    /**
-     * Store a newly attached user in the current business.
+     * Store a newly created collaborator with secure temporary password.
      */
     public function store(StoreUserRequest $request): RedirectResponse
     {
-        $currentBusiness = app(TenantManager::class)->get();
+        $tempPassword = Str::random(10);
 
-        DB::transaction(function () use ($request, $currentBusiness) {
-            $user = User::create([
-                'name' => $request->string('name'),
-                'email' => $request->string('email'),
-                'password' => Hash::make($request->string('password')),
-            ]);
-
-            $currentBusiness->users()->attach($user->id, [
-                'role_id' => $request->role_id,
-                'is_active' => true,
-            ]);
-        });
+        $user = User::create([
+            'name' => $request->name,
+            'email' => $request->email,
+            'role_id' => $request->role_id,
+            'password' => Hash::make($tempPassword),
+            'must_change_password' => true,
+            'is_active' => true,
+        ]);
 
         return redirect()->route('users.index')
-            ->with('status', "Colaborador '{$request->name}' registrado exitosamente en el equipo.");
+            ->with('success', "Colaborador {$user->name} creado exitosamente.")
+            ->with('temp_password', $tempPassword)
+            ->with('temp_user_name', $user->name)
+            ->with('temp_user_email', $user->email);
     }
 
     /**
-     * Show the form for editing the specified user's role.
-     */
-    public function edit(User $user): View
-    {
-        Gate::authorize('update', $user);
-
-        $currentBusiness = app(TenantManager::class)->get();
-        $member = $currentBusiness->users()
-            ->where('users.id', $user->id)
-            ->withPivot('role_id', 'is_active')
-            ->firstOrFail();
-
-        $roles = Role::all();
-
-        return view('users.edit', [
-            'member' => $member,
-            'roles' => $roles,
-        ]);
-    }
-
-    /**
-     * Update the specified user's role in the current business.
+     * Update the specified collaborator.
      */
     public function update(UpdateUserRequest $request, User $user): RedirectResponse
     {
-        Gate::authorize('update', $user);
-
-        $currentBusiness = app(TenantManager::class)->get();
-        $adminRole = Role::where('slug', Role::ROLE_ADMIN)->first();
-        $newRoleId = (int) $request->role_id;
-
-        // Prevent sole active admin demotion
-        if ($adminRole && $newRoleId !== $adminRole->id) {
-            $isSoleAdmin = $currentBusiness->users()
-                ->wherePivot('role_id', $adminRole->id)
-                ->wherePivot('is_active', true)
-                ->where('users.id', $user->id)
-                ->exists()
-                && $currentBusiness->users()
-                    ->wherePivot('role_id', $adminRole->id)
-                    ->wherePivot('is_active', true)
-                    ->count() <= 1;
-
-            if ($isSoleAdmin) {
-                return redirect()->back()
-                    ->withInput()
-                    ->withErrors(['role_id' => 'No puedes remover el único administrador del negocio.']);
-            }
+        if ($user->id === auth()->id() && (int) $request->role_id !== (int) $user->role_id) {
+            return back()->with('error', 'No puedes cambiar tu propio rol de administrador.');
         }
 
-        $currentBusiness->users()->updateExistingPivot($user->id, [
+        $user->update([
+            'name' => $request->name,
+            'email' => $request->email,
             'role_id' => $request->role_id,
         ]);
 
         return redirect()->route('users.index')
-            ->with('status', "El rol de {$user->name} ha sido actualizado correctamente.");
+            ->with('success', "Datos del colaborador {$user->name} actualizados.");
     }
 
     /**
-     * Toggle the active status of a user in the current business.
+     * Toggle active/inactive status of a user.
      */
-    public function toggleActive(Request $request, User $user): RedirectResponse
+    public function toggleStatus(User $user): RedirectResponse
     {
-        Gate::authorize('deactivate', $user);
+        if ($user->id === auth()->id()) {
+            return back()->with('error', 'No puedes desactivar tu propia cuenta de usuario.');
+        }
 
-        $currentBusiness = app(TenantManager::class)->get();
-        $member = $currentBusiness->users()
-            ->where('users.id', $user->id)
-            ->withPivot('role_id', 'is_active')
-            ->firstOrFail();
-
-        $newStatus = ! (bool) $member->pivot->is_active;
-
-        $currentBusiness->users()->updateExistingPivot($user->id, [
-            'is_active' => $newStatus,
+        $user->update([
+            'is_active' => ! $user->is_active,
         ]);
 
-        $message = $newStatus
-            ? "El usuario {$user->name} ha sido reactivado en el emprendimiento."
-            : "El usuario {$user->name} ha sido desactivado del emprendimiento.";
+        $statusText = $user->is_active ? 'activado' : 'desactivado';
 
-        return redirect()->route('users.index')->with('status', $message);
+        return redirect()->route('users.index')
+            ->with('success', "El usuario {$user->name} ha sido {$statusText}.");
+    }
+
+    /**
+     * Reset password and generate a new secure temporary password.
+     */
+    public function resetPassword(User $user): RedirectResponse
+    {
+        $tempPassword = Str::random(10);
+
+        $user->update([
+            'password' => Hash::make($tempPassword),
+            'must_change_password' => true,
+        ]);
+
+        return redirect()->route('users.index')
+            ->with('success', "Contraseña restablecida para {$user->name}.")
+            ->with('temp_password', $tempPassword)
+            ->with('temp_user_name', $user->name)
+            ->with('temp_user_email', $user->email);
     }
 }

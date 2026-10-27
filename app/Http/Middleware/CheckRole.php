@@ -2,7 +2,6 @@
 
 namespace App\Http\Middleware;
 
-use App\Services\Tenant\TenantManager;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -10,7 +9,7 @@ use Symfony\Component\HttpFoundation\Response;
 class CheckRole
 {
     /**
-     * Handle an incoming request.
+     * Handle an incoming request checking user roles in mono-business CaliFit.
      *
      * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
      * @param  string  ...$roles
@@ -18,18 +17,28 @@ class CheckRole
     public function handle(Request $request, Closure $next, string ...$roles): Response
     {
         $user = $request->user();
-        $tenantManager = app(TenantManager::class);
 
-        if (! $user || ! $tenantManager->hasTenant()) {
-            abort(403, 'Acceso no autorizado: se requiere un usuario autenticado y un emprendimiento activo.');
+        if (! $user) {
+            abort(403, 'Acceso no autorizado para su rol operativo.');
         }
 
-        $currentRole = $user->currentRole();
-
-        if (! $currentRole || ! in_array($currentRole->slug, $roles, true)) {
-            abort(403, 'No tienes permisos suficientes para realizar esta acción en este emprendimiento.');
+        // Normalizar los roles permitidos (soporta "role:admin" o múltiples argumentos)
+        $allowedRoles = [];
+        foreach ($roles as $roleGroup) {
+            foreach (explode(',', $roleGroup) as $role) {
+                $trimmed = trim($role);
+                if ($trimmed !== '') {
+                    $allowedRoles[] = $trimmed;
+                }
+            }
         }
 
-        return $next($request);
+        // Si el slug de su rol actual coincide con los permitidos
+        $userRoleSlug = $user->role?->slug;
+        if ($userRoleSlug && in_array($userRoleSlug, $allowedRoles, true)) {
+            return $next($request);
+        }
+
+        abort(403, 'Acceso no autorizado para su rol operativo.');
     }
 }

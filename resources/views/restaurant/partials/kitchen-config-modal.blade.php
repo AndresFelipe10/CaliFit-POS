@@ -12,7 +12,7 @@
                 <div class="p-3 bg-light rounded-3 mb-3">
                     <div class="form-check form-switch d-flex justify-content-between align-items-center ps-0">
                         <label class="form-check-label fw-bold text-dark mb-0 pe-3" for="switchAutoPrintKitchen">
-                            Impresión automática a cocina (80mm)
+                            Impresión automática a cocina (58mm)
                             <span class="d-block small fw-normal text-muted mt-1">
                                 Abre automáticamente el ticket térmico al abrir una comanda o agregar platos.
                             </span>
@@ -27,7 +27,7 @@
                         Los navegadores modernos (Google Chrome y Microsoft Edge) recuerdan de forma independiente la última impresora que seleccionas para cada ventana:
                     </p>
                     <ul class="mb-0 ps-3">
-                        <li><strong>Cocina:</strong> Selecciona tu impresora térmica de 80mm al imprimir la comanda de cocina.</li>
+                        <li><strong>Cocina:</strong> Selecciona tu impresora térmica de 58mm al imprimir la comanda de cocina.</li>
                         <li><strong>Caja:</strong> Selecciona tu impresora de facturas al cobrar. El navegador recordará automáticamente el destino correcto para cada una.</li>
                     </ul>
                 </div>
@@ -51,7 +51,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const saveBtn = document.getElementById('btnSaveKitchenConfig');
 
     // Cargar estado desde localStorage (por defecto activado)
-    const isAutoPrint = localStorage.getItem('puntostock_auto_print_kitchen') !== 'disabled';
+    const isAutoPrint = localStorage.getItem('califit_auto_print_kitchen') !== 'disabled';
     if (switchAuto) {
         switchAuto.checked = isAutoPrint;
     }
@@ -59,9 +59,9 @@ document.addEventListener('DOMContentLoaded', function () {
     if (saveBtn && switchAuto) {
         saveBtn.addEventListener('click', function () {
             if (switchAuto.checked) {
-                localStorage.setItem('puntostock_auto_print_kitchen', 'enabled');
+                localStorage.setItem('califit_auto_print_kitchen', 'enabled');
             } else {
-                localStorage.setItem('puntostock_auto_print_kitchen', 'disabled');
+                localStorage.setItem('califit_auto_print_kitchen', 'disabled');
             }
         });
     }

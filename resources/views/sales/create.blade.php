@@ -107,7 +107,7 @@
             <div class="card card-custom p-4 mb-4">
                 {{-- SECCIÓN 1: CABECERA / CONTEXTO --}}
                 <div class="border-bottom pb-3 mb-3">
-                    <h5 class="fw-bold mb-3"><i class="bi bi-receipt me-2 text-primary"></i>Datos de la Venta</h5>
+                    <h5 class="fw-bold mb-3"><i class="bi bi-receipt me-2 text-success"></i>Datos de la Venta</h5>
 
                     {{-- Fecha y Hora (compacta con indicador de fecha colombiana) --}}
                     <div class="mb-3">
@@ -155,8 +155,8 @@
                                 <input type="text" id="customer_search" class="form-control" 
                                        placeholder="Buscar cliente (Cédula/NIT o nombre)..." 
                                        autocomplete="off">
-                                <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#quickCustomerModal" title="Crear cliente rápido">
-                                    <i class="bi bi-plus-lg"></i>
+                                <button type="button" class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#quickCustomerModal" title="Crear Cliente Rápido">
+                                    <i class="bi bi-person-plus-fill"></i>
                                 </button>
                             </div>
                             {{-- Dropdown de resultados --}}
@@ -180,25 +180,25 @@
                             <span class="fw-semibold text-danger font-monospace small" id="displayDiscount">-$0</span>
                         </div>
                         <div class="input-group">
-                            <button type="button" class="btn btn-outline-secondary px-3" id="btnDiscountMinus" title="Disminuir descuento" style="min-height: 38px;">
+                            <button type="button" class="btn btn-outline-secondary px-3" id="btnDiscountMinus" title="Disminuir descuento" style="min-width: 40px; min-height: 40px;">
                                 <i class="bi bi-dash-lg"></i>
                             </button>
                             <input type="number" id="discount_percentage" name="discount_percentage" class="form-control text-center fw-bold font-monospace"
-                                   value="{{ old('discount_percentage', 0) }}" min="0" max="100" step="1" placeholder="0" style="min-height: 38px;">
-                            <button type="button" class="btn btn-outline-secondary px-3" id="btnDiscountPlus" title="Aumentar descuento" style="min-height: 38px;">
+                                   value="{{ old('discount_percentage', 0) }}" min="0" max="100" step="1" placeholder="0" style="min-height: 40px;">
+                            <button type="button" class="btn btn-outline-secondary px-3" id="btnDiscountPlus" title="Aumentar descuento" style="min-width: 40px; min-height: 40px;">
                                 <i class="bi bi-plus-lg"></i>
                             </button>
-                            <span class="input-group-text bg-light fw-bold">%</span>
+                            <span class="input-group-text bg-white fw-bold text-muted">%</span>
                         </div>
                         <div id="discountFeedback" class="form-text text-info mt-1" style="display:none;">
                             <i class="bi bi-info-circle me-1"></i>Equivale a <strong id="discountMoneyPreview">$0</strong> de descuento
                         </div>
                     </div>
 
-                    {{-- Caja destacada de Total Final a Cobrar --}}
-                    <div class="bg-light p-3 rounded-3 border mt-3 text-center">
-                        <span class="text-muted small d-block text-uppercase fw-semibold mb-1">Total a Cobrar</span>
-                        <span class="fw-bold fs-3 text-primary font-monospace d-block" id="displayTotal">$0</span>
+                    {{-- Caja destacada de Total Final a Cobrar (Idéntica a Imagen 1) --}}
+                    <div class="bg-light p-3 rounded-3 border mt-3 text-center shadow-sm">
+                        <span class="text-muted small d-block text-uppercase fw-bold mb-1" style="font-size: 0.72rem; letter-spacing: 0.5px;">Total a Cobrar</span>
+                        <span class="fw-black fs-2 font-monospace d-block" id="displayTotal" style="color: #10B981 !important;">$0</span>
                     </div>
                 </div>
 
@@ -208,7 +208,7 @@
                         <label class="form-label small fw-semibold text-muted mb-0">
                             <i class="bi bi-wallet2 me-1"></i>Métodos de Pago
                         </label>
-                        <button type="button" class="btn btn-sm btn-outline-primary rounded-pill py-0 px-2" id="btnAddPaymentLine" title="Agregar método de pago">
+                        <button type="button" class="btn btn-sm btn-outline-success rounded-pill py-1 px-3 fw-semibold" id="btnAddPaymentLine" title="Agregar método de pago">
                             <i class="bi bi-plus-circle me-1"></i>Agregar método
                         </button>
                     </div>
@@ -232,12 +232,13 @@
                 <div>
                     <div class="mb-3">
                         <label for="notes" class="form-label small fw-semibold text-muted"><i class="bi bi-chat-left-text me-1"></i>Notas</label>
-                        <textarea id="notes" name="notes" class="form-control" rows="2" maxlength="1000"
+                        <textarea id="notes" name="notes" class="form-control rounded-3" rows="2" maxlength="1000"
                                   placeholder="Notas u observaciones adicionales...">{{ old('notes') }}</textarea>
                     </div>
 
-                    <button type="submit" class="btn btn-primary w-100 rounded-pill py-2 fw-bold shadow-sm" id="btnSubmitSale" disabled>
-                        <i class="bi bi-check2-circle me-2"></i> Registrar Venta
+                    <button type="submit" class="btn btn-califit w-100 rounded-pill py-3 fw-bold shadow-sm d-flex justify-content-center align-items-center gap-2" style="min-height: 50px;" id="btnSubmitSale" disabled>
+                        <i class="bi bi-check2-circle fs-5"></i>
+                        <span class="fs-6">Registrar Venta</span>
                     </button>
                 </div>
             </div>
@@ -283,7 +284,7 @@
             </div>
             <div class="modal-footer border-top bg-light">
                 <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill px-3" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" id="btn_save_quick_customer" class="btn btn-primary btn-sm rounded-pill px-4">
+                <button type="button" id="btn_save_quick_customer" class="btn btn-califit btn-sm rounded-pill px-4">
                     <i class="bi bi-save me-1"></i> Guardar Cliente
                 </button>
             </div>

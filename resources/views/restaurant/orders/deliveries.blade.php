@@ -21,13 +21,6 @@
         </div>
     </div>
 
-    @if(session('success'))
-        <div class="alert alert-success alert-dismissible fade show rounded-3 mb-4" role="alert">
-            <i class="bi bi-check-circle-fill me-2"></i>{{ session('success') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    @endif
-
     {{-- Columnas Kanban --}}
     <div class="row g-4">
         {{-- 1. En Cocina / Preparación --}}
@@ -69,7 +62,7 @@
                             </div>
 
                             <div class="d-flex gap-2">
-                                <a href="{{ route('restaurant.orders.dispatch-ticket', $order) }}" target="_blank" class="btn btn-sm btn-outline-secondary flex-grow-1" title="Imprimir Tirilla Despacho">
+                                <a href="{{ route('prints.orders.dispatch', $order) }}" target="_blank" class="btn btn-sm btn-outline-secondary flex-grow-1" title="Imprimir Tirilla Despacho">
                                     <i class="bi bi-printer me-1"></i> Tirilla
                                 </a>
                                 <form action="{{ route('restaurant.orders.status.update', $order) }}" method="POST" class="d-inline flex-grow-1">
@@ -132,7 +125,7 @@
                             </div>
 
                             <div class="d-flex gap-2">
-                                <a href="{{ route('restaurant.orders.dispatch-ticket', $order) }}" target="_blank" class="btn btn-sm btn-outline-secondary" title="Reimprimir Tirilla">
+                                <a href="{{ route('prints.orders.dispatch', $order) }}" target="_blank" class="btn btn-sm btn-outline-secondary" title="Reimprimir Tirilla">
                                     <i class="bi bi-printer"></i>
                                 </a>
                                 <form action="{{ route('restaurant.orders.status.update', $order) }}" method="POST" class="d-inline flex-grow-1">
@@ -201,8 +194,8 @@
 @if(session('print_kitchen_ticket_id'))
     <script>
         document.addEventListener('DOMContentLoaded', function () {
-            const printUrl = "{{ route('restaurant.orders.kitchen-ticket', session('print_kitchen_ticket_id')) }}";
-            window.open(printUrl, '_blank', 'width=450,height=650,scrollbars=yes');
+            const printUrl = "{{ route('prints.orders.dispatch', session('print_kitchen_ticket_id')) }}";
+            window.open(printUrl, '_blank', 'width=340,height=620,scrollbars=yes');
         });
     </script>
 @endif

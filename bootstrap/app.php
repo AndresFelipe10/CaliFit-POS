@@ -14,6 +14,8 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->trustProxies(at: '*');
+
         $middleware->appendToGroup('web', [
             SecurityHeadersMiddleware::class,
             \App\Http\Middleware\EnsurePasswordIsChanged::class,
@@ -27,7 +29,6 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'tenant' => SetCurrentTenant::class,
             'role' => CheckRole::class,
-            'superadmin' => \App\Http\Middleware\EnsureUserIsSuperadmin::class,
             'must_change_password' => \App\Http\Middleware\EnsurePasswordIsChanged::class,
             'restaurant' => \App\Http\Middleware\EnsureBusinessIsRestaurant::class,
         ]);

@@ -16,23 +16,6 @@
                 </a>
             </div>
 
-            @if (session('status'))
-                <div class="alert alert-success mb-4 py-2 px-3 small rounded-3">
-                    <i class="bi bi-check-circle me-1"></i> {{ session('status') }}
-                </div>
-            @endif
-
-            @if ($errors->any())
-                <div class="alert alert-danger mb-4 py-2 px-3 small rounded-3">
-                    <div class="fw-semibold mb-1"><i class="bi bi-exclamation-triangle-fill me-1"></i> Corrige los siguientes errores:</div>
-                    <ul class="mb-0 ps-3">
-                        @foreach ($errors->all() as $error)
-                            <li>{{ $error }}</li>
-                        @endforeach
-                    </ul>
-                </div>
-            @endif
-
             <form method="POST" action="{{ route('businesses.update') }}" novalidate>
                 @csrf
                 @method('PUT')

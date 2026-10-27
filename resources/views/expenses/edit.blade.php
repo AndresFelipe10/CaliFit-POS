@@ -76,7 +76,7 @@
                         <label class="form-label small fw-semibold">Monto Total ($ COP) <span class="text-danger">*</span></label>
                         <div class="input-group">
                             <span class="input-group-text">$</span>
-                            <input type="number" step="0.01" min="0.01" name="amount" class="form-control @error('amount') is-invalid @enderror" value="{{ old('amount', $expense->amount) }}" required>
+                            <input type="text" inputmode="numeric" name="amount" class="form-control currency-input @error('amount') is-invalid @enderror" value="{{ old('amount', $expense->amount ? number_format((float)$expense->amount, 0, ',', '.') : '') }}" required>
                         </div>
                         @error('amount')
                             <div class="invalid-feedback d-block">{{ $message }}</div>

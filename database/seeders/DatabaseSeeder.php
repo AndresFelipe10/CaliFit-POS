@@ -2,276 +2,542 @@
 
 namespace Database\Seeders;
 
-use App\Models\Business;
+use App\Models\Addition;
+use App\Models\AdditionItem;
 use App\Models\Category;
 use App\Models\Customer;
-use App\Models\InventoryMovement;
 use App\Models\Product;
+use App\Models\Recipe;
+use App\Models\RecipeItem;
+use App\Models\RestaurantTable;
 use App\Models\Role;
-use App\Models\Sale;
-use App\Models\SaleDetail;
 use App\Models\Supplier;
 use App\Models\User;
-use Carbon\Carbon;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
     /**
-     * Seed the application's database with demonstration data.
+     * Seed the application's database with demonstration data for SaborCaliFit Bochalema.
      */
     public function run(): void
     {
-        // 1. Roles del sistema
-        $adminRole = Role::firstOrCreate(
+        // 1. Roles del sistema CaliFit POS (Arquitectura Bipartita: Administrador y Mesero)
+        $roleAdmin = Role::firstOrCreate(
             ['slug' => Role::ROLE_ADMIN],
             [
                 'name' => 'Administrador',
-                'description' => 'Acceso y administración total del emprendimiento',
+                'description' => 'Dueño / Administrador con control total del negocio, equipo, catálogo, compras y reportes',
             ]
         );
 
-        $employeeRole = Role::firstOrCreate(
+        $roleEmployee = Role::firstOrCreate(
             ['slug' => Role::ROLE_EMPLOYEE],
             [
-                'name' => 'Empleado',
-                'description' => 'Consulta de inventario, registro de ventas y clientes',
+                'name' => 'Mesero',
+                'description' => 'Operación del punto de venta, salón de mesas, comandas, despachos y cuadre de turno',
             ]
         );
 
-        // 2. Usuarios de demostración
-        $adminUser = User::firstOrCreate(
-            ['email' => 'admin@demo.com'],
+        // 2. Usuarios del sistema SaborCaliFit (Estrictamente 3 usuarios: 2 Administradores y 1 Mesero)
+        // Administrador 1: Dueño / Administrador Principal
+        User::firstOrCreate(
+            ['email' => 'admin@saborcalifit.com'],
             [
-                'name' => 'Administrador Demo',
-                'password' => Hash::make('password123'),
+                'role_id' => $roleAdmin->id,
+                'name' => 'Administrador 1',
+                'password' => Hash::make('Admin1234#'),
+                'must_change_password' => false,
+                'is_active' => true,
+                'terms_accepted_at' => now(),
+                'terms_accepted_ip' => '127.0.0.1',
             ]
         );
 
-        $employeeUser = User::firstOrCreate(
-            ['email' => 'empleado@demo.com'],
+        // Administrador 2: Administrador Secundario / Gerente con control total
+        User::firstOrCreate(
+            ['email' => 'gerente@saborcalifit.com'],
             [
-                'name' => 'Vendedor Demo',
-                'password' => Hash::make('password123'),
+                'role_id' => $roleAdmin->id,
+                'name' => 'Administrador 2',
+                'password' => Hash::make('Admin1234#'),
+                'must_change_password' => false,
+                'is_active' => true,
+                'terms_accepted_at' => now(),
+                'terms_accepted_ip' => '127.0.0.1',
             ]
         );
 
-        // 3. Emprendimiento principal
-        $business = Business::firstOrCreate(
-            ['name' => 'Emprendimiento Demo Cali'],
+        // Usuario Operativo: Mesero
+        User::firstOrCreate(
+            ['email' => 'mesero@saborcalifit.com'],
             [
-                'nit' => '900888777-5',
-                'address' => 'Calle 5 # 38-25, Cali, Valle del Cauca',
-                'phone' => '+57 315 555 0199',
-                'email' => 'contacto@emprendimientocali.com',
+                'role_id' => $roleEmployee->id,
+                'name' => 'Mesero',
+                'password' => Hash::make('Admin1234#'),
+                'must_change_password' => false,
+                'is_active' => true,
+                'terms_accepted_at' => now(),
+                'terms_accepted_ip' => '127.0.0.1',
+            ]
+        );
+
+        // 3. Categorías de producto
+        $catInsumos = Category::firstOrCreate(
+            ['name' => 'Insumos de Cocina'],
+            [
+                'description' => 'Materia prima e ingredientes pesados en gramos para preparación',
                 'is_active' => true,
             ]
         );
 
-        // Vincular usuarios al emprendimiento si no están vinculados
-        if (!$business->users()->where('users.id', $adminUser->id)->exists()) {
-            $business->users()->attach($adminUser->id, [
-                'role_id' => $adminRole->id,
-                'is_active' => true,
-            ]);
-        }
-
-        if (!$business->users()->where('users.id', $employeeUser->id)->exists()) {
-            $business->users()->attach($employeeUser->id, [
-                'role_id' => $employeeRole->id,
-                'is_active' => true,
-            ]);
-        }
-
-        // 4. Categorías
-        $catCalzado = Category::firstOrCreate(
-            ['business_id' => $business->id, 'name' => 'Calzado Deportivo'],
+        $catPlatos = Category::firstOrCreate(
+            ['name' => 'Almuerzos y Platos Fit'],
             [
-                'description' => 'Tenis y calzado urbano y deportivo',
+                'description' => 'Platos saludables preparados con recetas y porciones exactas',
                 'is_active' => true,
             ]
         );
 
-        $catTextil = Category::firstOrCreate(
-            ['business_id' => $business->id, 'name' => 'Textil y Confección'],
+        $catSuplementos = Category::firstOrCreate(
+            ['name' => 'Suplementación Deportiva'],
             [
-                'description' => 'Camisetas, pantalones y prendas de vestir',
+                'description' => 'Proteínas, creatinas, aminoácidos y accesorios deportivos de venta directa',
                 'is_active' => true,
             ]
         );
 
-        $catAccesorios = Category::firstOrCreate(
-            ['business_id' => $business->id, 'name' => 'Accesorios de Moda'],
+        // 4. Insumos Base en gramos (SaborCaliFit)
+        $insumoCarne = Product::firstOrCreate(
+            ['sku' => 'INS-001'],
             [
-                'description' => 'Bolsos, gorras y complementos',
-                'is_active' => true,
+                'nombre' => 'Carne de Res / Pollo Magra',
+                'descripcion' => 'Proteína magra para almuerzos fit pesada en gramos',
+                'tipo_producto' => 'INSUMO',
+                'unidad_base' => 'GRAMO',
+                'category_id' => $catInsumos->id,
+                'stock' => 50000.000, // 50 kg
+                'stock_minimo' => 5000.000,
+                'precio_compra' => 35.00, // $35 por gramo ($17,500/libra)
+                'precio_venta' => 0.00,
+                'activo' => true,
             ]
         );
 
-        // 5. Clientes
-        $cliente1 = Customer::firstOrCreate(
-            ['business_id' => $business->id, 'identification_number' => '1144001001'],
+        $insumoArroz = Product::firstOrCreate(
+            ['sku' => 'INS-002'],
             [
-                'name' => 'Carlos Mario Restrepo',
-                'email' => 'carlos.restrepo@ejemplo.com',
-                'phone' => '3104567890',
-                'address' => 'Barrio San Fernando, Cali',
-                'is_active' => true,
+                'nombre' => 'Arroz Blanco / Integral Cocido',
+                'descripcion' => 'Carbohidrato complejo pesado en gramos',
+                'tipo_producto' => 'INSUMO',
+                'unidad_base' => 'GRAMO',
+                'category_id' => $catInsumos->id,
+                'stock' => 40000.000, // 40 kg
+                'stock_minimo' => 4000.000,
+                'precio_compra' => 6.00,
+                'precio_venta' => 0.00,
+                'activo' => true,
             ]
         );
 
-        $cliente2 = Customer::firstOrCreate(
-            ['business_id' => $business->id, 'identification_number' => '1144002002'],
+        $insumoFrijoles = Product::firstOrCreate(
+            ['sku' => 'INS-003'],
             [
-                'name' => 'María Fernanda Ospina',
-                'email' => 'maria.ospina@ejemplo.com',
-                'phone' => '3157891234',
-                'address' => 'Barrio Granada, Cali',
-                'is_active' => true,
+                'nombre' => 'Frijoles Cocidos',
+                'descripcion' => 'Grano cocido tradicional fit',
+                'tipo_producto' => 'INSUMO',
+                'unidad_base' => 'GRAMO',
+                'category_id' => $catInsumos->id,
+                'stock' => 30000.000, // 30 kg
+                'stock_minimo' => 3000.000,
+                'precio_compra' => 10.00,
+                'precio_venta' => 0.00,
+                'activo' => true,
             ]
         );
 
-        // 6. Proveedores
-        $prov1 = Supplier::firstOrCreate(
-            ['business_id' => $business->id, 'identification_number' => '900123456-1'],
+        $insumoLentejas = Product::firstOrCreate(
+            ['sku' => 'INS-004'],
             [
-                'name' => 'Textiles del Valle S.A.S.',
-                'contact_name' => 'Roberto Gómez',
-                'email' => 'ventas@textilesdelvalle.com',
-                'phone' => '6025551234',
-                'address' => 'Zona Industrial Acopi, Yumbo',
-                'is_active' => true,
+                'nombre' => 'Lentejas Cocidas',
+                'descripcion' => 'Grano cocido rico en proteína y hierro',
+                'tipo_producto' => 'INSUMO',
+                'unidad_base' => 'GRAMO',
+                'category_id' => $catInsumos->id,
+                'stock' => 30000.000, // 30 kg
+                'stock_minimo' => 3000.000,
+                'precio_compra' => 10.00,
+                'precio_venta' => 0.00,
+                'activo' => true,
             ]
         );
 
-        $prov2 = Supplier::firstOrCreate(
-            ['business_id' => $business->id, 'identification_number' => '900987654-3'],
+        $insumoVerduras = Product::firstOrCreate(
+            ['sku' => 'INS-005'],
             [
-                'name' => 'Calzado Industrial de Occidente',
-                'contact_name' => 'Patricia Caicedo',
-                'email' => 'pedidos@calzadooccidente.com',
-                'phone' => '6026669876',
-                'address' => 'Barrio Obrero, Cali',
-                'is_active' => true,
+                'nombre' => 'Verduras Salteadas',
+                'descripcion' => 'Mix de brócoli, zanahoria, calabacín y habichuela',
+                'tipo_producto' => 'INSUMO',
+                'unidad_base' => 'GRAMO',
+                'category_id' => $catInsumos->id,
+                'stock' => 40000.000, // 40 kg
+                'stock_minimo' => 4000.000,
+                'precio_compra' => 8.00,
+                'precio_venta' => 0.00,
+                'activo' => true,
             ]
         );
 
-        // 7. Productos con diferentes estados de stock (Normal, Bajo Stock, Agotado)
-        $prod1 = Product::firstOrCreate(
-            ['business_id' => $business->id, 'sku' => 'CAL-001'],
+        $insumoPapa = Product::firstOrCreate(
+            ['sku' => 'INS-006'],
             [
-                'category_id' => $catCalzado->id,
-                'name' => 'Tenis Running Pro Valle',
-                'description' => 'Calzado deportivo ergonómico suela antideslizante',
-                'cost_price' => 110000.00,
-                'sale_price' => 180000.00,
-                'stock' => 22,
-                'min_stock' => 5,
-                'is_active' => true,
+                'nombre' => 'Papa Cocida / Horneada',
+                'descripcion' => 'Papa al vapor o al horno sin grasa añadida',
+                'tipo_producto' => 'INSUMO',
+                'unidad_base' => 'GRAMO',
+                'category_id' => $catInsumos->id,
+                'stock' => 40000.000, // 40 kg
+                'stock_minimo' => 4000.000,
+                'precio_compra' => 6.00,
+                'precio_venta' => 0.00,
+                'activo' => true,
             ]
         );
 
-        $prod2 = Product::firstOrCreate(
-            ['business_id' => $business->id, 'sku' => 'ROP-001'],
+        $insumoProteina = Product::firstOrCreate(
+            ['sku' => 'INS-007'],
             [
-                'category_id' => $catTextil->id,
-                'name' => 'Camiseta 100% Algodón Cali',
-                'description' => 'Camiseta casual con estampado representativo',
-                'cost_price' => 24000.00,
-                'sale_price' => 48000.00,
-                'stock' => 3, // Stock bajo (3 <= 10)
-                'min_stock' => 10,
-                'is_active' => true,
+                'nombre' => 'Proteína Whey en Polvo (Insumo Cocina)',
+                'descripcion' => 'Aislado de suero para batidos y adiciones proteicas',
+                'tipo_producto' => 'INSUMO',
+                'unidad_base' => 'GRAMO',
+                'category_id' => $catInsumos->id,
+                'stock' => 15000.000, // 15 kg
+                'stock_minimo' => 2000.000,
+                'precio_compra' => 120.00,
+                'precio_venta' => 0.00,
+                'activo' => true,
             ]
         );
 
-        $prod3 = Product::firstOrCreate(
-            ['business_id' => $business->id, 'sku' => 'ACC-001'],
+        // Suplementos para venta directa
+        Product::firstOrCreate(
+            ['sku' => 'SUP-001'],
             [
-                'category_id' => $catAccesorios->id,
-                'name' => 'Bolso Artesanal Cuero Café',
-                'description' => 'Bolso mediano cosido a mano con cuero del Valle',
-                'cost_price' => 55000.00,
-                'sale_price' => 95000.00,
-                'stock' => 0, // Agotado
-                'min_stock' => 4,
-                'is_active' => true,
+                'nombre' => 'Creatina Monohidratada Creapure 300g',
+                'descripcion' => 'Creatina de máxima pureza para rendimiento de fuerza',
+                'tipo_producto' => 'SUPLEMENTO',
+                'unidad_base' => 'UNIDAD',
+                'category_id' => $catSuplementos->id,
+                'stock' => 25.000,
+                'stock_minimo' => 5.000,
+                'precio_compra' => 95000.00,
+                'precio_venta' => 140000.00,
+                'activo' => true,
             ]
         );
 
-        $prod4 = Product::firstOrCreate(
-            ['business_id' => $business->id, 'sku' => 'ACC-002'],
+        Product::firstOrCreate(
+            ['sku' => 'SUP-002'],
             [
-                'category_id' => $catAccesorios->id,
-                'name' => 'Gorra Urbana Bordada',
-                'description' => 'Gorra ajustable bordado especial',
-                'cost_price' => 18000.00,
-                'sale_price' => 38000.00,
-                'stock' => 15,
-                'min_stock' => 5,
-                'is_active' => true,
+                'nombre' => 'Proteína 100% Whey Isolate 2lb',
+                'descripcion' => 'Proteína de suero microfiltrada baja en carbohidratos',
+                'tipo_producto' => 'SUPLEMENTO',
+                'unidad_base' => 'UNIDAD',
+                'category_id' => $catSuplementos->id,
+                'stock' => 20.000,
+                'stock_minimo' => 4.000,
+                'precio_compra' => 130000.00,
+                'precio_venta' => 185000.00,
+                'activo' => true,
             ]
         );
 
-        // 8. Movimientos de inventario iniciales (Entradas)
-        $initialMovements = [
-            [$prod1, 25, 'Inventario inicial'],
-            [$prod2, 5, 'Inventario inicial'],
-            [$prod4, 15, 'Inventario inicial'],
+        // 5. Los 4 Platos Principales Fit
+        // 5.1 Ejercicio 200g con frijoles
+        $plato1 = Product::firstOrCreate(
+            ['sku' => 'PLA-001'],
+            [
+                'nombre' => 'Ejercicio 200g con frijoles',
+                'descripcion' => 'Almuerzo fit alto en proteína: 200g carne, 62.5g arroz, 23.81g frijoles, verduras y papa',
+                'tipo_producto' => 'PLATO',
+                'unidad_base' => 'UNIDAD',
+                'category_id' => $catPlatos->id,
+                'stock' => 0.000,
+                'stock_minimo' => 0.000,
+                'precio_compra' => 11000.00,
+                'precio_venta' => 25000.00,
+                'activo' => true,
+            ]
+        );
+
+        $receta1 = Recipe::firstOrCreate(
+            ['producto_plato_id' => $plato1->id],
+            [
+                'nombre' => 'Fórmula Ejercicio 200g con frijoles',
+                'activa' => true,
+            ]
+        );
+
+        $this->syncRecipeItems($receta1, [
+            $insumoCarne->id => 200.000,
+            $insumoArroz->id => 62.500,
+            $insumoFrijoles->id => 23.810,
+            $insumoVerduras->id => 100.000,
+            $insumoPapa->id => 100.000,
+        ]);
+
+        // 5.2 Ejercicio 120g con frijoles
+        $plato2 = Product::firstOrCreate(
+            ['sku' => 'PLA-002'],
+            [
+                'nombre' => 'Ejercicio 120g con frijoles',
+                'descripcion' => 'Almuerzo fit porción estándar: 120g carne, 62.5g arroz, 23.81g frijoles, verduras y papa',
+                'tipo_producto' => 'PLATO',
+                'unidad_base' => 'UNIDAD',
+                'category_id' => $catPlatos->id,
+                'stock' => 0.000,
+                'stock_minimo' => 0.000,
+                'precio_compra' => 8500.00,
+                'precio_venta' => 20000.00,
+                'activo' => true,
+            ]
+        );
+
+        $receta2 = Recipe::firstOrCreate(
+            ['producto_plato_id' => $plato2->id],
+            [
+                'nombre' => 'Fórmula Ejercicio 120g con frijoles',
+                'activa' => true,
+            ]
+        );
+
+        $this->syncRecipeItems($receta2, [
+            $insumoCarne->id => 120.000,
+            $insumoArroz->id => 62.500,
+            $insumoFrijoles->id => 23.810,
+            $insumoVerduras->id => 100.000,
+            $insumoPapa->id => 100.000,
+        ]);
+
+        // 5.3 Ejercicio 200g con lentejas
+        $plato3 = Product::firstOrCreate(
+            ['sku' => 'PLA-003'],
+            [
+                'nombre' => 'Ejercicio 200g con lentejas',
+                'descripcion' => 'Almuerzo fit alto en proteína: 200g carne, 62.5g arroz, 14.29g lentejas, verduras y papa',
+                'tipo_producto' => 'PLATO',
+                'unidad_base' => 'UNIDAD',
+                'category_id' => $catPlatos->id,
+                'stock' => 0.000,
+                'stock_minimo' => 0.000,
+                'precio_compra' => 11000.00,
+                'precio_venta' => 25000.00,
+                'activo' => true,
+            ]
+        );
+
+        $receta3 = Recipe::firstOrCreate(
+            ['producto_plato_id' => $plato3->id],
+            [
+                'nombre' => 'Fórmula Ejercicio 200g con lentejas',
+                'activa' => true,
+            ]
+        );
+
+        $this->syncRecipeItems($receta3, [
+            $insumoCarne->id => 200.000,
+            $insumoArroz->id => 62.500,
+            $insumoLentejas->id => 14.290,
+            $insumoVerduras->id => 100.000,
+            $insumoPapa->id => 100.000,
+        ]);
+
+        // 5.4 Ejercicio 120g con lentejas
+        $plato4 = Product::firstOrCreate(
+            ['sku' => 'PLA-004'],
+            [
+                'nombre' => 'Ejercicio 120g con lentejas',
+                'descripcion' => 'Almuerzo fit porción estándar: 120g carne, 62.5g arroz, 14.29g lentejas, verduras y papa',
+                'tipo_producto' => 'PLATO',
+                'unidad_base' => 'UNIDAD',
+                'category_id' => $catPlatos->id,
+                'stock' => 0.000,
+                'stock_minimo' => 0.000,
+                'precio_compra' => 8500.00,
+                'precio_venta' => 20000.00,
+                'activo' => true,
+            ]
+        );
+
+        $receta4 = Recipe::firstOrCreate(
+            ['producto_plato_id' => $plato4->id],
+            [
+                'nombre' => 'Fórmula Ejercicio 120g con lentejas',
+                'activa' => true,
+            ]
+        );
+
+        $this->syncRecipeItems($receta4, [
+            $insumoCarne->id => 120.000,
+            $insumoArroz->id => 62.500,
+            $insumoLentejas->id => 14.290,
+            $insumoVerduras->id => 100.000,
+            $insumoPapa->id => 100.000,
+        ]);
+
+        // 6. Las 7 Adiciones Reutilizables con Precio y Receta de Insumos
+        $adicionesData = [
+            [
+                'nombre' => 'Carne adicional 120g',
+                'precio' => 8000.00,
+                'ingrediente_id' => $insumoCarne->id,
+                'cantidad' => 120.000,
+            ],
+            [
+                'nombre' => 'Carne adicional 200g',
+                'precio' => 12000.00,
+                'ingrediente_id' => $insumoCarne->id,
+                'cantidad' => 200.000,
+            ],
+            [
+                'nombre' => 'Porción adicional de Arroz 62.5g',
+                'precio' => 3000.00,
+                'ingrediente_id' => $insumoArroz->id,
+                'cantidad' => 62.500,
+            ],
+            [
+                'nombre' => 'Porción adicional de Frijoles 23.81g',
+                'precio' => 3500.00,
+                'ingrediente_id' => $insumoFrijoles->id,
+                'cantidad' => 23.810,
+            ],
+            [
+                'nombre' => 'Porción adicional de Lentejas 14.29g',
+                'precio' => 3500.00,
+                'ingrediente_id' => $insumoLentejas->id,
+                'cantidad' => 14.290,
+            ],
+            [
+                'nombre' => 'Porción adicional de Papa 100g',
+                'precio' => 3000.00,
+                'ingrediente_id' => $insumoPapa->id,
+                'cantidad' => 100.000,
+            ],
+            [
+                'nombre' => 'Scoop adicional de Proteína Whey 30g',
+                'precio' => 6000.00,
+                'ingrediente_id' => $insumoProteina->id,
+                'cantidad' => 30.000,
+            ],
         ];
 
-        foreach ($initialMovements as [$product, $qty, $reason]) {
-            InventoryMovement::firstOrCreate(
+        $additionIds = [];
+        foreach ($adicionesData as $item) {
+            $adicion = Addition::firstOrCreate(
+                ['nombre' => $item['nombre']],
                 [
-                    'business_id' => $business->id,
-                    'product_id' => $product->id,
-                    'type' => 'entry',
-                    'quantity' => $qty,
+                    'precio' => $item['precio'],
+                    'activo' => true,
+                ]
+            );
+
+            AdditionItem::firstOrCreate(
+                [
+                    'adicion_id' => $adicion->id,
+                    'ingrediente_id' => $item['ingrediente_id'],
                 ],
                 [
-                    'user_id' => $adminUser->id,
-                    'previous_stock' => 0,
-                    'new_stock' => $qty,
-                    'reason' => $reason,
-                    'movement_date' => Carbon::now()->subDays(5),
+                    'cantidad' => $item['cantidad'],
+                ]
+            );
+
+            $additionIds[] = $adicion->id;
+        }
+
+        // Vincular las 7 adiciones a los 4 platos principales fit
+        $platos = [$plato1, $plato2, $plato3, $plato4];
+        foreach ($platos as $plato) {
+            $plato->adiciones()->syncWithoutDetaching($additionIds);
+        }
+
+        // 7. Mesas de Salón (Mesa 1 a Mesa 8)
+        $mesasData = [
+            ['name' => 'Mesa 1', 'capacity' => 4],
+            ['name' => 'Mesa 2', 'capacity' => 4],
+            ['name' => 'Mesa 3', 'capacity' => 2],
+            ['name' => 'Mesa 4', 'capacity' => 2],
+            ['name' => 'Mesa 5', 'capacity' => 6],
+            ['name' => 'Mesa 6', 'capacity' => 6],
+            ['name' => 'Mesa 7', 'capacity' => 4],
+            ['name' => 'Mesa 8', 'capacity' => 4],
+        ];
+
+        foreach ($mesasData as $mesa) {
+            RestaurantTable::firstOrCreate(
+                ['name' => $mesa['name']],
+                [
+                    'capacity' => $mesa['capacity'],
+                    'status' => 'available',
+                    'is_active' => true,
                 ]
             );
         }
 
-        // 9. Venta de demostración
-        $sale = Sale::firstOrCreate(
-            ['business_id' => $business->id, 'invoice_number' => 'FAC-000001'],
+        // 8. Clientes demo
+        Customer::firstOrCreate(
+            ['document' => '222222222222'],
             [
-                'user_id' => $employeeUser->id,
-                'customer_id' => $cliente1->id,
-                'sale_date' => Carbon::now()->subDays(1),
-                'subtotal' => 180000.00 + (48000.00 * 2), // 276000
-                'discount' => 6000.00,
-                'discount_percentage' => 2.17, // 6000 / 276000 * 100 ≈ 2.17%
-                'total' => 270000.00,
-                'payment_method' => 'cash',
-                'status' => 'completed',
-                'notes' => 'Venta presencial de mostrador con descuento promocional.',
+                'name' => 'Consumidor Final',
+                'email' => 'consumidor@saborcalifit.com',
+                'phone' => '3000000000',
+                'address' => 'Punto de Venta Bochalema',
+                'is_active' => true,
             ]
         );
 
-        SaleDetail::firstOrCreate(
-            ['sale_id' => $sale->id, 'product_id' => $prod1->id],
+        Customer::firstOrCreate(
+            ['document' => '1144123456'],
             [
-                'quantity' => 1,
-                'unit_price' => 180000.00,
-                'subtotal' => 180000.00,
+                'name' => 'Carlos Andrés Rodríguez',
+                'email' => 'carlos.atleta@gmail.com',
+                'phone' => '3157778899',
+                'address' => 'Cra 109 # 45-12, Bochalema, Cali',
+                'is_active' => true,
             ]
         );
 
-        SaleDetail::firstOrCreate(
-            ['sale_id' => $sale->id, 'product_id' => $prod2->id],
+        // 9. Proveedores demo
+        Supplier::firstOrCreate(
+            ['nit' => '900555444-1'],
             [
-                'quantity' => 2,
-                'unit_price' => 48000.00,
-                'subtotal' => 96000.00,
+                'name' => 'Distribuidora Carnes y Granos del Valle SAS',
+                'contact_name' => 'Mateo Gómez',
+                'email' => 'ventas@carnesygranos.com',
+                'phone' => '3128889900',
+                'address' => 'Zona Industrial Acopi, Yumbo',
+                'is_active' => true,
             ]
         );
+    }
+
+    /**
+     * Sincroniza ingredientes en una receta.
+     */
+    private function syncRecipeItems(Recipe $recipe, array $ingredientes): void
+    {
+        foreach ($ingredientes as $ingredienteId => $cantidad) {
+            RecipeItem::firstOrCreate(
+                [
+                    'receta_id' => $recipe->id,
+                    'ingrediente_id' => $ingredienteId,
+                ],
+                [
+                    'cantidad_por_porcion' => $cantidad,
+                    'unidad' => 'GRAMO',
+                ]
+            );
+        }
     }
 }

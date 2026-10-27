@@ -6,16 +6,17 @@ use App\AI\Contracts\AiProviderInterface;
 use App\AI\Enums\AiIntent;
 use App\AI\Exceptions\AiProviderException;
 use App\AI\Providers\FakeAiProvider;
-use App\AI\Services\AiQueryService;
-use App\Models\Business;
-use App\Models\Category;
+use App\AI\Tools\RestaurantAiTools;
+use App\AI\Tools\SaleAiTools;
 use App\Models\Customer;
 use App\Models\Product;
+use App\Models\RestaurantOrder;
+use App\Models\RestaurantTable;
 use App\Models\Role;
 use App\Models\Sale;
 use App\Models\SaleDetail;
+use App\Models\SalePayment;
 use App\Models\User;
-use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -23,14 +24,11 @@ class AiModuleTest extends TestCase
 {
     use RefreshDatabase;
 
-    protected Role $adminRole;
-    protected Role $employeeRole;
-    protected Business $businessA;
-    protected Business $businessB;
-    protected User $adminUserA;
-    protected User $employeeUserA;
-    protected User $adminUserB;
+    protected User $admin;
+    protected User $employee;
     protected FakeAiProvider $fakeProvider;
+    protected Product $pechuga;
+    protected Product $proteina;
 
     protected function setUp(): void
     {
@@ -41,235 +39,264 @@ class AiModuleTest extends TestCase
         $this->fakeProvider = new FakeAiProvider();
         $this->app->instance(AiProviderInterface::class, $this->fakeProvider);
 
-        $this->adminRole = Role::create([
-            'name' => 'Administrador',
+        $roleAdmin = Role::create([
             'slug' => Role::ROLE_ADMIN,
+            'name' => 'Administrador',
         ]);
 
-        $this->employeeRole = Role::create([
-            'name' => 'Empleado',
+        $roleEmployee = Role::create([
             'slug' => Role::ROLE_EMPLOYEE,
+            'name' => 'Empleado POS',
         ]);
 
-        $this->businessA = Business::create(['name' => 'Emprendimiento A']);
-        $this->businessB = Business::create(['name' => 'Emprendimiento B']);
+        $this->admin = User::create([
+            'role_id' => $roleAdmin->id,
+            'name' => 'Admin CaliFit',
+            'email' => 'admin@califit.com',
+            'password' => bcrypt('password123'),
+            'must_change_password' => false,
+            'is_active' => true,
+        ]);
 
-        $this->adminUserA = User::factory()->create();
-        $this->businessA->users()->attach($this->adminUserA->id, ['role_id' => $this->adminRole->id, 'is_active' => true]);
+        $this->employee = User::create([
+            'role_id' => $roleEmployee->id,
+            'name' => 'Empleado CaliFit',
+            'email' => 'empleado@califit.com',
+            'password' => bcrypt('password123'),
+            'must_change_password' => false,
+            'is_active' => true,
+        ]);
 
-        $this->employeeUserA = User::factory()->create();
-        $this->businessA->users()->attach($this->employeeUserA->id, ['role_id' => $this->employeeRole->id, 'is_active' => true]);
+        // Insumo con bajo stock (stock 500 <= stock_minimo 1000)
+        $this->pechuga = Product::create([
+            'sku' => 'INS-PECHUGA',
+            'nombre' => 'Pechuga de Pollo Fresca',
+            'tipo_producto' => 'INSUMO',
+            'unidad_base' => 'GRAMO',
+            'stock' => 500,
+            'stock_minimo' => 1000,
+            'precio_compra' => 12.00,
+            'precio_venta' => 0.00,
+            'activo' => true,
+        ]);
 
-        $this->adminUserB = User::factory()->create();
-        $this->businessB->users()->attach($this->adminUserB->id, ['role_id' => $this->adminRole->id, 'is_active' => true]);
+        // Suplemento disponible
+        $this->proteina = Product::create([
+            'sku' => 'SUP-WHEY-01',
+            'nombre' => 'Proteína Whey 2lb Vainilla',
+            'tipo_producto' => 'SUPLEMENTO',
+            'unidad_base' => 'UNIDAD',
+            'stock' => 15,
+            'stock_minimo' => 3,
+            'precio_compra' => 90000.00,
+            'precio_venta' => 140000.00,
+            'activo' => true,
+        ]);
     }
 
-    public function test_module_can_be_disabled_via_config_without_affecting_core(): void
+    /**
+     * 1. Consulta válida: pregunta reconocida → intent válido resuelto → datos verídicos devueltos.
+     */
+    public function test_valid_natural_language_query_resolves_and_returns_real_data(): void
     {
-        // 1. Desactivar el módulo de IA
-        config(['ai.enabled' => false]);
+        $this->fakeProvider->setNextIntent(AiIntent::LOW_STOCK_INGREDIENTS);
 
-        $aiResponse = $this->actingAs($this->adminUserA)
-            ->withSession(['current_business_id' => $this->businessA->id])
-            ->postJson('/ai/ask', ['query' => '¿Ventas de hoy?']);
-
-        $aiResponse->assertStatus(200);
-        $aiResponse->assertJsonFragment(['success' => false]);
-        $this->assertStringContainsString('desactivado', $aiResponse->json('summary'));
-
-        // 2. Comprobar que TODOS los módulos del núcleo funcionan perfectamente con 200 OK
-        $coreRoutes = [
-            '/products',
-            '/inventory',
-            '/sales',
-            '/customers',
-            '/suppliers',
-            '/reports',
-        ];
-
-        foreach ($coreRoutes as $route) {
-            $response = $this->actingAs($this->adminUserA)
-                ->withSession(['current_business_id' => $this->businessA->id])
-                ->get($route);
-
-            $response->assertStatus(200);
-        }
-    }
-
-    public function test_unauthorized_intent_is_strictly_rejected(): void
-    {
-        // El proveedor simula devolver una intención arbitraria no autorizada
-        $this->fakeProvider->setNextIntent('drop_tables', ['table' => 'users']);
-
-        $response = $this->actingAs($this->adminUserA)
-            ->withSession(['current_business_id' => $this->businessA->id])
-            ->postJson('/ai/ask', ['query' => 'Eliminar base de datos']);
+        $response = $this->actingAs($this->admin)->postJson(route('ai.ask'), [
+            'query' => '¿Qué insumos de cocina tienen bajo stock?',
+        ]);
 
         $response->assertStatus(200);
         $response->assertJson([
+            'isSuccess' => true,
+            'intent' => 'low_stock_ingredients',
+        ]);
+
+        $this->assertStringContainsString('Pechuga de Pollo Fresca', $response->json('summary') . json_encode($response->json('data')));
+    }
+
+    /**
+     * 2. Rechazo fuera de Whitelist: intención no registrada o maliciosa → rechazada controladamente sin error 500.
+     */
+    public function test_intent_outside_whitelist_is_rejected_cleanly_without_500(): void
+    {
+        $this->fakeProvider->setNextIntent('unregistered_arbitrary_intent');
+
+        $response = $this->actingAs($this->admin)->postJson(route('ai.ask'), [
+            'query' => 'Ejecutar comando no autorizado en el sistema',
+        ]);
+
+        $response->assertStatus(200);
+        $response->assertJson([
+            'isSuccess' => false,
             'intent' => 'unauthorized',
-            'success' => false,
         ]);
         $this->assertStringContainsString('no corresponde a una operación de lectura permitida', $response->json('summary'));
     }
 
-    public function test_business_id_is_strictly_injected_by_laravel_preventing_cross_tenant_access(): void
+    /**
+     * 3. Protección contra Mutación: intento de mutación (DELETE/DROP/UPDATE/INSERT) bloqueado determinísticamente.
+     */
+    public function test_mutation_attempt_is_blocked_deterministically(): void
     {
-        // Tenant A: Producto en bajo stock
-        Product::withoutGlobalScopes()->create([
-            'business_id' => $this->businessA->id,
-            'name' => 'Café Tenant A',
-            'sku' => 'CFE-A',
-            'stock' => 2,
-            'min_stock' => 5,
-            'cost_price' => 1000,
-            'sale_price' => 2000,
-            'is_active' => true,
+        $response = $this->actingAs($this->admin)->postJson(route('ai.ask'), [
+            'query' => 'DELETE FROM products WHERE id = 1',
         ]);
-
-        // Tenant B: Producto en bajo stock
-        Product::withoutGlobalScopes()->create([
-            'business_id' => $this->businessB->id,
-            'name' => 'Café Tenant B',
-            'sku' => 'CFE-B',
-            'stock' => 1,
-            'min_stock' => 10,
-            'cost_price' => 5000,
-            'sale_price' => 8000,
-            'is_active' => true,
-        ]);
-
-        $this->fakeProvider->setNextIntent(AiIntent::LOW_STOCK_PRODUCTS);
-
-        $response = $this->actingAs($this->adminUserA)
-            ->withSession(['current_business_id' => $this->businessA->id])
-            ->postJson('/ai/ask', ['query' => '¿Cuáles productos tienen bajo stock?']);
-
-        $response->assertStatus(200);
-        $response->assertJsonFragment(['name' => 'Café Tenant A']);
-        $this->assertStringNotContainsString('Café Tenant B', $response->getContent());
-    }
-
-    public function test_read_only_restriction_is_preserved(): void
-    {
-        $product = Product::withoutGlobalScopes()->create([
-            'business_id' => $this->businessA->id,
-            'name' => 'Producto Prueba',
-            'sku' => 'TEST-01',
-            'stock' => 10,
-            'min_stock' => 5,
-            'cost_price' => 1000,
-            'sale_price' => 2000,
-            'is_active' => true,
-        ]);
-
-        $this->fakeProvider->setNextIntent(AiIntent::LIST_PRODUCTS);
-
-        $this->actingAs($this->adminUserA)
-            ->withSession(['current_business_id' => $this->businessA->id])
-            ->postJson('/ai/ask', ['query' => 'Listar productos']);
-
-        // Verificar que el stock y registros permanezcan intactos
-        $this->assertDatabaseHas('products', [
-            'id' => $product->id,
-            'stock' => 10,
-        ]);
-    }
-
-    public function test_provider_timeout_or_error_returns_friendly_fallback(): void
-    {
-        $this->fakeProvider->setException(new AiProviderException('Timeout de 10 segundos excedido'));
-
-        $response = $this->actingAs($this->adminUserA)
-            ->withSession(['current_business_id' => $this->businessA->id])
-            ->postJson('/ai/ask', ['query' => '¿Ventas de hoy?']);
 
         $response->assertStatus(200);
         $response->assertJson([
-            'intent' => 'fallback',
-            'summary' => AiQueryService::FALLBACK_MESSAGE,
-            'success' => false,
+            'isSuccess' => false,
+            'intent' => 'rejected_mutation',
         ]);
-        // Verificar que no se filtre el stack trace ni el mensaje técnico
-        $this->assertStringNotContainsString('Timeout de 10 segundos', $response->getContent());
+        $this->assertStringContainsString('solo lectura', $response->json('summary'));
+
+        // Comprobar que ningún producto fue alterado o eliminado
+        $this->assertDatabaseHas('products', ['id' => $this->pechuga->id]);
     }
 
-    public function test_all_nine_whitelisted_intents_execute_successfully_and_return_data(): void
+    /**
+     * 4. Fallback: proveedor caído o timeout simulado → respuesta controlada sin stack trace.
+     */
+    public function test_fallback_handles_provider_failure_gracefully_without_stack_trace(): void
     {
-        // Setup data
-        Customer::withoutGlobalScopes()->create([
-            'business_id' => $this->businessA->id,
-            'name' => 'Carlos Pérez',
+        $this->fakeProvider->setException(new AiProviderException('Gemini API Connection Timeout or Quota Exceeded'));
+
+        $response = $this->actingAs($this->admin)->postJson(route('ai.ask'), [
+            'query' => '¿Cuánto vendimos hoy?',
+        ]);
+
+        $response->assertStatus(200);
+        $response->assertJson([
+            'isSuccess' => false,
+            'intent' => 'fallback',
+        ]);
+        $this->assertStringContainsString('no está disponible temporalmente', $response->json('summary'));
+        $this->assertStringNotContainsString('Gemini API Connection Timeout', $response->getContent());
+    }
+
+    /**
+     * 5. Aislamiento: con AI_MODULE_ENABLED=false el asistente informa desactivación y el núcleo opera al 100%.
+     */
+    public function test_module_disabled_via_config_returns_informative_message_without_degrading_core(): void
+    {
+        config(['ai.enabled' => false]);
+
+        $response = $this->actingAs($this->admin)->postJson(route('ai.ask'), [
+            'query' => '¿Ventas de hoy?',
+        ]);
+
+        $response->assertStatus(200);
+        $response->assertJson([
+            'isSuccess' => false,
+            'intent' => 'disabled',
+        ]);
+        $this->assertStringContainsString('desactivado', $response->json('summary'));
+
+        // El núcleo de ventas y catálogo sigue operando normalmente con 200 OK
+        $this->actingAs($this->admin)->get(route('pos.index'))->assertStatus(200);
+        $this->actingAs($this->admin)->get(route('products.index'))->assertStatus(200);
+    }
+
+    /**
+     * 6. Autorización RBAC: empleado sin permisos recibe 403 Forbidden.
+     */
+    public function test_employee_is_forbidden_from_ai_assistant(): void
+    {
+        $this->actingAs($this->employee)
+            ->get(route('ai.index'))
+            ->assertStatus(403);
+
+        $this->actingAs($this->employee)
+            ->postJson(route('ai.ask'), ['query' => '¿Insumos bajos?'])
+            ->assertStatus(403);
+    }
+
+    /**
+     * 7. Rate Limiting: ráfaga superior a 30 peticiones/minuto recibe 429 Too Many Requests.
+     */
+    public function test_rate_limiting_enforces_30_requests_per_minute(): void
+    {
+        $this->fakeProvider->setNextIntent(AiIntent::COUNT_CUSTOMERS);
+
+        // Realizar 30 peticiones permitidas
+        for ($i = 0; $i < 30; $i++) {
+            $response = $this->actingAs($this->admin)->postJson(route('ai.ask'), [
+                'query' => '¿Cuántos clientes tenemos?',
+            ]);
+            $response->assertStatus(200);
+        }
+
+        // La petición 31 debe ser bloqueada por rate limiting con HTTP 429
+        $throttledResponse = $this->actingAs($this->admin)->postJson(route('ai.ask'), [
+            'query' => '¿Cuántos clientes tenemos?',
+        ]);
+
+        $throttledResponse->assertStatus(429);
+    }
+
+    /**
+     * 8. Herramientas IA: RestaurantAiTools y SaleAiTools devuelven métricas reales
+     * utilizando estados válidos ('completed', 'occupied') y columnas existentes ('method', 'order_type').
+     */
+    public function test_restaurant_and_sale_ai_tools_return_accurate_metrics_with_real_schema(): void
+    {
+        $mesa = RestaurantTable::create([
+            'name' => 'Mesa 10',
+            'capacity' => 4,
+            'status' => 'occupied',
             'is_active' => true,
         ]);
 
-        $prod = Product::withoutGlobalScopes()->create([
-            'business_id' => $this->businessA->id,
-            'name' => 'Arroz Integral',
-            'sku' => 'ARR-01',
-            'stock' => 3,
-            'min_stock' => 5,
-            'cost_price' => 2000,
-            'sale_price' => 4000,
-            'is_active' => true,
+        $order = RestaurantOrder::create([
+            'table_id' => $mesa->id,
+            'user_id' => $this->admin->id,
+            'order_number' => 'ORD-AI-001',
+            'order_type' => 'table',
+            'status' => 'open',
+            'guest_count' => 2,
+            'subtotal' => 40000,
+            'total' => 40000,
         ]);
 
-        $outProd = Product::withoutGlobalScopes()->create([
-            'business_id' => $this->businessA->id,
-            'name' => 'Frijol Negro',
-            'sku' => 'FRJ-02',
-            'stock' => 0,
-            'min_stock' => 5,
-            'cost_price' => 3000,
-            'sale_price' => 6000,
-            'is_active' => true,
-        ]);
+        $restaurantTools = new RestaurantAiTools();
+        $saleTools = new SaleAiTools();
 
-        $sale = Sale::withoutGlobalScopes()->create([
-            'business_id' => $this->businessA->id,
-            'user_id' => $this->adminUserA->id,
-            'invoice_number' => 'VTA-AI-01',
-            'sale_date' => Carbon::today(),
-            'subtotal' => 20000,
-            'discount' => 0,
-            'total' => 20000,
+        $activeOrders = $restaurantTools->activeOrders();
+        $this->assertEquals(1, count($activeOrders->data));
+        $this->assertStringContainsString('1 comandas activas', $activeOrders->summary);
+        $this->assertStringContainsString('Mesas ocupadas: 1', $activeOrders->summary);
+
+        // Venta completada de salón con pago en efectivo
+        $sale = Sale::create([
+            'user_id' => $this->admin->id,
+            'customer_name' => 'Cliente Mesa 10',
+            'customer_document' => '222222222222',
+            'invoice_number' => 'FAC-AI-01',
+            'order_type' => 'table',
+            'subtotal' => 50000,
+            'total' => 50000,
             'payment_method' => 'cash',
             'status' => 'completed',
         ]);
 
-        SaleDetail::create([
+        SalePayment::create([
             'sale_id' => $sale->id,
-            'product_id' => $prod->id,
-            'quantity' => 5,
-            'unit_price' => 4000,
-            'subtotal' => 20000,
+            'method' => 'cash',
+            'amount' => 50000,
         ]);
 
-        $intentsToTest = [
-            AiIntent::LIST_CUSTOMERS,
-            AiIntent::COUNT_CUSTOMERS,
-            AiIntent::LIST_PRODUCTS,
-            AiIntent::LOW_STOCK_PRODUCTS,
-            AiIntent::OUT_OF_STOCK_PRODUCTS,
-            AiIntent::TOP_SELLING_PRODUCTS,
-            AiIntent::SALES_SUMMARY,
-            AiIntent::SALES_BY_PERIOD,
-            AiIntent::INVENTORY_SUMMARY,
-        ];
+        $cashSummary = $restaurantTools->dailyCashSummary();
+        $this->assertEquals('$50.000', $cashSummary->data['total_collected']);
+        $this->assertEquals('$50.000', $cashSummary->data['cash']);
 
-        foreach ($intentsToTest as $intent) {
-            $this->fakeProvider->setNextIntent($intent);
+        $saleSummary = $saleTools->summary();
+        $this->assertEquals(1, $saleSummary->data['sales_count']);
+        $this->assertEquals('$50.000', $saleSummary->data['total_revenue']);
 
-            $response = $this->actingAs($this->adminUserA)
-                ->withSession(['current_business_id' => $this->businessA->id])
-                ->postJson('/ai/ask', ['query' => 'consulta de prueba']);
-
-            $response->assertStatus(200);
-            $response->assertJson([
-                'intent' => $intent,
-                'success' => true,
-            ]);
-            $this->assertNotEmpty($response->json('summary'));
-        }
+        $byChannel = $saleTools->byChannel();
+        $this->assertNotEmpty($byChannel->data);
+        $salonChannel = collect($byChannel->data)->firstWhere('channel', 'Salón (Mesas)');
+        $this->assertNotNull($salonChannel);
+        $this->assertEquals('$50.000', $salonChannel['total']);
+        $this->assertEquals(1, $salonChannel['sales_count']);
     }
 }

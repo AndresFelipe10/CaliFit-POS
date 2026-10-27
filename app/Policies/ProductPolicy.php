@@ -12,7 +12,7 @@ class ProductPolicy
      */
     public function viewAny(User $user): bool
     {
-        return $user->isCurrentAdmin() || $user->isCurrentEmployee();
+        return $user->isAdmin() || $user->isEmployee();
     }
 
     /**
@@ -20,11 +20,7 @@ class ProductPolicy
      */
     public function view(User $user, Product $product): bool
     {
-        if ((int) $product->business_id !== (int) session('current_business_id')) {
-            return false;
-        }
-
-        return $user->isCurrentAdmin() || $user->isCurrentEmployee();
+        return $user->isAdmin() || $user->isEmployee();
     }
 
     /**
@@ -32,7 +28,7 @@ class ProductPolicy
      */
     public function create(User $user): bool
     {
-        return $user->isCurrentAdmin();
+        return $user->isAdmin();
     }
 
     /**
@@ -40,11 +36,7 @@ class ProductPolicy
      */
     public function update(User $user, Product $product): bool
     {
-        if ((int) $product->business_id !== (int) session('current_business_id')) {
-            return false;
-        }
-
-        return $user->isCurrentAdmin();
+        return $user->isAdmin();
     }
 
     /**
@@ -52,10 +44,6 @@ class ProductPolicy
      */
     public function delete(User $user, Product $product): bool
     {
-        if ((int) $product->business_id !== (int) session('current_business_id')) {
-            return false;
-        }
-
-        return $user->isCurrentAdmin();
+        return $user->isAdmin();
     }
 }

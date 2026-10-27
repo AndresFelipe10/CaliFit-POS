@@ -6,19 +6,43 @@
 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
     <div>
         <h3 class="fw-bold mb-1">Centro de Reportes</h3>
-        <p class="text-muted small mb-0">Informes analíticos, financieros y operativos para <strong>{{ $currentBusiness->name }}</strong>.</p>
+        <p class="text-muted small mb-0">Informes analíticos, financieros y operativos para <strong>SABORCALIFIT | BOCHALEMA</strong>.</p>
     </div>
-    <span class="badge bg-primary-subtle text-primary px-3 py-2 rounded-pill fs-6">
+    <span class="badge bg-success-subtle text-success px-3 py-2 rounded-pill fs-6 border border-success-subtle">
         <i class="bi bi-shield-lock me-1"></i> Rol Administrador
     </span>
 </div>
 
+{{-- Pestañas de Reportes --}}
+<ul class="nav nav-pills mb-4 gap-2">
+    <li class="nav-item">
+        <a class="nav-link rounded-pill px-4 {{ request()->routeIs('reports.index') ? 'active' : '' }}" href="{{ route('reports.index') }}">
+            <i class="bi bi-grid me-1"></i> Centro
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link rounded-pill px-4 {{ request()->routeIs('reports.sales*') ? 'active' : '' }}" href="{{ route('reports.sales') }}">
+            <i class="bi bi-graph-up-arrow me-1"></i> Ventas
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link rounded-pill px-4 {{ request()->routeIs('reports.inventory*') ? 'active' : '' }}" href="{{ route('reports.inventory') }}">
+            <i class="bi bi-boxes me-1"></i> Valoración Inventario
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link rounded-pill px-4 {{ request()->routeIs('reports.top-products*') ? 'active' : '' }}" href="{{ route('reports.top-products') }}">
+            <i class="bi bi-trophy me-1"></i> Top Productos
+        </a>
+    </li>
+</ul>
+
 {{-- Accesos a los Reportes Principales --}}
 <div class="row g-4 mb-4">
     <div class="col-lg-3 col-md-6">
-        <div class="card card-custom p-4 bg-white h-100 border-0 shadow-sm d-flex flex-column border-start border-4 border-primary">
+        <div class="card card-custom p-4 bg-white h-100 border-0 shadow-sm d-flex flex-column border-start border-4 border-success">
             <div class="d-flex align-items-center gap-3 mb-3">
-                <div class="bg-primary-subtle text-primary p-3 rounded-circle d-flex align-items-center justify-content-center" style="width: 54px; height: 54px;">
+                <div class="bg-success-subtle text-success p-3 rounded-circle d-flex align-items-center justify-content-center" style="width: 54px; height: 54px;">
                     <i class="bi bi-cash-coin fs-3"></i>
                 </div>
                 <div>
@@ -30,8 +54,8 @@
                 Concilia los ingresos reales del día o del mes, discriminados estrictamente por efectivo, transferencias, Nequi y tarjetas con exportación e impresión.
             </p>
             <div class="d-flex justify-content-between align-items-center pt-3 border-top mt-auto">
-                <span class="text-primary fw-semibold small">Disponible para el equipo</span>
-                <a href="{{ route('reports.cash-register') }}" class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-semibold">
+                <span class="text-success fw-semibold small">Disponible para el equipo</span>
+                <a href="{{ route('cash-register.index') }}" class="btn btn-sm btn-outline-success rounded-pill px-3 fw-semibold">
                     Ver Cuadre <i class="bi bi-arrow-right"></i>
                 </a>
             </div>

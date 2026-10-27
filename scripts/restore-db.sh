@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ==============================================================================
 # Script de Restauración de Base de Datos MySQL (Docker)
-# Proyecto: Sistema de Gestión de Ventas e Inventario
+# Proyecto: CaliFit Sistema POS — SABORCALIFIT | BOCHALEMA
 # ==============================================================================
 set -euo pipefail
 
@@ -24,17 +24,17 @@ if [ -f "${PROJECT_ROOT}/.env" ]; then
     export $(grep -v '^#' "${PROJECT_ROOT}/.env" | grep -E '^(DB_|MYSQL_)' | xargs)
 fi
 
-DB_NAME="${DB_DATABASE:-sistema_web}"
+DB_NAME="${DB_DATABASE:-califit_pos_dev}"
 DB_USER="root"
-DB_PASS="${DB_ROOT_PASSWORD:-sistema_root_password}"
+DB_PASS="${DB_ROOT_PASSWORD:-califit_root_password}"
 
 # Detectar contenedor activo
-if docker ps --format '{{.Names}}' | grep -q "^sistema_db_prod$"; then
-    CONTAINER_NAME="sistema_db_prod"
-elif docker ps --format '{{.Names}}' | grep -q "^sistema_db$"; then
-    CONTAINER_NAME="sistema_db"
+if docker ps --format '{{.Names}}' | grep -q "^califit_db_prod$"; then
+    CONTAINER_NAME="califit_db_prod"
+elif docker ps --format '{{.Names}}' | grep -q "^califit_db$"; then
+    CONTAINER_NAME="califit_db"
 else
-    echo "ERROR: No se encontró un contenedor MySQL activo (sistema_db_prod o sistema_db)." >&2
+    echo "ERROR: No se encontró un contenedor MySQL activo (califit_db_prod o califit_db)." >&2
     exit 1
 fi
 

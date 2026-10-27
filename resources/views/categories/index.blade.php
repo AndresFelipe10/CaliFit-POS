@@ -87,10 +87,13 @@
                                 @endcan
 
                                 @can('delete', $category)
-                                    <form method="POST" action="{{ route('categories.destroy', $category) }}" class="d-inline">
+                                    <form method="POST" action="{{ route('categories.destroy', $category) }}" class="d-inline"
+                                          data-confirm="¿Estás seguro de eliminar la categoría '{{ $category->name }}'?"
+                                          data-confirm-title="¿Eliminar Categoría?"
+                                          data-confirm-btn="Sí, Eliminar Categoría">
                                         @csrf
                                         @method('DELETE')
-                                        <button type="submit" class="btn btn-outline-danger btn-sm rounded-pill px-3" onclick="return confirm('¿Estás seguro de eliminar esta categoría?')">
+                                        <button type="submit" class="btn btn-outline-danger btn-sm rounded-pill px-3">
                                             <i class="bi bi-trash-fill me-1"></i> Eliminar
                                         </button>
                                     </form>

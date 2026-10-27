@@ -12,7 +12,7 @@ class SalePolicy
      */
     public function viewAny(User $user): bool
     {
-        return $user->isCurrentAdmin() || $user->isCurrentEmployee();
+        return $user->isAdmin() || $user->isEmployee();
     }
 
     /**
@@ -20,11 +20,7 @@ class SalePolicy
      */
     public function view(User $user, Sale $sale): bool
     {
-        if ((int) $sale->business_id !== (int) session('current_business_id')) {
-            return false;
-        }
-
-        return $user->isCurrentAdmin() || $user->isCurrentEmployee();
+        return $user->isAdmin() || $user->isEmployee();
     }
 
     /**
@@ -32,7 +28,7 @@ class SalePolicy
      */
     public function create(User $user): bool
     {
-        return $user->isCurrentAdmin() || $user->isCurrentEmployee();
+        return $user->isAdmin() || $user->isEmployee();
     }
 
     /**
@@ -41,10 +37,6 @@ class SalePolicy
      */
     public function delete(User $user, Sale $sale): bool
     {
-        if ((int) $sale->business_id !== (int) session('current_business_id')) {
-            return false;
-        }
-
-        return $user->isCurrentAdmin();
+        return $user->isAdmin();
     }
 }

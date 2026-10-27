@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @php
-    $isRestaurant = app(\App\Services\Tenant\TenantManager::class)->get()?->isRestaurant();
+    $isRestaurant = true;
 @endphp
 
 @section('title', $isRestaurant ? 'Editar Plato / Producto del Menú' : 'Editar Producto')
@@ -76,7 +76,7 @@
                             <label for="cost_price" class="form-label small fw-semibold text-secondary">Precio de Compra / Costo <span class="text-danger">*</span></label>
                             <div class="input-group">
                                 <span class="input-group-text">$</span>
-                                <input type="number" step="0.01" min="0" class="form-control @error('cost_price') is-invalid @enderror" id="cost_price" name="cost_price" value="{{ old('cost_price', $product->cost_price ?? '0.00') }}">
+                                <input type="text" inputmode="numeric" class="form-control currency-input @error('cost_price') is-invalid @enderror" id="cost_price" name="cost_price" value="{{ old('cost_price', ($product->cost_price ?? 0) ? number_format((float)$product->cost_price, 0, ',', '.') : '0') }}">
                             </div>
                         </div>
                         <div class="col-md-4">
@@ -208,13 +208,12 @@
                             <label for="cost_price" class="form-label small fw-semibold text-secondary">Precio de Compra <span class="text-danger">*</span></label>
                             <div class="input-group">
                                 <span class="input-group-text">$</span>
-                                <input type="number" 
-                                       step="0.01" 
-                                       min="0" 
-                                       class="form-control @error('cost_price') is-invalid @enderror" 
+                                <input type="text" 
+                                       inputmode="numeric"
+                                       class="form-control currency-input @error('cost_price') is-invalid @enderror" 
                                        id="cost_price" 
                                        name="cost_price" 
-                                       value="{{ old('cost_price', $product->cost_price) }}" 
+                                       value="{{ old('cost_price', ($product->cost_price ?? 0) ? number_format((float)$product->cost_price, 0, ',', '.') : '0') }}" 
                                        required>
                             </div>
                         </div>
@@ -223,13 +222,12 @@
                             <label for="sale_price" class="form-label small fw-semibold text-secondary">Precio de Venta <span class="text-danger">*</span></label>
                             <div class="input-group">
                                 <span class="input-group-text">$</span>
-                                <input type="number" 
-                                       step="0.01" 
-                                       min="0" 
-                                       class="form-control @error('sale_price') is-invalid @enderror" 
+                                <input type="text" 
+                                       inputmode="numeric"
+                                       class="form-control currency-input @error('sale_price') is-invalid @enderror" 
                                        id="sale_price" 
                                        name="sale_price" 
-                                       value="{{ old('sale_price', $product->sale_price) }}" 
+                                       value="{{ old('sale_price', ($product->sale_price ?? 0) ? number_format((float)$product->sale_price, 0, ',', '.') : '0') }}" 
                                        required>
                             </div>
                         </div>

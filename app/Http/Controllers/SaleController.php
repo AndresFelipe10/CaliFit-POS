@@ -6,8 +6,7 @@ use App\Enums\PaymentMethod;
 use App\Exceptions\InsufficientStockException;
 use App\Exceptions\Sales\InvalidSaleItemException;
 use App\Exceptions\Sales\InvalidSalePaymentException;
-use App\Http\Requests\Sale\StoreSaleRequest;
-use App\Models\Business;
+use App\Http\Requests\StoreSaleRequest;
 use App\Models\Customer;
 use App\Models\Product;
 use App\Models\Sale;
@@ -24,52 +23,11 @@ class SaleController extends Controller
     ) {}
 
     /**
-     * Display a listing of sales.
+     * Redirige al módulo unificado de Reportes en la sección de Ventas de CaliFit.
      */
-    public function index(Request $request): View
+    public function index(): RedirectResponse
     {
-        Gate::authorize('viewAny', Sale::class);
-
-        $query = Sale::with(['customer', 'user']);
-
-        // Filter by date range
-        if ($from = $request->input('from')) {
-            $query->whereDate('sale_date', '>=', $from);
-        }
-        if ($to = $request->input('to')) {
-            $query->whereDate('sale_date', '<=', $to);
-        }
-
-        // Filter by payment method
-        if ($request->filled('payment_method')) {
-            $query->where('payment_method', $request->input('payment_method'));
-        }
-
-        // Filter by status
-        if ($request->filled('status')) {
-            $query->where('status', $request->input('status'));
-        }
-
-        // Search by invoice number or customer name
-        if ($search = $request->input('search')) {
-            $query->where(function ($q) use ($search) {
-                $q->where('invoice_number', 'like', "%{$search}%")
-                  ->orWhereHas('customer', function ($cq) use ($search) {
-                      $cq->where('name', 'like', "%{$search}%");
-                  });
-            });
-        }
-
-        $sales = $query->latest('sale_date')->paginate(15)->withQueryString();
-
-        return view('sales.index', [
-            'sales' => $sales,
-            'search' => $search,
-            'from' => $from,
-            'to' => $request->input('to'),
-            'selectedPaymentMethod' => $request->input('payment_method'),
-            'selectedStatus' => $request->input('status'),
-        ]);
+        return redirect()->route('reports.sales');
     }
 
     /**
@@ -84,8 +42,8 @@ class SaleController extends Controller
             $selectedCustomer = Customer::find(old('customer_id'));
         }
 
-        $products = Product::where('is_active', true)
-            ->orderBy('name')
+        $products = Product::where('activo', true)
+            ->orderBy('nombre')
             ->get();
 
         return view('sales.create', [
@@ -104,18 +62,17 @@ class SaleController extends Controller
     {
         try {
             $sale = $this->saleService->processSale(
-                data: $request->validated(),
-                businessId: (int) session('current_business_id'),
-                userId: (int) auth()->id(),
+                $request->validated(),
+                $request->user()
             );
 
             return redirect()->route('sales.show', $sale)
                 ->with('status', "Venta {$sale->invoice_number} registrada exitosamente.");
-        } catch (InsufficientStockException|InvalidSaleItemException $e) {
+        } catch (\App\Exceptions\InsufficientStockException|\App\Exceptions\InsufficientInventoryException|InvalidSaleItemException $e) {
             return redirect()->back()
                 ->withInput()
                 ->withErrors(['items' => $e->getMessage()]);
-        } catch (InvalidSalePaymentException $e) {
+        } catch (\InvalidArgumentException|InvalidSalePaymentException $e) {
             return redirect()->back()
                 ->withInput()
                 ->withErrors(['payments' => $e->getMessage()]);
@@ -142,49 +99,33 @@ class SaleController extends Controller
     public function printInvoice(Sale $sale): View
     {
         Gate::authorize('view', $sale);
-        abort_if($sale->business_id !== (int) session('current_business_id'), 403);
-
-        $sale->load(['details.product', 'customer', 'user', 'payments']);
-        $business = Business::findOrFail(session('current_business_id'));
-
-        return view('sales.print-invoice', [
-            'sale' => $sale,
-            'business' => $business,
-        ]);
+        return app(SalePrintController::class)->receipt($sale);
     }
 
     /**
-     * Print receipt format (thermal 80mm).
+     * Print receipt format (thermal 58mm).
      */
     public function printReceipt(Sale $sale): View
     {
         Gate::authorize('view', $sale);
-        abort_if($sale->business_id !== (int) session('current_business_id'), 403);
-
-        $sale->load(['details.product', 'customer', 'user', 'payments']);
-        $business = Business::findOrFail(session('current_business_id'));
-
-        return view('sales.print-receipt', [
-            'sale' => $sale,
-            'business' => $business,
-        ]);
+        return app(SalePrintController::class)->receipt($sale);
     }
 
     /**
      * Cancel a sale and restore stock (admin only).
      */
-    public function destroy(Sale $sale): RedirectResponse
+    public function destroy(Sale $sale, Request $request): RedirectResponse
     {
         Gate::authorize('delete', $sale);
 
         if ($sale->status === 'cancelled') {
-            return redirect()->route('sales.index')
+            return redirect()->route('reports.sales')
                 ->with('info', "La venta {$sale->invoice_number} ya se encuentra anulada.");
         }
 
-        $this->saleService->cancelSale($sale, (int) auth()->id());
+        $this->saleService->cancelSale($sale, $request->user(), 'Anulación manual solicitada');
 
-        return redirect()->route('sales.index')
+        return redirect()->route('reports.sales')
             ->with('status', "Venta {$sale->invoice_number} anulada correctamente. Stock restaurado.");
     }
 }

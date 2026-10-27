@@ -1,6 +1,6 @@
-# Manual de Usuario
+# Manual de Usuario — CaliFit Sistema POS
 
-> Guía básica de uso de **PuntoStock**, sistema de gestión de ventas e inventario para pequeños emprendimientos.
+> Guía básica de uso de **CaliFit Sistema POS**, software de punto de venta a la medida para **SABORCALIFIT | BOCHALEMA**.
 
 ## Registrar una venta
 
@@ -30,13 +30,13 @@ Después de registrar una venta (o desde el detalle de cualquier venta completad
 - El navegador abrirá automáticamente el diálogo de impresión. Selecciona tu impresora o "Guardar como PDF".
 - **Úsala cuando**: el cliente solicita un documento formal, para archivo contable, o para entregar una copia al cliente con membrete del negocio.
 
-### 🧾 Comprobante de venta (ticket térmico 80mm)
+### 🧾 Comprobante de venta (ticket térmico 58mm)
 - Haz clic en el botón **"Imprimir comprobante (ticket)"** (ícono de recibo).
-- Se abre en una nueva pestaña con formato compacto: ancho de 80mm, tipografía monoespaciada, layout vertical de una columna — optimizado para impresoras POS térmicas.
+- Se abre en una nueva pestaña con formato compacto: ancho de 58mm, tipografía monoespaciada, layout vertical de una columna — optimizado para impresoras POS térmicas.
 - El navegador abrirá automáticamente el diálogo de impresión. Selecciona tu impresora térmica.
 - **Úsalo cuando**: estés en el punto de venta del día a día y necesites un recibo rápido para el cliente.
 
-> **Nota**: Si no tienes impresora térmica, puedes verificar el formato del ticket usando la opción "Guardar como PDF" y configurando un tamaño de papel personalizado de 80mm de ancho en el diálogo de impresión de Chrome/Edge.
+> **Nota**: Si no tienes impresora térmica, puedes verificar el formato del ticket usando la opción "Guardar como PDF" y configurando un tamaño de papel personalizado de 58mm de ancho en el diálogo de impresión de Chrome/Edge.
 
 ## Consultar ventas anteriores
 
@@ -95,11 +95,11 @@ Si tu negocio tiene habilitado el perfil de **Restaurante**, dispondrás de mód
    - **LIBRE (Verde)**: Mesa desocupada lista para clientes. Haz clic en **"Abrir Mesa"** para tomar la primera comanda.
    - **OCUPADA (Azul)**: Mesa con consumo activo. Puedes consultar los platos ordenados y agregar nuevas tandas de cocina.
    - **EN COBRO (Amarillo)**: Mesa que ha solicitado la pre-cuenta informativa.
-3. **Comandas por Tandas**: Cada adición de platos se agrupa cronológicamente en tandas (Tanda #1, Tanda #2, etc.), permitiendo enviar únicamente los ítems pendientes a cocina con el botón **"Enviar a Cocina (80 mm)"**.
+3. **Comandas por Tandas**: Cada adición de platos se agrupa cronológicamente en tandas (Tanda #1, Tanda #2, etc.), permitiendo enviar únicamente los ítems pendientes a cocina con el botón **"Enviar a Cocina (58 mm)"**.
 
-### 2. Emisión de Pre-cuenta Informativa (80 mm)
-1. Cuando el cliente en mesa solicita la cuenta antes de pagar, haz clic en **"Pre-cuenta (80 mm)"**.
-2. El sistema cambia automáticamente el estado de la mesa y la comanda a **"En Cobro" (`billed`)** y abre la tirilla térmica en formato 80 mm.
+### 2. Emisión de Pre-cuenta Informativa (58 mm)
+1. Cuando el cliente en mesa solicita la cuenta antes de pagar, haz clic en **"Pre-cuenta (58 mm)"**.
+2. El sistema cambia automáticamente el estado de la mesa y la comanda a **"En Cobro" (`billed`)** y abre la tirilla térmica en formato 58 mm.
 3. **Aviso Legal**: La pre-cuenta incluye la leyenda obligatoria: *"ESTADO DE CONSUMO / PRE-CUENTA — DOCUMENTO INTERNO NO VÁLIDO COMO FACTURA O COMPROBANTE DE VENTA"*. No posee numeración consecutiva fiscal ni validez tributaria.
 
 ### 3. Domicilios y Pedidos Para Llevar
@@ -109,7 +109,7 @@ Si tu negocio tiene habilitado el perfil de **Restaurante**, dispondrás de mód
    - **En Cocina / Preparación**
    - **En Despacho / Con Repartidor**
    - **Entregado (Pendiente de Liquidar)**
-4. **Tirilla de Despacho (80 mm)**: Genera el ticket térmico con recuadro destacado de entrega y monto total contraentrega para el domiciliario.
+4. **Tirilla de Despacho (58 mm)**: Genera el ticket térmico con recuadro destacado de entrega y monto total contraentrega para el domiciliario.
 
 ### 4. Liquidación, Cobro y Cierre de Mesa
 1. Al momento de cobrar una comanda de salón o domicilio, haz clic en **"Cobrar / Facturar"**.

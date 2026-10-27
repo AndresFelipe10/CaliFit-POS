@@ -65,3 +65,7 @@ desktop.ini
 
 # Security audit artifacts
 /security-audit/
+
+# Repomix artifacts
+califit-core.xml
+repomix-output.*

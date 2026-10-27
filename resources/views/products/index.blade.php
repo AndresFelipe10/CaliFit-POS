@@ -1,78 +1,121 @@
 @extends('layouts.app')
 
-@php
-    $isRestaurant = $currentBusiness->isRestaurant();
-@endphp
-
-@section('title', $isRestaurant ? 'Menú / Productos' : 'Catálogo de Productos')
+@section('title', 'Catálogo Maestro de Productos')
 
 @section('content')
 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
     <div>
-        <h3 class="fw-bold mb-1">
-            {{ $isRestaurant ? 'Menú / Productos' : 'Catálogo de Productos' }}
+        <h3 class="fw-bold mb-1" style="color: #111827;">
+            <i class="bi bi-box-seam me-2" style="color: #10B981;"></i>Catálogo Maestro de Productos
         </h3>
         <p class="text-muted small mb-0">
-            {{ $isRestaurant 
-                ? 'Gestión de platos, bebidas y precios para la carta de ' . $currentBusiness->name . '.' 
-                : 'Gestión de inventario y precios para ' . $currentBusiness->name . '.' }}
+            Administración unificada de platos saludables, suplementos deportivos, insumos y recetas de SaborCaliFit.
         </p>
     </div>
-    @can('create', App\Models\Product::class)
-        <a href="{{ route('products.create') }}" class="btn btn-primary rounded-pill px-4 fw-semibold">
-            <i class="bi bi-plus-circle-fill me-1"></i> {{ $isRestaurant ? 'Nuevo Plato / Producto' : 'Registrar Producto' }}
+    <div class="d-flex gap-2">
+        <a href="{{ route('recipes.index') }}" class="btn btn-outline-secondary rounded-pill px-3 fw-semibold">
+            <i class="bi bi-journal-text me-1 text-success"></i> Gestor de Recetas
         </a>
-    @endcan
+        <a href="{{ route('products.create') }}" class="btn text-white rounded-pill px-4 fw-semibold shadow-sm" style="background-color: #10B981;">
+            <i class="bi bi-plus-circle-fill me-1"></i> Nuevo Producto
+        </a>
+    </div>
 </div>
 
-@if ($isRestaurant)
-    {{-- Pestañas de Navegación del Catálogo (Restaurante Híbrido) --}}
-    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
-        <ul class="nav nav-pills gap-2 mb-0">
-            <li class="nav-item">
-                <a class="nav-link rounded-pill px-4 {{ ($activeTab ?? 'all') === 'menu' ? 'active shadow-sm' : 'bg-white text-secondary shadow-sm' }}" 
-                   href="{{ route('products.index', array_merge(request()->except('page'), ['tab' => 'menu'])) }}">
-                    <i class="bi bi-book-half me-1"></i> Carta y Menú de Cocina
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link rounded-pill px-4 {{ ($activeTab ?? 'all') === 'merchandise' ? 'active shadow-sm' : 'bg-white text-secondary shadow-sm' }}" 
-                   href="{{ route('products.index', array_merge(request()->except('page'), ['tab' => 'merchandise'])) }}">
-                    <i class="bi bi-boxes me-1"></i> Mercancía y Mostrador
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link rounded-pill px-4 {{ ($activeTab ?? 'all') === 'all' ? 'active shadow-sm' : 'bg-white text-secondary shadow-sm' }}" 
-                   href="{{ route('products.index', array_merge(request()->except('page'), ['tab' => 'all'])) }}">
-                    <i class="bi bi-grid-fill me-1"></i> Todo el Catálogo
-                </a>
-            </li>
-        </ul>
-        @if (($activeTab ?? 'all') === 'merchandise')
-            <div>
-                <a href="{{ route('sales.create') }}" class="btn btn-outline-primary btn-sm rounded-pill px-3 shadow-sm">
-                    <i class="bi bi-cart-plus me-1"></i> Vender Mercancía
-                </a>
+{{-- Tarjetas de Pestañas y Filtro Rápido por Tipo --}}
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3 col-lg">
+        <a href="{{ route('products.index') }}" class="text-decoration-none">
+            <div class="card border-0 shadow-sm rounded-4 p-3 h-100 transition-hover {{ !request('tipo') ? 'border-start border-4 border-emerald bg-light' : 'bg-white' }}" style="{{ !request('tipo') ? 'border-left-color: #10B981 !important;' : '' }}">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <span class="text-muted small fw-semibold text-uppercase">Todos</span>
+                        <h4 class="fw-bold mb-0 text-dark">{{ $totalCount }}</h4>
+                    </div>
+                    <div class="rounded-circle p-2 bg-secondary bg-opacity-10 text-secondary">
+                        <i class="bi bi-grid-fill fs-5"></i>
+                    </div>
+                </div>
             </div>
-        @endif
+        </a>
     </div>
-@endif
+    <div class="col-6 col-md-3 col-lg">
+        <a href="{{ route('products.index', ['tipo' => 'PLATO']) }}" class="text-decoration-none">
+            <div class="card border-0 shadow-sm rounded-4 p-3 h-100 transition-hover {{ request('tipo') === 'PLATO' ? 'border-start border-4 border-success bg-light' : 'bg-white' }}" style="{{ request('tipo') === 'PLATO' ? 'border-left-color: #10B981 !important;' : '' }}">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <span class="text-muted small fw-semibold text-uppercase">Platos Carta</span>
+                        <h4 class="fw-bold mb-0 text-success">{{ $platosCount }}</h4>
+                    </div>
+                    <div class="rounded-circle p-2 bg-success bg-opacity-10 text-success">
+                        <i class="bi bi-egg-fried fs-5"></i>
+                    </div>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-6 col-md-3 col-lg">
+        <a href="{{ route('products.index', ['tipo' => 'SUPLEMENTO']) }}" class="text-decoration-none">
+            <div class="card border-0 shadow-sm rounded-4 p-3 h-100 transition-hover {{ request('tipo') === 'SUPLEMENTO' ? 'border-start border-4 bg-light' : 'bg-white' }}" style="{{ request('tipo') === 'SUPLEMENTO' ? 'border-color: #7c3aed !important;' : '' }}">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <span class="text-muted small fw-semibold text-uppercase">Suplementos</span>
+                        <h4 class="fw-bold mb-0" style="color: #6d28d9;">{{ $suplementosCount }}</h4>
+                    </div>
+                    <div class="rounded-circle p-2" style="background-color: #ede9fe; color: #6d28d9;">
+                        <i class="bi bi-capsule fs-5"></i>
+                    </div>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-6 col-md-3 col-lg">
+        <a href="{{ route('products.index', ['tipo' => 'INSUMO']) }}" class="text-decoration-none">
+            <div class="card border-0 shadow-sm rounded-4 p-3 h-100 transition-hover {{ request('tipo') === 'INSUMO' ? 'border-start border-4 border-warning bg-light' : 'bg-white' }}">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <span class="text-muted small fw-semibold text-uppercase">Insumos (g/ml)</span>
+                        <h4 class="fw-bold mb-0 text-warning">{{ $insumosCount }}</h4>
+                    </div>
+                    <div class="rounded-circle p-2 bg-warning bg-opacity-10 text-warning">
+                        <i class="bi bi-archive-fill fs-5"></i>
+                    </div>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-6 col-md-3 col-lg">
+        <a href="{{ route('products.index', ['tipo' => 'PREPARACION']) }}" class="text-decoration-none">
+            <div class="card border-0 shadow-sm rounded-4 p-3 h-100 transition-hover {{ request('tipo') === 'PREPARACION' ? 'border-start border-4 border-info bg-light' : 'bg-white' }}">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <span class="text-muted small fw-semibold text-uppercase">Preparaciones</span>
+                        <h4 class="fw-bold mb-0 text-info">{{ $prepCount }}</h4>
+                    </div>
+                    <div class="rounded-circle p-2 bg-info bg-opacity-10 text-info">
+                        <i class="bi bi-cup-hot-fill fs-5"></i>
+                    </div>
+                </div>
+            </div>
+        </a>
+    </div>
+</div>
 
 <!-- Filtros de Búsqueda -->
-<div class="card card-custom p-3 bg-white mb-4">
+<div class="card border-0 shadow-sm rounded-4 p-3 bg-white mb-4">
     <form method="GET" action="{{ route('products.index') }}" class="row g-2 align-items-center">
-        @if ($isRestaurant)
-            <input type="hidden" name="tab" value="{{ $activeTab ?? 'all' }}">
+        @if(request('tipo'))
+            <input type="hidden" name="tipo" value="{{ request('tipo') }}">
         @endif
 
-        <div class="{{ $isRestaurant ? 'col-md-5' : 'col-md-4' }}">
+        <div class="col-md-5">
             <div class="input-group">
                 <span class="input-group-text bg-light border-end-0 text-muted"><i class="bi bi-search"></i></span>
                 <input type="text" 
                        name="search" 
                        class="form-control border-start-0 ps-0" 
-                       placeholder="{{ $isRestaurant ? 'Buscar plato, código, suplemento...' : 'Buscar por SKU, nombre...' }}" 
-                       value="{{ $search }}">
+                       placeholder="Buscar por SKU, nombre del producto o descripción..." 
+                       value="{{ request('search') }}">
             </div>
         </div>
 
@@ -80,161 +123,146 @@
             <select name="category_id" class="form-select">
                 <option value="">Todas las categorías</option>
                 @foreach ($categories as $cat)
-                    <option value="{{ $cat->id }}" {{ $selectedCategory == $cat->id ? 'selected' : '' }}>
+                    <option value="{{ $cat->id }}" {{ request('category_id') == $cat->id ? 'selected' : '' }}>
                         {{ $cat->name }}
                     </option>
                 @endforeach
             </select>
         </div>
 
-        <div class="{{ $isRestaurant ? 'col-md-2' : 'col-md-2' }}">
+        <div class="col-md-2">
             <select name="status" class="form-select">
                 <option value="">Todos los estados</option>
-                <option value="1" {{ $selectedStatus === '1' ? 'selected' : '' }}>Activos</option>
-                <option value="0" {{ $selectedStatus === '0' ? 'selected' : '' }}>Inactivos</option>
+                <option value="1" {{ request('status') === '1' ? 'selected' : '' }}>Activos</option>
+                <option value="0" {{ request('status') === '0' ? 'selected' : '' }}>Inactivos</option>
             </select>
         </div>
 
-        <div class="{{ $isRestaurant ? 'col-md-1' : 'col-md-2' }}">
-            <div class="form-check">
-                <input class="form-check-input" type="checkbox" name="low_stock" value="1" id="lowStockCheck" {{ $lowStockOnly ? 'checked' : '' }}>
-                <label class="form-check-label small fw-semibold text-danger" for="lowStockCheck">
-                    <i class="bi bi-exclamation-triangle-fill me-1"></i> Stock
-                </label>
-            </div>
-        </div>
-
-        <div class="col-md-1 text-end">
-            <button type="submit" class="btn btn-outline-primary rounded-pill w-100">Filtrar</button>
+        <div class="col-md-2 text-end d-flex gap-2">
+            <button type="submit" class="btn text-white rounded-pill flex-grow-1 fw-semibold" style="background-color: #10B981;">
+                Filtrar
+            </button>
+            @if (request()->hasAny(['search', 'category_id', 'status', 'tipo']))
+                <a href="{{ route('products.index') }}" class="btn btn-light rounded-pill text-secondary" title="Limpiar filtros">
+                    <i class="bi bi-x-lg"></i>
+                </a>
+            @endif
         </div>
     </form>
 </div>
 
 <!-- Tabla de Productos -->
-<div class="card card-custom p-0 bg-white overflow-hidden">
+<div class="card border-0 shadow-sm rounded-4 bg-white overflow-hidden">
     <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
             <thead class="table-light">
-                <tr class="small text-uppercase text-muted">
-                    <th class="ps-4">{{ $isRestaurant ? 'Código / SKU' : 'SKU' }}</th>
-                    <th>{{ $isRestaurant ? 'Plato / Mercancía' : 'Producto' }}</th>
-                    @if ($isRestaurant)
-                        <th>Tipo</th>
-                    @endif
-                    <th>Categoría</th>
-                    <th>Precio Compra</th>
-                    <th>Precio Venta</th>
-                    <th>Stock</th>
+                <tr class="small text-uppercase text-muted" style="letter-spacing: 0.5px;">
+                    <th class="ps-4">SKU / Producto</th>
+                    <th>Tipo</th>
+                    <th>Unidad</th>
+                    <th>Stock Físico</th>
+                    <th>P. Compra</th>
+                    <th>P. Venta</th>
                     <th>Estado</th>
                     <th class="text-end pe-4">Acciones</th>
                 </tr>
             </thead>
             <tbody>
-                @forelse ($products as $product)
-                    @php
-                        $isLowStock = $product->stock <= $product->min_stock;
-                    @endphp
+                @forelse ($products as $prod)
                     <tr>
                         <td class="ps-4">
-                            <span class="badge bg-light text-dark font-monospace border px-2.5 py-1.5">
-                                {{ $product->sku }}
+                            <div class="d-flex align-items-center gap-2">
+                                <div>
+                                    <span class="badge bg-light text-secondary border font-monospace small px-2 py-1">{{ $prod->sku }}</span>
+                                    <div class="fw-bold text-dark mt-1">{{ $prod->nombre }}</div>
+                                    @if($prod->category)
+                                        <small class="text-muted"><i class="bi bi-tag me-1"></i>{{ $prod->category->name }}</small>
+                                    @endif
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            @switch($prod->tipo_producto)
+                                @case('PLATO')
+                                    <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2.5 py-1 rounded-pill fw-semibold">
+                                        <i class="bi bi-egg-fried me-1"></i> Plato
+                                    </span>
+                                    @break
+                                @case('SUPLEMENTO')
+                                    <span class="badge rounded-pill px-2.5 py-1 fw-semibold" style="background-color: #ede9fe; color: #6d28d9; border: 1px solid #ddd6fe;">
+                                        <i class="bi bi-capsule me-1"></i> Suplemento
+                                    </span>
+                                    @break
+                                @case('INSUMO')
+                                    <span class="badge bg-warning bg-opacity-10 text-dark border border-warning border-opacity-25 px-2.5 py-1 rounded-pill fw-semibold">
+                                        <i class="bi bi-archive me-1"></i> Insumo Base
+                                    </span>
+                                    @break
+                                @case('PREPARACION')
+                                    <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 px-2.5 py-1 rounded-pill fw-semibold">
+                                        <i class="bi bi-cup-hot me-1"></i> Preparación
+                                    </span>
+                                    @break
+                            @endswitch
+                        </td>
+                        <td>
+                            <span class="badge bg-secondary bg-opacity-10 text-secondary fw-semibold">
+                                {{ $prod->unidad_base }}
                             </span>
                         </td>
                         <td>
-                            <div class="fw-semibold text-dark">{{ $product->name }}</div>
-                            @if ($product->description)
-                                <div class="text-muted small text-truncate" style="max-width: 280px;">{{ $product->description }}</div>
-                            @endif
-                        </td>
-                        @if ($isRestaurant)
-                            <td>
-                                @if ($product->isDish())
-                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill">
-                                        <i class="bi bi-book-half me-1"></i>Plato Menú
-                                    </span>
-                                @else
-                                    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle rounded-pill">
-                                        <i class="bi bi-boxes me-1"></i>Mercancía
-                                    </span>
-                                @endif
-                            </td>
-                        @endif
-                        <td>
-                            @if ($product->category)
-                                <span class="badge bg-light text-dark border rounded-pill">
-                                    {{ $product->category->name }}
+                            @if($prod->tipo_producto === 'PLATO')
+                                <span class="text-muted small" title="El stock se descuenta por ingredientes en recetas">
+                                    <i class="bi bi-diagram-3 me-1"></i> Por Receta
                                 </span>
                             @else
-                                <span class="text-muted small">Sin categoría</span>
-                            @endif
-                        </td>
-                        <td class="text-secondary small">
-                            @if ($isRestaurant && $product->isDish())
-                                <span class="text-muted">—</span>
-                            @else
-                                ${{ number_format($product->cost_price, 2) }}
-                            @endif
-                        </td>
-                        <td class="fw-bold text-success">
-                            ${{ number_format($product->sale_price, 2) }}
-                        </td>
-                        <td>
-                            @if ($isRestaurant && $product->isDish())
-                                <span class="badge bg-light text-muted border">
-                                    <i class="bi bi-cup-hot me-1"></i>Cocina
-                                </span>
-                            @else
-                                @if ($isLowStock)
-                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2.5 py-1 rounded-pill" title="Stock mínimo: {{ $product->min_stock }}">
-                                        <i class="bi bi-exclamation-circle-fill me-1"></i> {{ $product->stock }} unid.
-                                    </span>
-                                @else
-                                    <span class="badge bg-success-subtle text-success border border-success-subtle px-2.5 py-1 rounded-pill">
-                                        <i class="bi bi-check-circle-fill me-1"></i> {{ $product->stock }} unid.
-                                    </span>
-                                @endif
+                                <div class="fw-bold {{ (float)$prod->stock <= (float)$prod->stock_minimo ? 'text-danger' : 'text-dark' }}">
+                                    {{ $prod->formatted_stock }} <span class="small text-muted">{{ strtolower($prod->unidad_base) }}</span>
+                                </div>
+                                <small class="text-muted">Mín: {{ (float)$prod->stock_minimo }}</small>
                             @endif
                         </td>
                         <td>
-                            @if ($product->is_active)
-                                <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2.5 py-1">
-                                    Activo
-                                </span>
-                            @else
-                                <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle rounded-pill px-2.5 py-1">
-                                    Inactivo
-                                </span>
-                            @endif
+                            <span class="text-muted">${{ number_format($prod->precio_compra, 0, ',', '.') }}</span>
+                        </td>
+                        <td>
+                            <span class="fw-bold text-dark">${{ number_format($prod->precio_venta, 0, ',', '.') }}</span>
+                        </td>
+                        <td>
+                            <form action="{{ route('products.toggle-status', $prod) }}" method="POST" class="d-inline">
+                                @csrf
+                                @method('PATCH')
+                                <button type="submit" class="btn btn-sm p-0 border-0" title="Click para alternar estado">
+                                    @if ($prod->activo)
+                                        <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1 rounded-pill">
+                                            <i class="bi bi-check-circle-fill me-1"></i> Activo
+                                        </span>
+                                    @else
+                                        <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 px-2 py-1 rounded-pill">
+                                            <i class="bi bi-x-circle-fill me-1"></i> Inactivo
+                                        </span>
+                                    @endif
+                                </button>
+                            </form>
                         </td>
                         <td class="text-end pe-4">
-                            <div class="d-inline-flex gap-1">
-                                <a href="{{ route('products.show', $product) }}" class="btn btn-light btn-sm rounded-pill px-2.5 text-secondary" title="Detalle">
-                                    <i class="bi bi-eye"></i>
-                                </a>
-
-                                @can('update', $product)
-                                    <a href="{{ route('products.edit', $product) }}" class="btn btn-outline-secondary btn-sm rounded-pill px-2.5" title="Editar">
-                                        <i class="bi bi-pencil"></i>
+                            <div class="btn-group">
+                                @if($prod->tipo_producto === 'PLATO')
+                                    <a href="{{ route('recipes.edit', $prod) }}" class="btn btn-sm btn-outline-success rounded-pill px-3 me-1 fw-semibold" title="Configurar porciones e insumos de la receta">
+                                        <i class="bi bi-journal-text me-1"></i> Receta
                                     </a>
-                                @endcan
-
-                                @can('delete', $product)
-                                    <form method="POST" action="{{ route('products.destroy', $product) }}" class="d-inline">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="btn btn-outline-danger btn-sm rounded-pill px-2.5" onclick="return confirm('¿Estás seguro de eliminar este producto?')" title="Eliminar">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
-                                    </form>
-                                @endcan
+                                @endif
+                                <a href="{{ route('products.edit', $prod) }}" class="btn btn-sm btn-light border rounded-pill px-3" title="Editar producto">
+                                    <i class="bi bi-pencil-square text-secondary"></i>
+                                </a>
                             </div>
                         </td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="{{ $isRestaurant ? '9' : '8' }}" class="text-center py-5 text-muted">
-                            <i class="bi bi-box-seam display-4 d-block mb-2 text-secondary opacity-50"></i>
-                            No se encontraron {{ $isRestaurant ? 'platos o productos en el menú' : 'productos' }} con los filtros seleccionados.
+                        <td colspan="8" class="text-center py-5 text-muted">
+                            <i class="bi bi-inbox fs-1 d-block mb-2 text-secondary opacity-50"></i>
+                            No se encontraron productos registrados con los criterios seleccionados.
                         </td>
                     </tr>
                 @endforelse
@@ -243,7 +271,8 @@
     </div>
 
     @if ($products->hasPages())
-        <div class="p-3 border-top">
+        <div class="p-3 border-top d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <span class="small text-muted">Mostrando {{ $products->firstItem() }} - {{ $products->lastItem() }} de {{ $products->total() }} registros</span>
             {{ $products->links() }}
         </div>
     @endif

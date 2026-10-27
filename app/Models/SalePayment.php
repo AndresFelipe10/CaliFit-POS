@@ -3,19 +3,17 @@
 namespace App\Models;
 
 use App\Enums\PaymentMethod;
-use App\Models\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class SalePayment extends Model
 {
-    use HasFactory, BelongsToTenant;
+    use HasFactory;
 
     protected $table = 'sale_payments';
 
     protected $fillable = [
-        'business_id',
         'sale_id',
         'method',
         'amount',
@@ -37,11 +35,6 @@ class SalePayment extends Model
     public function sale(): BelongsTo
     {
         return $this->belongsTo(Sale::class);
-    }
-
-    public function business(): BelongsTo
-    {
-        return $this->belongsTo(Business::class);
     }
 
     /**

@@ -40,11 +40,11 @@ class InventoryIntelligenceService
      */
     public function calculateReplenishment(Product $product): array
     {
-        $stock = (int) $product->stock;
-        $minStock = (int) $product->min_stock;
-        $costPrice = (float) $product->cost_price;
+        $stock = (float) $product->stock;
+        $minStock = (float) ($product->stock_minimo ?? $product->min_stock ?? 0);
+        $costPrice = (float) ($product->precio_compra ?? $product->cost_price ?? 0);
 
-        $status = $this->classify($stock, $minStock);
+        $status = $this->classify((int) $stock, (int) $minStock);
 
         if ($status === self::STATUS_NORMAL) {
             return [
@@ -68,22 +68,20 @@ class InventoryIntelligenceService
     }
 
     /**
-     * Analyze tenant inventory and return products with intelligence metrics and summary KPIs.
+     * Analyze inventory and return products with intelligence metrics and summary KPIs for CaliFit.
      *
-     * @param int $businessId
      * @param array $filters
      * @return array
      */
-    public function getInventoryAnalysis(int $businessId, array $filters = []): array
+    public function getInventoryAnalysis(array $filters = []): array
     {
-        $query = Product::where('business_id', $businessId)
-            ->where('is_active', true)
+        $query = Product::where('activo', true)
             ->with('category');
 
         if (!empty($filters['search'])) {
             $search = $filters['search'];
             $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
+                $q->where('nombre', 'like', "%{$search}%")
                   ->orWhere('sku', 'like', "%{$search}%");
             });
         }
@@ -151,12 +149,12 @@ class InventoryIntelligenceService
             return sprintf(
                 '%d-%06d-%s',
                 $statusWeight[$product->inventory_status] ?? 9,
-                max(0, $product->stock),
-                $product->name
+                max(0, (float) $product->stock),
+                $product->nombre ?? $product->name ?? ''
             );
         })->values();
 
-        $categories = Category::where('business_id', $businessId)->orderBy('name')->get();
+        $categories = Category::where('is_active', true)->orderBy('name')->get();
 
         return [
             'products' => $sortedProducts,

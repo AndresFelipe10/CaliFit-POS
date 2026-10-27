@@ -1,4 +1,8 @@
 #!/bin/bash
+# ==============================================================================
+# Script de Respaldo Consolidado (Base de Datos + Adjuntos Privados)
+# Proyecto: CaliFit Sistema POS — SABORCALIFIT | BOCHALEMA
+# ==============================================================================
 set -euo pipefail
 
 # Directorio base del proyecto y carpeta de respaldos
@@ -16,20 +20,20 @@ if [ -f "$ENV_FILE" ]; then
     export $(grep -v '^#' "$ENV_FILE" | grep -E "DB_DATABASE|DB_USERNAME|DB_PASSWORD|DB_ROOT_PASSWORD" | xargs)
 fi
 
-DB_NAME="${DB_DATABASE:-sistema_web}"
-DB_PASS="${DB_ROOT_PASSWORD:-${DB_PASSWORD:-sistema_password}}"
+DB_NAME="${DB_DATABASE:-califit_pos_dev}"
+DB_PASS="${DB_ROOT_PASSWORD:-${DB_PASSWORD:-califit_password}}"
 DB_USER="${DB_USERNAME:-root}"
 
 # Detectar contenedores activos (producción o desarrollo)
-if docker ps --format '{{.Names}}' | grep -q "^sistema_db_prod$"; then
-    DB_CONTAINER="sistema_db_prod"
-    APP_CONTAINER="sistema_app_prod"
-elif docker ps --format '{{.Names}}' | grep -q "^sistema_db$"; then
-    DB_CONTAINER="sistema_db"
-    APP_CONTAINER="sistema_app"
+if docker ps --format '{{.Names}}' | grep -q "^califit_db_prod$"; then
+    DB_CONTAINER="califit_db_prod"
+    APP_CONTAINER="califit_app_prod"
+elif docker ps --format '{{.Names}}' | grep -q "^califit_db$"; then
+    DB_CONTAINER="califit_db"
+    APP_CONTAINER="califit_app"
 else
-    DB_CONTAINER="sistema_db_prod"
-    APP_CONTAINER="sistema_app_prod"
+    DB_CONTAINER="califit_db_prod"
+    APP_CONTAINER="califit_app_prod"
 fi
 
 echo "Iniciando respaldo de base de datos '${DB_NAME}' desde '${DB_CONTAINER}'..."
@@ -47,4 +51,3 @@ echo "Respaldo consolidado completado: $ARCHIVE"
 
 # Política de retención: eliminar respaldos con más de 7 días
 find "$BACKUP_DIR" -type f \( -name "backup_*.tar.gz" -o -name "backup_*.sql.gz" \) -mtime +7 -delete
-

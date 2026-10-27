@@ -2,20 +2,19 @@
 
 namespace App\Models;
 
-use App\Models\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Supplier extends Model
 {
-    use HasFactory, BelongsToTenant;
+    use HasFactory;
 
     protected $table = 'suppliers';
 
     protected $fillable = [
-        'business_id',
         'name',
-        'identification_number',
+        'nit',
         'contact_name',
         'email',
         'phone',
@@ -30,10 +29,17 @@ class Supplier extends Model
         ];
     }
 
-    /**
-     * Gastos y facturas de compra asociadas al proveedor.
-     */
-    public function expenses(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function getIdentificationNumberAttribute(): ?string
+    {
+        return $this->nit;
+    }
+
+    public function setIdentificationNumberAttribute($value): void
+    {
+        $this->attributes['nit'] = $value;
+    }
+
+    public function expenses(): HasMany
     {
         return $this->hasMany(Expense::class);
     }

@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Models\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -10,43 +9,48 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Sale extends Model
 {
-    use HasFactory, BelongsToTenant;
+    use HasFactory;
 
     protected $table = 'sales';
 
     protected $fillable = [
-        'business_id',
         'user_id',
         'customer_id',
         'customer_name',
         'customer_document',
+        'waiter_name',
         'restaurant_order_id',
         'order_type',
         'invoice_number',
-        'sale_date',
         'subtotal',
         'discount',
         'discount_percentage',
         'delivery_fee',
         'service_fee',
         'tax_inc',
+        'tip',
         'total',
         'payment_method',
         'status',
         'notes',
+        'is_credit',
+        'credit_status',
+        'credit_due_date',
     ];
 
     protected function casts(): array
     {
         return [
-            'sale_date' => 'datetime',
             'subtotal' => 'decimal:2',
             'discount' => 'decimal:2',
             'discount_percentage' => 'decimal:2',
-            'delivery_fee' => 'float',
+            'delivery_fee' => 'decimal:2',
             'service_fee' => 'decimal:2',
             'tax_inc' => 'decimal:2',
+            'tip' => 'decimal:2',
             'total' => 'decimal:2',
+            'is_credit' => 'boolean',
+            'credit_due_date' => 'date',
         ];
     }
 
@@ -67,28 +71,65 @@ class Sale extends Model
 
     public function details(): HasMany
     {
-        return $this->hasMany(SaleDetail::class);
+        return $this->hasMany(SaleDetail::class, 'sale_id');
     }
 
     public function payments(): HasMany
     {
-        return $this->hasMany(SalePayment::class);
+        return $this->hasMany(SalePayment::class, 'sale_id');
     }
 
-    public function inventoryMovements(): HasMany
+    public function creditPayments(): HasMany
     {
-        return $this->hasMany(InventoryMovement::class);
+        return $this->hasMany(CustomerCreditPayment::class, 'sale_id');
+    }
+
+    public function isCompleted(): bool
+    {
+        return $this->status === 'completed';
+    }
+
+    public function isCancelled(): bool
+    {
+        return $this->status === 'cancelled';
+    }
+
+    public function isCredit(): bool
+    {
+        return (bool) $this->is_credit;
+    }
+
+    public function getCreditPaidAmountAttribute(): float
+    {
+        if ($this->relationLoaded('creditPayments')) {
+            return (float) $this->creditPayments->sum('amount');
+        }
+
+        return (float) $this->creditPayments()->sum('amount');
+    }
+
+    public function getCreditPendingAmountAttribute(): float
+    {
+        if (! $this->isCredit() || $this->isCancelled() || $this->credit_status === 'cancelled') {
+            return 0.00;
+        }
+
+        $pending = round((float) $this->total - $this->credit_paid_amount, 2);
+
+        return max(0.00, $pending);
     }
 
     /**
-     * Get human-readable label for the sale's payment method.
+     * Accesor para fecha de venta con resolución garantizada a created_at.
      */
-    public function getPaymentMethodLabelAttribute(): string
+    public function getSaleDateAttribute($value): \Carbon\Carbon
     {
-        if ($this->payment_method === 'mixed') {
-            return 'Pago mixto';
+        if ($value) {
+            return $value instanceof \Carbon\Carbon ? $value : \Carbon\Carbon::parse($value);
         }
 
-        return \App\Enums\PaymentMethod::tryFrom((string) $this->payment_method)?->label() ?? (string) $this->payment_method;
+        return $this->created_at instanceof \Carbon\Carbon 
+            ? $this->created_at 
+            : ($this->created_at ? \Carbon\Carbon::parse($this->created_at) : now());
     }
 }

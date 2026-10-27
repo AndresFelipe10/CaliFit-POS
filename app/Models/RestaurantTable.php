@@ -2,21 +2,18 @@
 
 namespace App\Models;
 
-use App\Models\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class RestaurantTable extends Model
 {
-    use BelongsToTenant, HasFactory;
+    use HasFactory;
 
     protected $table = 'restaurant_tables';
 
     protected $fillable = [
-        'business_id',
         'name',
         'capacity',
         'status',
@@ -35,11 +32,6 @@ class RestaurantTable extends Model
             'capacity' => 'integer',
             'is_active' => 'boolean',
         ];
-    }
-
-    public function business(): BelongsTo
-    {
-        return $this->belongsTo(Business::class);
     }
 
     public function orders(): HasMany

@@ -12,7 +12,7 @@ class CustomerPolicy
      */
     public function viewAny(User $user): bool
     {
-        return $user->isCurrentAdmin() || $user->isCurrentEmployee();
+        return $user->isAdmin() || $user->isEmployee();
     }
 
     /**
@@ -20,11 +20,7 @@ class CustomerPolicy
      */
     public function view(User $user, Customer $customer): bool
     {
-        if ((int) $customer->business_id !== (int) session('current_business_id')) {
-            return false;
-        }
-
-        return $user->isCurrentAdmin() || $user->isCurrentEmployee();
+        return $user->isAdmin() || $user->isEmployee();
     }
 
     /**
@@ -32,7 +28,7 @@ class CustomerPolicy
      */
     public function create(User $user): bool
     {
-        return $user->isCurrentAdmin() || $user->isCurrentEmployee();
+        return $user->isAdmin() || $user->isEmployee();
     }
 
     /**
@@ -40,11 +36,7 @@ class CustomerPolicy
      */
     public function update(User $user, Customer $customer): bool
     {
-        if ((int) $customer->business_id !== (int) session('current_business_id')) {
-            return false;
-        }
-
-        return $user->isCurrentAdmin();
+        return $user->isAdmin();
     }
 
     /**
@@ -52,10 +44,6 @@ class CustomerPolicy
      */
     public function delete(User $user, Customer $customer): bool
     {
-        if ((int) $customer->business_id !== (int) session('current_business_id')) {
-            return false;
-        }
-
-        return $user->isCurrentAdmin();
+        return $user->isAdmin();
     }
 }

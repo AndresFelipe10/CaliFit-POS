@@ -12,7 +12,7 @@ class CategoryPolicy
      */
     public function viewAny(User $user): bool
     {
-        return $user->isCurrentAdmin() || $user->isCurrentEmployee();
+        return $user->isAdmin() || $user->isEmployee();
     }
 
     /**
@@ -20,11 +20,7 @@ class CategoryPolicy
      */
     public function view(User $user, Category $category): bool
     {
-        if ((int) $category->business_id !== (int) session('current_business_id')) {
-            return false;
-        }
-
-        return $user->isCurrentAdmin() || $user->isCurrentEmployee();
+        return $user->isAdmin() || $user->isEmployee();
     }
 
     /**
@@ -32,7 +28,7 @@ class CategoryPolicy
      */
     public function create(User $user): bool
     {
-        return $user->isCurrentAdmin();
+        return $user->isAdmin();
     }
 
     /**
@@ -40,11 +36,7 @@ class CategoryPolicy
      */
     public function update(User $user, Category $category): bool
     {
-        if ((int) $category->business_id !== (int) session('current_business_id')) {
-            return false;
-        }
-
-        return $user->isCurrentAdmin();
+        return $user->isAdmin();
     }
 
     /**
@@ -52,10 +44,6 @@ class CategoryPolicy
      */
     public function delete(User $user, Category $category): bool
     {
-        if ((int) $category->business_id !== (int) session('current_business_id')) {
-            return false;
-        }
-
-        return $user->isCurrentAdmin();
+        return $user->isAdmin();
     }
 }

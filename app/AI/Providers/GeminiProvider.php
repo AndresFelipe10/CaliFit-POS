@@ -32,10 +32,15 @@ class GeminiProvider implements AiProviderInterface
      * Extract structured intent and filters from user query using Gemini function calling.
      *
      * @param string $userQuery
+    /**
+     * Extract structured intent and filters from user query using Gemini function calling with conversational context.
+     *
+     * @param string $userQuery
+     * @param array $history
      * @return AiQueryIntent
      * @throws AiProviderException
      */
-    public function extractIntent(string $userQuery): AiQueryIntent
+    public function extractIntent(string $userQuery, array $history = []): AiQueryIntent
     {
         if (empty($this->apiKey) || $this->apiKey === 'tu_api_key_de_gemini_aqui') {
             throw new AiProviderException("La API Key de Gemini no está configurada en las variables de entorno.");
@@ -43,15 +48,31 @@ class GeminiProvider implements AiProviderInterface
 
         $url = "{$this->baseUrl}/models/{$this->model}:generateContent";
 
-        $payload = [
-            'contents' => [
-                [
-                    'role' => 'user',
-                    'parts' => [
-                        ['text' => $userQuery],
-                    ],
-                ],
+        $contents = [];
+        if (!empty($history) && is_array($history)) {
+            foreach ($history as $msg) {
+                $role = ($msg['role'] ?? '') === 'user' ? 'user' : 'model';
+                $text = $msg['content'] ?? ($msg['summary'] ?? '');
+                if (!empty($text)) {
+                    $contents[] = [
+                        'role' => $role,
+                        'parts' => [
+                            ['text' => $text],
+                        ],
+                    ];
+                }
+            }
+        }
+
+        $contents[] = [
+            'role' => 'user',
+            'parts' => [
+                ['text' => $userQuery],
             ],
+        ];
+
+        $payload = [
+            'contents' => $contents,
             'tools' => [
                 [
                     'function_declarations' => AiIntent::getFunctionDeclarations(),
@@ -65,7 +86,7 @@ class GeminiProvider implements AiProviderInterface
             'system_instruction' => [
                 'parts' => [
                     [
-                        'text' => 'Eres un asistente especializado en ventas e inventario de un negocio. Tu único propósito es mapear la pregunta del usuario a una de las funciones de consulta disponibles con sus respectivos parámetros.',
+                        'text' => 'Eres un asistente analítico especializado en la operación comercial, inventario, comandas y clientes de SABORCALIFIT | BOCHALEMA (Cali, Colombia). Tu único propósito es mapear la pregunta del usuario a una de las funciones de consulta disponibles con sus respectivos parámetros. MANTÉN EL CONTEXTO CONVERSACIONAL ESTRICTO: Si el usuario realiza una pregunta corta de seguimiento (por ejemplo: "¿cuáles son?", "quiénes son", "dame la lista", "muéstramelos", "detalle", "¿y ayer?"), debes relacionarla con el tema del turno anterior. Por ejemplo: si en el turno anterior se preguntó por clientes activos (count_customers o active_customers), "¿cuáles son?" o "quiénes son" debe invocar list_customers; si se habló de insumos o bajo stock, debe invocar la función de insumos correspondiente; si se habló de ventas, debe invocar sales_summary o sales_by_period con el período adecuado; si se habló de comandas o mesas, active_orders. Responde siempre en español formal ejecutivo colombiano.',
                     ],
                 ],
             ],

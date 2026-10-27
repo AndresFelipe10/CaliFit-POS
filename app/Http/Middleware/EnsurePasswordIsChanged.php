@@ -9,14 +9,16 @@ use Symfony\Component\HttpFoundation\Response;
 class EnsurePasswordIsChanged
 {
     /**
-     * Handle an incoming request.
+     * Handle an incoming request enforcing mandatory password change.
      */
     public function handle(Request $request, Closure $next): Response
     {
         $user = $request->user();
 
         if ($user && (bool) $user->must_change_password) {
-            if (! $request->routeIs('password.change', 'password.change.update', 'logout')) {
+            $allowedRoutes = ['password.change', 'password.update', 'password.change.update', 'logout'];
+
+            if (! $request->routeIs(...$allowedRoutes)) {
                 if ($request->expectsJson()) {
                     return response()->json(['message' => 'Debes cambiar tu contraseña antes de continuar.'], 403);
                 }

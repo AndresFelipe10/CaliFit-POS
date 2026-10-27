@@ -123,7 +123,7 @@
                             <i class="bi bi-cart-plus-fill text-primary me-2"></i>Platos o Productos
                         </h5>
                         <button type="button" class="btn btn-outline-primary fw-semibold px-3 py-2 d-inline-flex align-items-center" id="btn-add-item" style="min-height: 44px;">
-                            <i class="bi bi-plus-circle fs-5 me-2"></i> + Agregar plato
+                            <i class="bi bi-plus-circle fs-5 me-2"></i> Agregar plato
                         </button>
                     </div>
 

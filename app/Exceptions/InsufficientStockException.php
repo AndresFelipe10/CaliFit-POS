@@ -14,7 +14,7 @@ class InsufficientStockException extends Exception
         float|int $availableStock = 0,
         float|int $requestedQuantity = 0,
         int $code = 0,
-        ?Exception $previous = null
+        ?\Throwable $previous = null
     ) {
         $this->availableStock = $availableStock;
         $this->requestedQuantity = $requestedQuantity;

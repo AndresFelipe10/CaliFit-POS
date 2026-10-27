@@ -21,6 +21,7 @@ class AiQueryResult
             'data' => $this->data,
             'meta' => $this->meta,
             'success' => $this->isSuccess,
+            'isSuccess' => $this->isSuccess,
         ];
     }
 }

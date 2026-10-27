@@ -4,8 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Services\Reports\ReportService;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ReportController extends Controller
 {
@@ -21,103 +21,97 @@ class ReportController extends Controller
      */
     public function index(Request $request): View
     {
-        $businessId = (int) (session('current_business_id') ?? $request->user()->current_business_id);
-
-        $salesData = $this->reportService->getSalesReport($businessId);
-        $inventoryData = $this->reportService->getInventoryValuationReport($businessId);
+        $hubData = $this->reportService->getHubSummary();
 
         return view('reports.index', [
-            'salesSummary' => $salesData,
-            'inventorySummary' => $inventoryData,
+            'salesSummary' => $hubData['salesSummary'],
+            'inventorySummary' => $hubData['inventorySummary'],
         ]);
     }
 
     /**
-     * Sales performance report with optional CSV export.
+     * Sales performance report with KPIs and filters.
      */
-    public function sales(Request $request): View|Response
+    public function sales(Request $request): View|StreamedResponse
     {
-        $businessId = (int) (session('current_business_id') ?? $request->user()->current_business_id);
-
-        $filters = $request->only(['date_from', 'date_to', 'payment_method', 'customer_id']);
+        $filters = $request->only(['start_date', 'end_date', 'date_from', 'date_to', 'payment_method', 'customer_id']);
 
         if ($request->query('export') === 'csv') {
-            $csv = $this->reportService->exportSalesCsv($businessId, $filters);
-            $filename = 'reporte_ventas_' . date('Ymd_His') . '.csv';
-
-            return response($csv, 200, [
-                'Content-Type' => 'text/csv; charset=UTF-8',
-                'Content-Disposition' => "attachment; filename=\"{$filename}\"",
-            ]);
+            return $this->exportSalesCsv($request);
         }
 
-        $data = $this->reportService->getSalesReport($businessId, $filters);
+        $data = $this->reportService->getSalesReport($filters);
 
         return view('reports.sales', $data);
     }
 
     /**
-     * Inventory valuation and margin report with optional CSV export.
+     * Export sales report to CSV.
      */
-    public function inventory(Request $request): View|Response
+    public function exportSalesCsv(Request $request): StreamedResponse
     {
-        $businessId = (int) (session('current_business_id') ?? $request->user()->current_business_id);
+        $filters = $request->only(['start_date', 'end_date', 'date_from', 'date_to', 'payment_method', 'customer_id']);
 
+        return $this->reportService->exportSalesCsv($filters);
+    }
+
+    /**
+     * Inventory valuation and margin report.
+     */
+    public function inventoryValuation(Request $request): View|StreamedResponse
+    {
         $filters = $request->only(['category_id', 'search']);
 
         if ($request->query('export') === 'csv') {
-            $csv = $this->reportService->exportInventoryCsv($businessId, $filters);
-            $filename = 'reporte_inventario_' . date('Ymd_His') . '.csv';
-
-            return response($csv, 200, [
-                'Content-Type' => 'text/csv; charset=UTF-8',
-                'Content-Disposition' => "attachment; filename=\"{$filename}\"",
-            ]);
+            return $this->exportInventoryCsv($request);
         }
 
-        $data = $this->reportService->getInventoryValuationReport($businessId, $filters);
+        $data = $this->reportService->getInventoryValuationReport($filters);
 
         return view('reports.inventory', $data);
     }
 
     /**
+     * Alias for inventoryValuation.
+     */
+    public function inventory(Request $request): View|StreamedResponse
+    {
+        return $this->inventoryValuation($request);
+    }
+
+    /**
+     * Export inventory valuation report to CSV.
+     */
+    public function exportInventoryCsv(Request $request): StreamedResponse
+    {
+        $filters = $request->only(['category_id', 'search']);
+
+        return $this->reportService->exportInventoryCsv($filters);
+    }
+
+    /**
      * Top selling products and profitability report.
      */
-    public function topProducts(Request $request): View
+    public function topProducts(Request $request): View|StreamedResponse
     {
-        $businessId = (int) (session('current_business_id') ?? $request->user()->current_business_id);
+        $filters = $request->only(['start_date', 'end_date', 'date_from', 'date_to']);
 
-        $filters = $request->only(['date_from', 'date_to']);
-        $data = $this->reportService->getTopProductsReport($businessId, $filters);
+        if ($request->query('export') === 'csv') {
+            return $this->exportTopProductsCsv($request);
+        }
+
+        $data = $this->reportService->getTopProductsReport($filters);
 
         return view('reports.top-products', $data);
     }
 
     /**
-     * Cash register balancing report (Cuadre de caja diario y mensual) with optional CSV export.
-     * Accessible by both Admins and Employees.
+     * Export top products report to CSV.
      */
-    public function cashRegister(Request $request): View|Response
+    public function exportTopProductsCsv(Request $request): StreamedResponse
     {
-        $businessId = (int) (session('current_business_id') ?? $request->user()->current_business_id);
+        $filters = $request->only(['start_date', 'end_date', 'date_from', 'date_to']);
 
-        $filters = $request->only(['period_type', 'date', 'month', 'user_id']);
-
-        if ($request->query('export') === 'csv') {
-            $csv = $this->reportService->exportCashRegisterCsv($businessId, $filters);
-            $suffix = ($filters['period_type'] ?? 'daily') === 'monthly'
-                ? ($filters['month'] ?? date('Y-m'))
-                : ($filters['date'] ?? date('Y-m-d'));
-            $filename = 'cuadre_caja_' . $suffix . '_' . date('His') . '.csv';
-
-            return response($csv, 200, [
-                'Content-Type' => 'text/csv; charset=UTF-8',
-                'Content-Disposition' => "attachment; filename=\"{$filename}\"",
-            ]);
-        }
-
-        $data = $this->reportService->getCashRegisterReport($businessId, $filters);
-
-        return view('reports.cash-register', $data);
+        return $this->reportService->exportTopProductsCsv($filters);
     }
 }

@@ -2,53 +2,55 @@
 
 namespace App\Models;
 
-use App\Models\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class RestaurantOrder extends Model
 {
-    use BelongsToTenant, HasFactory;
+    use HasFactory;
 
     protected $table = 'restaurant_orders';
 
     protected $fillable = [
-        'business_id',
         'table_id',
-        'guest_count',
         'user_id',
-        'sale_id',
         'order_number',
         'order_type',
         'status',
+        'guest_count',
         'customer_id',
         'customer_name',
-        'delivery_phone',
-        'delivery_address',
-        'delivery_notes',
+        'waiter_name',
         'delivery_fee',
         'subtotal',
+        'tip',
         'total',
         'notes',
+        'cancellation_reason',
+        'cancelled_by',
+        'cancelled_at',
         'closed_at',
+        'split_type',
+        'total_shares',
+        'paid_shares',
     ];
 
     protected function casts(): array
     {
         return [
             'guest_count' => 'integer',
-            'delivery_fee' => 'float',
-            'subtotal' => 'float',
-            'total' => 'float',
+            'delivery_fee' => 'decimal:2',
+            'subtotal' => 'decimal:2',
+            'tip' => 'decimal:2',
+            'total' => 'decimal:2',
+            'cancelled_at' => 'datetime',
             'closed_at' => 'datetime',
+            'total_shares' => 'integer',
+            'paid_shares' => 'integer',
         ];
-    }
-
-    public function business(): BelongsTo
-    {
-        return $this->belongsTo(Business::class);
     }
 
     public function table(): BelongsTo
@@ -61,9 +63,9 @@ class RestaurantOrder extends Model
         return $this->belongsTo(User::class);
     }
 
-    public function sale(): BelongsTo
+    public function cancelledByUser(): BelongsTo
     {
-        return $this->belongsTo(Sale::class);
+        return $this->belongsTo(User::class, 'cancelled_by');
     }
 
     public function customer(): BelongsTo
@@ -71,9 +73,19 @@ class RestaurantOrder extends Model
         return $this->belongsTo(Customer::class);
     }
 
+    public function sale(): HasOne
+    {
+        return $this->hasOne(Sale::class, 'restaurant_order_id');
+    }
+
     public function items(): HasMany
     {
         return $this->hasMany(RestaurantOrderItem::class, 'order_id');
+    }
+
+    public function splits(): HasMany
+    {
+        return $this->hasMany(RestaurantOrderSplit::class, 'restaurant_order_id');
     }
 
     public function pendingKitchenItems(): HasMany
@@ -85,16 +97,34 @@ class RestaurantOrder extends Model
 
     public function recalculateTotals(): void
     {
-        $activeItems = $this->items()->where('status', '!=', 'cancelled')->get();
+        if ($this->order_type === 'takeout') {
+            $this->delivery_fee = 0.00;
+        }
+
+        $activeItems = $this->items()
+            ->where('status', '!=', 'cancelled')
+            ->where('is_paid', false)
+            ->get();
+
         $subtotal = 0.0;
 
         foreach ($activeItems as $item) {
-            $subtotal += round((float) $item->quantity * (float) $item->unit_price, 2);
+            $subtotal += round((float) $item->subtotal, 2);
         }
 
         $this->subtotal = round($subtotal, 2);
         $this->total = round($this->subtotal + (float) $this->delivery_fee, 2);
         $this->save();
+    }
+
+    public function isSplit(): bool
+    {
+        return in_array($this->split_type, ['equal', 'items'], true);
+    }
+
+    public function getPendingAmountAttribute(): float
+    {
+        return (float) $this->total;
     }
 
     public function isOpen(): bool
@@ -115,7 +145,7 @@ class RestaurantOrder extends Model
     public function getStatusLabelAttribute(): string
     {
         return match ($this->status) {
-            'open' => 'Abierta / En preparación',
+            'open' => 'En Cocina',
             'in_kitchen' => 'En Cocina',
             'dispatched' => 'En Camino / Despachada',
             'delivered' => 'Entregada',

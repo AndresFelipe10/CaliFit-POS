@@ -22,7 +22,10 @@
             <a href="{{ route('expenses.edit', $expense) }}" class="btn btn-outline-primary btn-sm">
                 <i class="bi bi-pencil me-1"></i> Editar
             </a>
-            <form action="{{ route('expenses.destroy', $expense) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Seguro que deseas eliminar este gasto?');">
+            <form action="{{ route('expenses.destroy', $expense) }}" method="POST" class="d-inline"
+                  data-confirm="¿Seguro que deseas eliminar este gasto de ${{ number_format($expense->amount, 0, ',', '.') }}? Esta acción no se puede deshacer."
+                  data-confirm-title="¿Eliminar Registro de Gasto?"
+                  data-confirm-btn="Sí, Eliminar Gasto">
                 @csrf
                 @method('DELETE')
                 <button type="submit" class="btn btn-outline-danger btn-sm">

@@ -1,57 +1,162 @@
-# Roadmap del Proyecto
+# Roadmap del Proyecto — CaliFit Sistema POS
 
 Fases en orden de desarrollo. Ninguna fase comienza sin que la anterior tenga sus criterios de aceptación cumplidos y sus tests pasando (`.agents/rules/05-testing.md`).
 
-## Estado de Ejecución de Fases
+---
 
-| # | Fase | Depende de | Criterio de aceptación | Estado | Entregable / Verificación |
-|---|---|---|---|:---:|---|
-| 0 | Análisis y planificación | — | Workspace inspeccionado, `docs/` y `.agents/` existentes y coherentes | ✅ Completada | Estructura base de `docs/` y `.agents/` configurada y alineada con el alcance. |
-| 1 | Inicialización del repositorio | 0 | Repo limpio, `.env.example` presente, sin secretos | ✅ Completada | Repositorio Git limpio, sin secretos versionados, `.env.example` con placeholders. |
-| 2 | Docker + Laravel + Nginx + MySQL | 1 | `docker compose up` levanta los 3 servicios; Laravel responde; MySQL persistente | ✅ Completada | Contenedores `app`, `nginx`, `db` funcionales con volumen persistente en MySQL. |
-| 3 | Modelo de datos + migraciones | 2 | Migraciones corren sin error; relaciones documentadas en `docs/BASE_DATOS.md` | ✅ Completada | 13 migraciones ejecutadas sin errores; entidades e integridad referencial documentadas. |
-| 4 | Autenticación | 3 | Registro/login/logout/recuperación probados con feature tests | ✅ Completada | Flujos de autenticación completos y seguros probados con Feature Tests. |
-| 5 | Emprendimientos + multi-tenancy | 4 | **Bloqueante**: tests de aislamiento entre emprendimientos pasando | ✅ Completada | Tenancy lógico por `business_id` garantizado con Eloquent Global Scope, Middleware y Policies. |
-| 6 | Usuarios + roles | 5 | Empleado no accede a rutas de administrador (test de autorización) | ✅ Completada | RBAC con roles `admin` y `employee` verificados mediante tests de autorización. |
-| 7 | Productos + categorías | 5 | CRUD y aislamiento cubiertos por tests | ✅ Completada | Catálogo completo con SKU único por tenant y validación estricta en Form Requests. |
-| 8 | Inventario | 7 | Test de concurrencia (stock=1, dos ventas simultáneas) pasando | ✅ Completada | Historial de auditoría en `inventory_movements` y concurrencia pesimista (`lockForUpdate`). |
-| 9 | Clientes + proveedores | 5 | CRUD y aislamiento cubiertos por tests | ✅ Completada | Directorio comercial aislado y protección contra eliminación accidental de clientes con ventas. |
-| 10 | Ventas | 8, 9 | Venta actualiza stock correctamente; venta sin stock suficiente es rechazada | ✅ Completada | Transacciones atómicas de venta, validación de stock, numeración consecutiva y anulación. |
-| 11 | Dashboard | 10 | Datos mostrados corresponden únicamente al `business_id` activo | ✅ Completada | Indicadores clave (KPIs), ventas del día, top productos y alertas operativas por tenant. |
-| 12 | Panel inteligente de inventario | 8 | Clasificación normal/bajo/agotado correcta en casos de prueba | ✅ Completada | Clasificación determinística (Normal, Bajo Stock, Agotado) y cálculo de reposición. |
-| 13 | Reportes | 10, 12 | Reportes respetan aislamiento (verificado con tests) | ✅ Completada | Reportes financieros, valoración de inventario y exportación a formato CSV sin fuga de datos. |
-| 14 | Módulo de IA en lenguaje natural | 5, 7, 8, 9, 10, 12, 13 | Tests obligatorios de IA pasando; módulo desactivable sin romper el núcleo | ✅ Completada | Integración desacoplada (`AiProviderInterface`), whitelist de 9 intents, solo lectura y fallback. |
-| 15 | Seguridad + testing integral | 14 | Checklist de `docs/SEGURIDAD.md` completo y verificado | ✅ Completada | Cabeceras HTTP, rate limiting anti brute-force, protección CSRF y vistas de error seguras. |
-| 16 | Deployment | 15 | Guía de despliegue reproducible documentada en `docs/ARQUITECTURA.md` | ✅ Completada | `docker-compose.prod.yml`, `Dockerfile.prod`, scripts de backup/deploy y guía paso a paso. |
-| 17 | Documentación final | 16 | `docs/` y `.agents/` consolidados y consultables sin contexto previo | ✅ Completada | `README.md` completo, `DatabaseSeeder` demo, ADRs actualizados y enlaces auditados. |
-| B-A | Bloque A — SaaS Cerrado & Superadmin | 17 | Registro cerrado (/register 404), WhatsApp CTA, UNIQUE(user_id), Superadmin global, forzado de cambio de clave | ✅ Completada | Plataforma cerrada con aprovisionamiento interactivo seguro y redirección de roles sin bypass. |
-| B-B | Bloque B — Clientes y Consumidor Final (DIAN) | B-A | Consumidor Final DIAN (222222222222), snapshot inmutable en sales, búsqueda/modal POS, rotulación legal | ✅ Completada | Snapshot histórico en ventas, índice compuesto (business_id, document), autocompletado POS XSS-free. |
-| B-C | Bloque C — Múltiples Métodos de Pago por Venta | B-B | Tabla sale_payments, pagos mixtos, validación autoritativa en backend, reportes | ✅ Completada | Enum PaymentMethod, tabla sale_payments aditiva con backfill idempotente, pagos mixtos (hasta 5 líneas, máx 1 efectivo), cálculo autoritativo de cambio/vueltos, interfaz POS reactiva, comprobantes y reportes basados en montos aplicados. |
-| B-D | Bloque D — Gastos, facturas de compra y dashboard | B-C | CRUD gastos, almacenamiento privado con hash, descarga segura nosniff, estado vencida dinámico, métricas financieras protegidas en dashboard, 403 vendedores, backup consolidado | ✅ Completada | Módulo de Gastos exclusivo admin, regla contable de inventario desacoplado, almacenamiento seguro de adjuntos, integración en detalle proveedor, métricas protegidas en Dashboard y API, respaldo consolidado y 218 tests pasando. |
-| R-A | Bloque R-A — Perfil Tenant, Motor de Insumos/Recetas y Precisión Decimal | B-D | Perfil `business_type` (retail vs restaurant), `product_type`, `DECIMAL(12,3)` en stock y movimientos, recetas e insumos con deducción transaccional atómica en `SaleService`, reversión simétrica en anulación, 0 stock negativo y 254 tests en verde | ✅ Completada | Perfil restaurante desacoplado sin regresión para retail, precisión decimal de 3 dígitos, motor de recetas/fórmulas por porción, deducción atómica pesimista de insumos al vender platos, reversión automática en anulaciones y aislamiento multi-tenant estricto. |
-| R-B | Bloque R-B — Salón, Mesas, Comandas y Ticket Térmico de Cocina (80 mm) | R-A | Tablas `restaurant_tables`, `restaurant_orders`, `restaurant_order_items`, mapa de salón responsivo, comanda por tandas, ticket térmico 80 mm sin precios, middleware `EnsureBusinessIsRestaurant` (403 a retail) y 267 tests en verde | ✅ Completada | Mapa visual interactivo de mesas, apertura secuencial de comandas (`ORD-XXXX`), adición de platos agrupados por tandas de cocina (`batch_number`), ticket de cocina térmico nativo (80 mm) sin precios ni datos fiscales, y restricción 403 para comercios retail. |
-| R-C | Bloque R-C — Módulo de Domicilios, Para Llevar y Tirilla de Despacho (80 mm) | R-B | Formulario de pedidos delivery/takeout, recargo autoritativo de envío (`delivery_fee`), tablero Kanban de despacho, tirilla térmica 80 mm con datos de entrega y contraentrega, y 275 tests en verde | ✅ Completada | Captura ágil de pedidos a domicilio y para llevar, validación de fletes sin montos negativos, tablero operativo en 3 etapas (En Cocina, Despachado, Entregado), tirilla térmica de despacho (80 mm) con total contraentrega y aislamiento multi-tenant estricto. |
-| R-D | Bloque R-D — Pre-cuenta, Liquidación en SaleService, Cierre de Mesa y Cuadre de Caja | R-C | Pre-cuenta informativa 80 mm con leyenda legal, liquidación atómica en SaleService con pagos mixtos y deducción de recetas, cierre de comanda y liberación de mesa, cuadre de caja discriminado por canal y flete, tarjetas operativas en dashboard | ✅ Completada | Módulo completo de pre-cuenta y facturación formal integrada a SaleService, cierre atómico de comanda y mesa, cuadre de caja adaptativo por canal de venta (Salón, Domicilios, Para Llevar) y fletes de repartidores, conciliación de caja físico vs digital y cero regresión en Retail. |
-| R-E | Simplificación Operativa de Restaurante, Menú Directo y Comandas Automáticas | R-D | Retiro limpio de recetas/insumos (`dropIfExists`), venta directa de platos con SKU autogenerado (`MNU-XXXXXX`), catálogo unificado "Menú / Productos", auto-impresión de comandas de cocina (80 mm), corrección de atribución mesero vs cliente y 100% español puro | ✅ Completada | Eliminación del motor de recetas en favor de ítems de menú directo, disparo automático de ticket térmico de cocina al confirmar pedidos en salón o despachos, corrección de atribución mesero/cliente, estandarización lingüística estricta en español en toda la interfaz y 278 tests en verde. |
-| R-F | Facturación con Servicio e INC, Ergonomía de Salón y Tickets Térmicos | R-E | Switches de Servicio (10% sugerido ajustable) e INC (8%) en liquidación, persistencia en `sales` (`service_fee`, `tax_inc`), desglose en comprobantes, auto-impresión de pre-cuenta térmica (80 mm), omisión de alertas de stock en Dashboard para restaurantes, cuadrícula compacta de salón (row-cols responsivo, tarjetas de baja altura táctiles) y contraste térmico puro (#000000) en todos los tickets | ✅ Completada | Liquidación formal colombiana con servicio voluntario e impuesto al consumo, tirilla térmica de pre-cuenta con auto-print, optimización de dashboard y densidad visual de mesas en salón, tickets térmicos con contraste ultra-nítido y 288 tests en verde. |
-| R-G | Blindaje Normativo Colombiano (Ley 1935 e INC 512-1), Autocompletado de Clientes en Despachos, Auto-impresión y Cancelación de Comandas Vacías | R-F | Blindaje matemático estricto en backend y frontend (Ley 1935 de 2018 y Art. 512-1 E.T. sobre consumo neto de alimentos y bebidas), auto-impresión en tirilla de despacho (80 mm), correo opcional en clientes (`StoreCustomerRequest` y `UpdateCustomerRequest` con `nullable`, `max:150`), autocompletado reactivo de clientes frecuentes en despacho con persistencia de `customer_id`, cancelación y liberación inmediata de mesas para comandas vacías (`open` con 0 platos), segmentación temporal del historial de comandas ("Hoy" vs "Días Anteriores" con boundaries UTC para `America/Bogota`) y 295 tests en verde | ✅ Completada | Blindaje normativo colombiano de propina e INC independiente, tirilla de despacho con auto-print, eliminación de fricción de correo en clientes, autocompletado en despachos, cancelación de comandas vacías, filtros y tabs en historial de comandas y cero regresiones. |
-| R-H | Alta de Colaboradores desde SuperAdmin, Matriz RBAC para Empleados, Alta Simplificada de Mesas y Campo Opcional de Comensales | R-G | Alta de usuarios desde panel SuperAdmin (`businesses.users.create`), validación única global de email, rol (`admin` o `employee`), contraseña autogenerada y `must_change_password = true`; matriz RBAC para empleados restringida a operación diaria (Ventas POS / Salón / Comandas / Despacho / Clientes / Cuadre de Caja) con bloqueo 403 y sidebar limpio; simplificación de alta de mesas (capacidad opcional, por defecto 4); y campo opcional `guest_count` en apertura de comanda (validado 1-99) visible en comanda, cocina y pre-cuenta | ✅ Completada | Gestión directa de colaboradores por SuperAdmin, control estricto de acceso RBAC por perfil, creación ágil de mesas con solo nombre, comensales opcionales en pedidos y tickets térmicos, y 311 tests en verde. |
+## Matriz de Estado Global del Roadmap
+
+| Fase | Título | Estado | Tests Asociados | Cobertura / Entregable |
+|:---:|---|:---:|:---:|---|
+| **0** | Contextualización y Documentación SDD | ✅ Completada | N/A (Doc) | Documentación viva, Docker `califit_*`, reglas mono-negocio. |
+| **1** | Modelo de Datos y Migraciones | ✅ Completada | Verificado | 15 migraciones limpias, DB Seeder SaborCaliFit, eliminación de multi-tenancy. |
+| **2** | Autenticación y Roles (Mono-Negocio) | ✅ Completada | 3 tests | RBAC bipartito (Admin, Empleado), `must_change_password`, 403. |
+| **3** | Catálogo Unificado y Categorías | ✅ Completada | 4 tests | CRUD `/products`, tipos (PLATO, SUPLEMENTO, INSUMO, PREPARACION), SKU único. |
+| **4** | Motor de Recetas y Porciones | ✅ Completada | 8 tests | CRUD `/recipes`, `receta_detalle` en g/ml, exclusión mutua frijoles vs lentejas. |
+| **5** | Adiciones Reutilizables con Precio | ✅ Completada | 3 tests | CRUD `/additions`, `adicion_detalle`, tabla pivote `producto_adicion`. |
+| **6** | Inventario y Trazabilidad | ✅ Completada | 4 tests | `InventoryService`, factor 1 lb = 500 g, movimientos y alertas de reposición. |
+| **7** | Punto de Venta (POS) con Recetas y Adiciones | ✅ Completada | 10 tests | POS, `SaleService`, `lockForUpdate`, Cero Stock Negativo, pagos mixtos, snapshots. |
+| **8** | Anulación Simétrica y Reversión de Inventario | ✅ Completada | 1 test | Reversión simétrica plato + adiciones a inventario (`DEVOLUCION_ANULACION`). |
+| **9** | Clientes, Proveedores y Consumidor Final DIAN | ✅ Completada | 3 tests | CRUD directorios, búsqueda POS, restricción DIAN `222222222222`. |
+| **10** | Salón de Mesas y Comandas por Tandas | ✅ Completada | 3 tests | Mapa táctil de mesas, apertura `ORD-XXXX`, tandas de cocina en comanda. |
+| **11** | Ticket Térmico de Cocina 58 mm | ✅ Completada | 1 test | Tirilla de comanda sin precios ni valores fiscales, contraste puro #000000. |
+| **12** | Despachos (Domicilios y Para Llevar) y Tirilla 58 mm | ✅ Completada | 2 tests | Tablero Kanban de despacho, flete autoritativo `delivery_fee`, tirilla 58 mm. |
+| **13** | Pre-cuenta, Liquidación y Cierre de Mesa | ✅ Completada | 2 tests | Pre-cuenta 58 mm, liquidación con pagos mixtos, liberación de mesa a LIBRE. |
+| **14** | Cuadre de Caja Diario Adaptativo | ✅ Completada | 3 tests | Conciliación por canales, arqueo efectivo vs digital, tirilla térmica 58 mm. |
+| **15** | Gastos, Facturas de Compra y Almacenamiento Seguro | ✅ Completada | 5 tests | CRUD gastos, disco privado, streaming `nosniff`, regla de no alterar stock. |
+| **16** | Dashboard Gerencial y Reportes | ✅ Completada | 2 tests | KPIs en tiempo real, utilidades, enmascaramiento estricto de dinero a empleados. |
+| **17** | Identidad Visual CaliFit y Marca de Agua | ✅ Completada | Verificado | Verde esmeralda (#10B981), carbón (#111827), marca de agua 58 mm (opacidad 0.09). |
+| **18** | Módulo de IA en Lenguaje Natural | ✅ Completada | 7 tests | Refactorización mono-negocio `app/AI/`, whitelist de intents, solo lectura. |
+| **19** | Seguridad, Testing Integral y Concurrencia | ✅ Completada | 9 tests | Limpieza de tests obsoletos, concurrencia pesimista, rollback y OWASP. |
+| **20** | Deployment y Documentación Final | 🔄 **Siguiente** | Pendiente | Guía de despliegue reproducible, scripts de backup/deploy, seeder demo. |
 
 ---
 
-## Verificación de Criterios de Aceptación Globales
+## Detalle de Fases Completadas (0 a 19)
 
-Según [`docs/PLAN_PROYECTO.md`](PLAN_PROYECTO.md), el éxito del proyecto se evalúa frente al siguiente checklist global:
+### Fase 0 — Contextualización y Documentación SDD
+- **Estado:** ✅ Completada.
+- **Entregables:** Documentación viva (`AGENTS.md`, `README.md`, `docs/`, `.agents/rules/`), configuración Docker Compose (`califit_app`, `califit_nginx`, `califit_db`), eliminación definitiva de referencias a "PuntoStock", "multi-tenant" o "SaaS".
+- **Artefacto:** `reporte_fase0_transicion.md`.
 
-| Criterio Global | Estado | Evidencia de Cumplimiento |
-|---|:---:|---|
-| **Flujo comercial completo con datos reales** | ✅ Cumplido | Registro → creación de emprendimiento → login → productos → ventas con descuento y stock actualizado → clientes. |
-| **Aislamiento multi-tenant por `business_id`** | ✅ Cumplido | Verificado con suite de tests de aislamiento (`TenantIsolationTest`, `ProductTest`, `SaleTest`, `RestaurantMenuManagementTest`, `RestaurantTableTest`, `KitchenOrderTest`, `DeliveryOrderTest`, `PreBillAndSettlementTest`, `RestaurantCashRegisterReportTest`, `SuperadminBusinessUserTest`, `RestaurantRbacTest`, `RestaurantOrderTest`). Ningún tenant accede a datos de otro. |
-| **Concurrencia y consistencia de inventario** | ✅ Cumplido | Bloqueo pesimista probado en `InventoryMovementTest` y `PreBillAndSettlementTest` (stock límite/fraccional, ventas concurrentes: una aprobada, una rechazada sin saldo negativo). |
-| **Alertas de reposición determinísticas** | ✅ Cumplido | Panel inteligente clasifica en Normal, Bajo Stock y Agotado con cálculo de reposición automática. |
-| **Reportes y exportación CSV aislados** | ✅ Cumplido | Generación de reportes de ventas y valoración de stock con exportación CSV validada por tests. |
-| **Consultas en lenguaje natural (IA)** | ✅ Cumplido | Módulo de IA con whitelist de intents, solo lectura, sin SQL arbitrario, `business_id` inyectado por backend y fallback controlado ante fallos. |
-| **Independencia del núcleo frente a IA** | ✅ Cumplido | El núcleo funciona al 100% con `AI_MODULE_ENABLED=false` o sin API key de Gemini. |
-| **Base de datos persistente** | ✅ Cumplido | Volumen Docker `mysql_data` (dev) y `mysql_prod_data` (prod) con scripts automatizados de respaldo y restauración. |
-| **Despliegue sin herramientas técnicas en cliente** | ✅ Cumplido | El usuario final únicamente interactúa mediante navegador web bajo HTTP/HTTPS; toda la infraestructura corre contenerizada. |
-| **Suite global de pruebas pasando** | ✅ Cumplido | **311 tests pasando (1607 assertions)** con 0 errores y 0 fallos. |
+### Fase 1 — Modelo de Datos y Migraciones
+- **Estado:** ✅ Completada.
+- **Entregables:** 15 migraciones limpias mono-negocio en MySQL 8.4 (`roles`, `users`, `products`, `recetas`, `receta_detalle`, `adiciones`, `adicion_detalle`, `producto_adicion`, `restaurant_tables`, `restaurant_orders`, `restaurant_order_items`, `customers`, `suppliers`, `sales`, `sale_details`, `sale_detail_additions`, `sale_payments`, `expenses`, `inventory_movements`). Modelos Eloquent con casts y relaciones. Seeder maestro `DatabaseSeeder.php` con datos de SaborCaliFit Bochalema.
+- **Artefacto:** `reporte_fase1_modelo_datos.md`.
+
+### Fase 2 — Autenticación y Roles (Mono-Negocio)
+- **Estado:** ✅ Completada.
+- **Entregables:** Matriz RBAC bipartita (`admin`, `employee`), gestión de equipo y colaboradores en `/users`, reseteo de claves con contraseñas temporales, middleware `CheckRole` y `EnsurePasswordIsChanged`.
+- **Tests que certifican:** `Tests\Feature\Security\RbacAuthorizationTest` (3 tests).
+- **Tests que certifican:** `Tests\Feature\Security\RbacAuthorizationTest` (3 tests).
+
+### Fase 3 — Catálogo Unificado y Categorías
+- **Estado:** ✅ Completada.
+- **Entregables:** CRUD unificado `/products` (`ProductController`), tipos (`PLATO`, `SUPLEMENTO`, `INSUMO`, `PREPARACION`), unidades base (`UNIDAD`, `GRAMO`, `MILILITRO`), SKU único, protección de stock físico directo.
+- **Tests que certifican:** `Tests\Feature\Catalog\ProductManagementTest` (4 tests).
+
+### Fase 4 — Motor de Recetas y Porciones
+- **Estado:** ✅ Completada.
+- **Entregables:** CRUD `/recipes` (`RecipeController`), persistencia en `receta_detalle` en gramos/mililitros, factor de conversión 1 lb = 500 g en compras, regla estricta de exclusión mutua frijoles vs lentejas en recetas base.
+- **Tests que certifican:** `Tests\Unit\Services\RecipeServiceTest` (5 tests) y `Tests\Feature\Catalog\RecipeManagementTest` (3 tests).
+
+### Fase 5 — Adiciones Reutilizables con Precio
+- **Estado:** ✅ Completada.
+- **Entregables:** CRUD `/additions` (`AdditionController`), consumo de materias primas en `adicion_detalle`, vinculación selectiva a platos de cocina mediante `producto_adicion`.
+- **Tests que certifican:** `Tests\Feature\Catalog\AdditionManagementTest` (3 tests).
+
+### Fase 6 — Inventario y Trazabilidad
+- **Estado:** ✅ Completada.
+- **Entregables:** `InventoryService`, trazabilidad obligatoria en `inventory_movements` con tipos (`ENTRADA_COMPRA`, `SALIDA_VENTA`, `MERMA`, `AJUSTE`, `DEVOLUCION_ANULACION`), conversor interactivo de compras, panel de alertas de stock.
+- **Tests que certifican:** `Tests\Feature\Inventory\InventoryManagementTest` (4 tests).
+
+### Fase 7 — Punto de Venta (POS) con Recetas y Adiciones
+- **Estado:** ✅ Completada.
+- **Entregables:** `PosController`, `SaleService`, venta directa de suplementos y venta compuesta de platos con recetas + adiciones, deducción atómica bajo `DB::transaction` con `lockForUpdate`, Cero Stock Negativo, pagos mixtos (máx 1 efectivo), numeración `FAC-XXXXXX`, snapshots de precios inmutables en `sale_details` y `sale_detail_additions`.
+- **Tests que certifican:** `Tests\Feature\Sales\SaleServiceTest` (6 tests) y `Tests\Feature\Http\PosControllerTest` (4 tests).
+
+### Fase 8 — Anulación Simétrica y Reversión de Inventario
+- **Estado:** ✅ Completada.
+- **Entregables:** Método `cancelSale` en `SaleService`, reversión simétrica devolviendo al stock los gramos exactos de los platos y las adiciones consumidas, registro automático de movimiento `DEVOLUCION_ANULACION`.
+- **Tests que certifican:** `Tests\Feature\Sales\SaleServiceTest::test_symmetric_cancellation_reverts_exact_grams_to_inventory`.
+
+### Fase 9 — Clientes, Proveedores y Consumidor Final DIAN
+- **Estado:** ✅ Completada.
+- **Entregables:** CRUD de clientes (`CustomerController`) y proveedores (`SupplierController`), autocompletado reactivo en POS (`/customers/search`), restricción obligatoria DIAN que prohíbe registrar el NIT `222222222222` como cliente individual (`not_in:222222222222`).
+- **Tests que certifican:** `Tests\Feature\Directory\CustomerSupplierManagementTest` (3 tests).
+
+### Fase 10 — Salón de Mesas y Comandas por Tandas
+- **Estado:** ✅ Completada.
+- **Entregables:** Mapa interactivo de mesas (`restaurant_tables`) con estados `LIBRE`, `OCUPADA`, `EN COBRO`, apertura secuencial de comandas (`ORD-XXXX`), adición de platos y adiciones agrupados por tandas de cocina (`restaurant_order_items`).
+- **Tests que certifican:** `Tests\Feature\Http\RestaurantFlowTest` (3 tests).
+
+### Fase 11 — Ticket Térmico de Cocina 58 mm
+- **Estado:** ✅ Completada.
+- **Entregables:** Vista `/prints/orders/{order}/kitchen`, comanda de cocina con plato principal, adiciones y notas, omisión de precios y valores monetarios, contraste térmico puro (#000000).
+- **Tests que certifican:** `Tests\Feature\Http\SalePrintControllerTest::test_kitchen_ticket_omits_prices`.
+
+### Fase 12 — Despachos (Domicilios y Para Llevar) y Tirilla 58 mm
+- **Estado:** ✅ Completada.
+- **Entregables:** Módulo de despachos con tablero Kanban (`En Cocina` → `Despachado` → `Entregado`), cobro autoritativo de flete (`delivery_fee`), tirilla de despacho 58 mm (`prints/sales/{sale}/delivery`).
+- **Tests que certifican:** `Tests\Feature\Http\RestaurantFlowTest`.
+
+### Fase 13 — Pre-cuenta, Liquidación y Cierre de Mesa
+- **Estado:** ✅ Completada.
+- **Entregables:** Pre-cuenta informativa de 58 mm con leyenda de propina voluntaria, liquidación atómica en `RestaurantTableController::settleOrder` delegando a `SaleService`, cierre de orden y liberación automática de la mesa a `LIBRE`.
+- **Tests que certifican:** `Tests\Feature\Http\RestaurantFlowTest::test_pre_bill_changes_status_to_billed` y `test_order_settlement_creates_sale_and_frees_table`.
+
+### Fase 14 — Cuadre de Caja Diario Adaptativo
+- **Estado:** ✅ Completada.
+- **Entregables:** `CashRegisterController`, consolidación por canales de venta (Salón, Domicilios, Mostrador), discriminación de fletes, arqueo físico de efectivo (recibido vs vueltos) vs digital (Nequi/Daviplata/Tarjetas), tirilla térmica de arqueo 58 mm.
+- **Tests que certifican:** `Tests\Feature\CashRegister\CashRegisterTest` (3 tests).
+
+### Fase 15 — Gastos, Facturas de Compra y Almacenamiento Seguro
+- **Estado:** ✅ Completada.
+- **Entregables:** CRUD de gastos (`ExpenseController`), clasificación contable, vencimiento dinámico, regla de no afectar stock, almacenamiento privado en `storage/app/private/expenses`, descarga y streaming seguro protegido con `nosniff`.
+- **Tests que certifican:** `Tests\Feature\Expenses\ExpenseManagementTest` (5 tests).
+
+### Fase 16 — Dashboard Gerencial y Reportes
+- **Estado:** ✅ Completada.
+- **Entregables:** `DashboardController`, segregación estricta de métricas: panel financiero con KPIs de utilidad para administradores vs panel puramente operativo con enmascaramiento total de montos en dinero para empleados/cajeros.
+- **Tests que certifican:** `Tests\Feature\Dashboard\DashboardFinancialTest` (2 tests).
+
+### Fase 17 — Identidad Visual CaliFit y Marca de Agua
+- **Estado:** ✅ Completada.
+- **Entregables:** Paleta corporativa SaborCaliFit: Verde esmeralda (#10B981), verde oscuro (#059669), fondo neutro (#F9FAFB) y carbón (#111827). Marca de agua corporativa central (opacidad 0.08–0.12) en comprobantes y tickets térmicos, con contraste 100% puro (#000000) para hardware térmico.
+
+### Fase 18 — Módulo de IA en Lenguaje Natural
+- **Estado:** ✅ Completada.
+- **Entregables:**
+  - Desacoplamiento total del namespace `app/AI/` eliminando dependencias de `business_id` o `businesses`.
+  - Whitelist estricta de intents adaptada a SaborCaliFit: alertas de insumos (g/ml), suplementos agotados (unidades), balance de ventas por canal, comandas activas, arqueo de caja y clientes.
+  - Bloqueo determinístico de cualquier intento de mutación (`INSERT`, `UPDATE`, `DELETE`, `DROP`).
+  - Fallback controlado ante indisponibilidad del proveedor o agotamiento de cuota sin exponer stack traces.
+  - Rate limiting estricto de 30 req/minuto y protección RBAC (`role:admin`).
+  - Vista Blade interactiva `resources/views/ai/index.blade.php` con paleta verde fitness `#10B981` y formato enriquecido.
+- **Tests que certifican:** `Tests\Feature\AI\AiModuleTest` (7 tests).
+
+### Fase 19 — Seguridad, Testing Integral y Concurrencia
+- **Estado:** ✅ Completada.
+- **Entregables:**
+  - Suite de concurrencia pesimista multi-venta `tests/Feature/Concurrency/RecipeConcurrencyTest.php`: validación de stock límite de insumo base y de insumos compartidos entre plato y adición bajo `lockForUpdate` con aprobación atómica y cero stock negativo.
+  - Suite de atomicidad y rollback transaccional `tests/Feature/Sales/SaleAtomicityTest.php`: rollback total ante fallo en insumo secundario de receta compuesta y reversión simétrica en anulaciones con trazabilidad de movimientos `DEVOLUCION_ANULACION`.
+  - Suite de auditoría y hardening OWASP `tests/Feature/Security/OwaspHardeningAuditTest.php`: validación estricta de `$fillable` explícito en todos los modelos (prohibición de `$guarded = []`), RBAC 403 para empleados en rutas administrativas, protección de documento DIAN consumidor final `222222222222`, almacenamiento privado de adjuntos de gastos con header `X-Content-Type-Options: nosniff` y escaneo estático del 100% de plantillas Blade (cero `{!! $... !!}`).
+  - Depuración completa de 15 tests obsoletos heredados de PuntoStock (aislamiento multi-tenant, `businesses`, pasarelas SaaS).
+  - Suite consolidada global en verde al 100%: 68 tests y 567 assertions ejecutadas limpiamente en 17.79s.
+- **Tests que certifican:**
+  - `Tests\Feature\Concurrency\RecipeConcurrencyTest` (2 tests, 17 assertions).
+  - `Tests\Feature\Sales\SaleAtomicityTest` (2 tests, 25 assertions).
+  - `Tests\Feature\Security\OwaspHardeningAuditTest` (5 tests, 164 assertions).
+  - `Tests\Feature\Security\AiApiKeyLogSanitizationTest` (2 tests, 7 assertions).
+  - `Tests\Feature\Security\RbacAuthorizationTest` (3 tests, 10 assertions).
+
+---
+
+## Fase Restante (20)
+
+### Fase 20 — Deployment y Documentación Final (🔄 SIGUIENTE)
+
+| Depende de | Criterio de aceptación |
+|---|---|
+| Fases 1 a 19 | 1. Guía de despliegue reproducible para el servidor en producción de SaborCaliFit Bochalema.<br>2. Verificación de scripts Bash de backup (`scripts/backup_db.sh`) y despliegue inmutable.<br>3. `README.md` y `docs/` consolidados, listos para auditoría o entrega final.<br>4. Seeder de demostración con carta real y suplementación deportiva completa de CaliFit. |
+

@@ -1,9 +1,11 @@
+name: califit-prod
+
 services:
   app:
     build:
       context: .
       dockerfile: docker/php/Dockerfile.prod
-    container_name: sistema_app_prod
+    container_name: califit_app_prod
     restart: always
     working_dir: /var/www/html
     environment:
@@ -12,21 +14,21 @@ services:
       DB_HOST: db
       DB_PORT: 3306
     volumes:
-      - app_storage:/var/www/html/storage
+      - califit_app_storage:/var/www/html/storage
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
     networks:
-      - sistema_prod_network
+      - califit_prod_network
     depends_on:
       db:
         condition: service_healthy
 
   nginx:
     image: nginx:alpine
-    container_name: sistema_nginx_prod
+    container_name: califit_nginx_prod
     restart: always
     ports:
       - "${PROD_PORT:-80}:80"
@@ -34,7 +36,7 @@ services:
     volumes:
       - ./docker/nginx/nginx.prod.conf:/etc/nginx/conf.d/default.conf:ro
       - ./public:/var/www/html/public:ro
-      - app_storage:/var/www/html/storage:ro
+      - califit_app_storage:/var/www/html/storage:ro
       - ./docker/certbot/conf:/etc/letsencrypt:ro
       - ./docker/certbot/www:/var/www/certbot:ro
     logging:
@@ -43,28 +45,28 @@ services:
         max-size: "10m"
         max-file: "3"
     networks:
-      - sistema_prod_network
+      - califit_prod_network
     depends_on:
       - app
 
   db:
     image: mysql:8.4
-    container_name: sistema_db_prod
+    container_name: califit_db_prod
     restart: always
     environment:
-      MYSQL_DATABASE: ${DB_DATABASE:-sistema_web}
-      MYSQL_USER: ${DB_USERNAME:-sistema_user}
+      MYSQL_DATABASE: ${DB_DATABASE:-califit_pos_prod}
+      MYSQL_USER: ${DB_USERNAME:-califit_prod_user}
       MYSQL_PASSWORD: ${DB_PASSWORD}
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
     volumes:
-      - mysql_prod_data:/var/lib/mysql
+      - califit_mysql_prod_data:/var/lib/mysql
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
     networks:
-      - sistema_prod_network
+      - califit_prod_network
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-p${DB_ROOT_PASSWORD}"]
       interval: 10s
@@ -72,11 +74,11 @@ services:
       retries: 5
 
 networks:
-  sistema_prod_network:
+  califit_prod_network:
     driver: bridge
 
 volumes:
-  mysql_prod_data:
+  califit_mysql_prod_data:
     driver: local
-  app_storage:
+  califit_app_storage:
     driver: local

@@ -1,23 +1,23 @@
 @extends('layouts.auth')
 
 @section('title', 'Iniciar Sesión')
-@section('heading', 'Bienvenido de nuevo')
-@section('subheading', 'Ingresa tus credenciales para acceder a tu panel')
+@section('heading', 'Iniciar Sesión')
+@section('subheading', 'Ingresa tus credenciales para acceder al sistema POS')
 
 @section('content')
 <form method="POST" action="{{ route('login') }}" novalidate>
     @csrf
 
     <div class="mb-3">
-        <label for="email" class="form-label small fw-semibold text-secondary">Correo Electrónico</label>
+        <label for="email" class="form-label">Correo Electrónico</label>
         <div class="input-group">
-            <span class="input-group-text bg-light border-end-0"><i class="bi bi-envelope text-muted"></i></span>
+            <span class="input-group-text border-end-0"><i class="bi bi-envelope text-muted"></i></span>
             <input type="email" 
                    class="form-control border-start-0 @error('email') is-invalid @enderror" 
                    id="email" 
                    name="email" 
                    value="{{ old('email') }}" 
-                   placeholder="ejemplo@negocio.com" 
+                   placeholder="ejemplo@califit.com" 
                    required 
                    autofocus 
                    autocomplete="username">
@@ -25,27 +25,19 @@
     </div>
 
     <div class="mb-3">
-        <div class="d-flex justify-content-between align-items-center mb-1">
-            <label for="password" class="form-label small fw-semibold text-secondary mb-0">Contraseña</label>
-            @if (in_array(config('mail.default'), ['log', 'array']))
-                <a href="https://wa.me/{{ config('app.support_whatsapp', '573163765939') }}?text={{ urlencode('Hola, olvidé mi clave de PuntoStock') }}" 
-                   target="_blank" rel="noopener noreferrer" 
-                   class="small text-decoration-none text-primary fw-medium">
-                    <i class="bi bi-whatsapp me-1"></i>Contacta a soporte
-                </a>
-            @else
-                <a href="{{ route('password.request') }}" class="small text-decoration-none text-primary fw-medium">¿Olvidaste tu clave?</a>
-            @endif
-        </div>
+        <label for="password" class="form-label">Contraseña</label>
         <div class="input-group">
-            <span class="input-group-text bg-light border-end-0"><i class="bi bi-lock text-muted"></i></span>
+            <span class="input-group-text border-end-0"><i class="bi bi-lock text-muted"></i></span>
             <input type="password" 
-                   class="form-control border-start-0 @error('password') is-invalid @enderror" 
+                   class="form-control border-start-0 border-end-0 @error('password') is-invalid @enderror" 
                    id="password" 
                    name="password" 
                    placeholder="••••••••" 
                    required 
                    autocomplete="current-password">
+            <button class="btn btn-outline-secondary password-toggle-btn border-start-0" type="button" id="togglePassword" aria-label="Mostrar u ocultar contraseña">
+                <i class="bi bi-eye" id="togglePasswordIcon"></i>
+            </button>
         </div>
     </div>
 
@@ -55,23 +47,24 @@
     </div>
 
     <button type="submit" class="btn btn-primary-custom">
-        <i class="bi bi-box-arrow-in-right me-1"></i> Iniciar Sesión
+        <i class="bi bi-box-arrow-in-right me-1"></i> Iniciar Sesión en CaliFit POS
     </button>
 </form>
 @endsection
 
-@section('footer')
-    <div class="mb-2">
-        ¿Quieres PuntoStock para tu negocio? 
-        <a href="https://wa.me/{{ config('app.support_whatsapp', '573163765939') }}?text={{ urlencode('Hola, quiero información sobre PuntoStock para mi negocio.') }}" 
-           target="_blank" rel="noopener noreferrer" 
-           class="text-primary text-decoration-none fw-semibold">
-            <i class="bi bi-whatsapp me-1"></i>Escríbenos
-        </a>
-    </div>
-    <div class="small text-muted pt-2 border-top">
-        <a href="{{ route('legal.terms') }}" class="text-secondary text-decoration-none me-2">Términos y Condiciones</a>
-        <span>•</span>
-        <a href="{{ route('legal.privacy') }}" class="text-secondary text-decoration-none ms-2">Privacidad y Cookies</a>
-    </div>
-@endsection
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const toggleBtn = document.getElementById('togglePassword');
+    const passwordInput = document.getElementById('password');
+    const toggleIcon = document.getElementById('togglePasswordIcon');
+    if (toggleBtn && passwordInput && toggleIcon) {
+        toggleBtn.addEventListener('click', function () {
+            const isPassword = passwordInput.getAttribute('type') === 'password';
+            passwordInput.setAttribute('type', isPassword ? 'text' : 'password');
+            toggleIcon.className = isPassword ? 'bi bi-eye-slash' : 'bi bi-eye';
+        });
+    }
+});
+</script>
+@endpush

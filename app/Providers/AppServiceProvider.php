@@ -36,8 +36,22 @@ class AppServiceProvider extends ServiceProvider
     {
         Paginator::useBootstrapFive();
 
-        \Illuminate\Support\Facades\Gate::define('manage-platform', function (\App\Models\User $user) {
-            return (bool) $user->is_superadmin;
-        });
+        if ($this->app->runningInConsole()) {
+            return;
+        }
+
+        try {
+            if ($this->app->bound('request')) {
+                $req = $this->app->make('request');
+                $host = $req->getHost();
+                $isLocalNetwork = in_array($host, ['localhost', '127.0.0.1']) || str_starts_with($host, '192.168.') || str_starts_with($host, '10.') || str_starts_with($host, '172.');
+
+                if (!$isLocalNetwork || $req->server('HTTP_X_FORWARDED_PROTO') === 'https' || $req->header('X-Forwarded-Proto') === 'https') {
+                    \Illuminate\Support\Facades\URL::forceScheme('https');
+                }
+            }
+        } catch (\Throwable $e) {
+            // Ignorar fallos de resolución temprana de request
+        }
     }
 }

@@ -13,7 +13,7 @@ class SaleAiTools
     /**
      * Sales summary for today or current month (read-only).
      */
-    public function summary(int $businessId, array $filters = []): AiQueryResult
+    public function summary(array $filters = []): AiQueryResult
     {
         $period = $filters['period'] ?? 'today';
 
@@ -27,21 +27,30 @@ class SaleAiTools
             $periodLabel = "el día de hoy";
         }
 
-        $sales = Sale::where('business_id', $businessId)
-            ->where('status', 'completed')
-            ->whereBetween('sale_date', [$dateFrom, $dateTo])
+        $sales = Sale::where('status', 'completed')
+            ->whereBetween('created_at', [$dateFrom, $dateTo])
             ->get();
 
         $totalRevenue = (float) $sales->sum('total');
         $count = $sales->count();
         $avgTicket = $count > 0 ? round($totalRevenue / $count, 2) : 0.0;
+        $periodSpanish = match ($period) {
+            'month' => 'Este Mes',
+            'yesterday' => 'Ayer',
+            'week' => 'Esta Semana',
+            default => 'Hoy',
+        };
 
         return new AiQueryResult(
             intent: 'sales_summary',
-            summary: "En {$periodLabel} se han registrado {$count} ventas por un valor total de $" .
-                number_format($totalRevenue, 0, ',', '.') . " con un ticket promedio de $" .
-                number_format($avgTicket, 0, ',', '.') . ".",
+            summary: "En {$periodLabel} se han registrado {$count} ventas cerradas por un valor total de $" .
+                number_format($totalRevenue, 0, ',', '.') . " COP con un ticket promedio de $" .
+                number_format($avgTicket, 0, ',', '.') . " COP.",
             data: [
+                'Período' => $periodSpanish,
+                'Ventas / Órdenes' => $count,
+                'Ingresos Totales' => '$' . number_format($totalRevenue, 0, ',', '.') . ' COP',
+                'Ticket Promedio' => '$' . number_format($avgTicket, 0, ',', '.') . ' COP',
                 'period' => $period,
                 'sales_count' => $count,
                 'total_revenue' => '$' . number_format($totalRevenue, 0, ',', '.'),
@@ -53,85 +62,136 @@ class SaleAiTools
     /**
      * Sales by date range or period (read-only).
      */
-    public function byPeriod(int $businessId, array $filters = []): AiQueryResult
+    public function byPeriod(array $filters = []): AiQueryResult
     {
         $dateFrom = !empty($filters['date_from']) ? Carbon::parse($filters['date_from'])->startOfDay() : Carbon::now()->startOfMonth();
         $dateTo = !empty($filters['date_to']) ? Carbon::parse($filters['date_to'])->endOfDay() : Carbon::now()->endOfDay();
 
-        $sales = Sale::where('business_id', $businessId)
-            ->where('status', 'completed')
-            ->whereBetween('sale_date', [$dateFrom, $dateTo])
-            ->with('customer')
-            ->orderByDesc('sale_date')
-            ->limit(10)
+        $sales = Sale::where('status', 'completed')
+            ->whereBetween('created_at', [$dateFrom, $dateTo])
             ->get();
 
-        $totalRevenue = (float) Sale::where('business_id', $businessId)
-            ->where('status', 'completed')
-            ->whereBetween('sale_date', [$dateFrom, $dateTo])
-            ->sum('total');
-
+        $totalRevenue = (float) $sales->sum('total');
         $count = $sales->count();
 
-        $data = $sales->map(fn($s) => [
-            'invoice' => $s->invoice_number,
-            'date' => $s->sale_date->format('d/m/Y H:i'),
-            'customer' => $s->customer_name ?? ($s->customer ? $s->customer->name : config('sales.default_customer_name', 'CONSUMIDOR FINAL')),
-            'payment_method' => $s->payment_method_label,
-            'total' => '$' . number_format($s->total, 0, ',', '.'),
-        ])->toArray();
+        $fromFormatted = $dateFrom->format('d/m/Y');
+        $toFormatted = $dateTo->format('d/m/Y');
 
         return new AiQueryResult(
             intent: 'sales_by_period',
-            summary: "Se registraron ventas por un total de $" . number_format($totalRevenue, 0, ',', '.') .
-                " entre {$dateFrom->format('d/m/Y')} y {$dateTo->format('d/m/Y')}.",
-            data: $data
+            summary: "Entre {$fromFormatted} y {$toFormatted} se acumularon {$count} ventas cerradas por $" .
+                number_format($totalRevenue, 0, ',', '.') . " COP.",
+            data: [
+                'Fecha Desde' => $fromFormatted,
+                'Fecha Hasta' => $toFormatted,
+                'Ventas / Órdenes' => $count,
+                'Ingresos Totales' => '$' . number_format($totalRevenue, 0, ',', '.') . ' COP',
+            ]
         );
     }
 
     /**
-     * Top selling products by quantity (read-only).
+     * Sales segmented by service channel (table, delivery, takeout, retail) (read-only).
      */
-    public function topSelling(int $businessId, array $filters = []): AiQueryResult
+    public function byChannel(array $filters = []): AiQueryResult
     {
-        $limit = isset($filters['limit']) ? min(15, max(1, (int)$filters['limit'])) : 5;
+        $dateFrom = Carbon::today()->startOfDay();
+        $dateTo = Carbon::today()->endOfDay();
 
-        $results = SaleDetail::join('sales', 'sale_details.sale_id', '=', 'sales.id')
-            ->join('products', 'sale_details.product_id', '=', 'products.id')
-            ->where('sales.business_id', $businessId)
-            ->where('sales.status', 'completed')
-            ->select(
-                'products.name',
-                'products.sku',
-                DB::raw('SUM(sale_details.quantity) as total_quantity'),
-                DB::raw('SUM(sale_details.subtotal) as total_revenue')
-            )
-            ->groupBy('products.name', 'products.sku')
-            ->orderByDesc('total_quantity')
-            ->limit($limit)
+        $sales = Sale::where('status', 'completed')
+            ->whereBetween('created_at', [$dateFrom, $dateTo])
             ->get();
 
-        if ($results->isEmpty()) {
+        $channelMap = [
+            'table' => ['name' => 'Salón (Mesas)', 'total' => 0.0, 'count' => 0],
+            'delivery' => ['name' => 'Domicilios', 'total' => 0.0, 'count' => 0],
+            'takeout' => ['name' => 'Para Llevar', 'total' => 0.0, 'count' => 0],
+            'retail' => ['name' => 'Mostrador POS / Retail', 'total' => 0.0, 'count' => 0],
+        ];
+
+        foreach ($sales as $sale) {
+            $rawType = $sale->order_type ?? $sale->sale_type ?? 'retail';
+            $type = match (strtolower(trim((string) $rawType))) {
+                'table', 'restaurant' => 'table',
+                'delivery' => 'delivery',
+                'takeout' => 'takeout',
+                'retail', 'direct', '' => 'retail',
+                default => $rawType,
+            };
+
+            if (!isset($channelMap[$type])) {
+                $channelMap[$type] = ['name' => ucfirst($type), 'total' => 0.0, 'count' => 0];
+            }
+            $channelMap[$type]['total'] += (float) $sale->total;
+            $channelMap[$type]['count']++;
+        }
+
+        $breakdown = [];
+        foreach ($channelMap as $key => $info) {
+            $breakdown[] = [
+                'Canal de Venta' => $info['name'],
+                'Ventas / Órdenes' => $info['count'],
+                'Total' => '$' . number_format($info['total'], 0, ',', '.') . ' COP',
+                'channel' => $info['name'],
+                'sales_count' => $info['count'],
+                'total' => '$' . number_format($info['total'], 0, ',', '.'),
+            ];
+        }
+
+        return new AiQueryResult(
+            intent: 'sales_by_channel',
+            summary: "Balance de ventas por canal hoy: Salón: $" . number_format($channelMap['table']['total'] ?? 0, 0, ',', '.') . 
+                     " ({$channelMap['table']['count']} órdenes) | Domicilios: $" . number_format($channelMap['delivery']['total'] ?? 0, 0, ',', '.') . 
+                     " ({$channelMap['delivery']['count']} órdenes) | Para Llevar: $" . number_format($channelMap['takeout']['total'] ?? 0, 0, ',', '.') . 
+                     " ({$channelMap['takeout']['count']} órdenes) | Mostrador: $" . number_format($channelMap['retail']['total'] ?? 0, 0, ',', '.') . 
+                     " ({$channelMap['retail']['count']} ventas).",
+            data: $breakdown
+        );
+    }
+
+    /**
+     * Top selling products ranking (read-only).
+     */
+    public function topSelling(array $filters = []): AiQueryResult
+    {
+        $limit = max(1, min((int) ($filters['limit'] ?? 5), 20));
+
+        $top = SaleDetail::select('product_id', DB::raw('SUM(quantity) as total_quantity'), DB::raw('SUM(subtotal) as total_revenue'))
+            ->whereHas('sale', function ($q) {
+                $q->where('status', 'completed');
+            })
+            ->groupBy('product_id')
+            ->orderByDesc('total_quantity')
+            ->limit($limit)
+            ->with('product')
+            ->get();
+
+        if ($top->isEmpty()) {
             return new AiQueryResult(
                 intent: 'top_selling_products',
-                summary: "Aún no se registran ventas completadas para calcular el ranking de productos más vendidos.",
+                summary: 'Aún no hay suficientes ventas pagadas para generar el ranking de productos más vendidos.',
                 data: []
             );
         }
 
-        $data = $results->map(fn($r) => [
-            'name' => $r->name,
-            'sku' => $r->sku,
-            'quantity_sold' => (int) $r->total_quantity,
-            'revenue_generated' => '$' . number_format($r->total_revenue, 0, ',', '.'),
-        ])->toArray();
+        $data = $top->map(function ($item, $index) {
+            $productName = $item->product ? $item->product->nombre : "Producto #{$item->product_id}";
+            $productType = $item->product ? $item->product->tipo_producto : 'N/A';
 
-        $topName = $results->first()->name;
-        $topQty = $results->first()->total_quantity;
+            return [
+                'Puesto' => '#' . ($index + 1),
+                'Producto' => $productName,
+                'Tipo' => $productType,
+                'Unidades Vendidas' => (float) $item->total_quantity,
+                'Ingresos Generados' => '$' . number_format((float) $item->total_revenue, 0, ',', '.') . ' COP',
+            ];
+        })->toArray();
+
+        $topName = $data[0]['Producto'] ?? 'Producto Líder';
 
         return new AiQueryResult(
             intent: 'top_selling_products',
-            summary: "Tu producto estrella es '{$topName}' con {$topQty} unidades vendidas. Aquí tienes el top {$results->count()}:",
+            summary: "El producto más vendido en SaborCaliFit es '{$topName}'. Se consultaron los top {$top->count()} productos por volumen de venta.",
             data: $data
         );
     }

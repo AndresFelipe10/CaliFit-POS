@@ -3,10 +3,9 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\ChangePasswordRequest;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\Rules\Password;
 use Illuminate\View\View;
 
 class ChangePasswordController extends Controller
@@ -20,24 +19,11 @@ class ChangePasswordController extends Controller
     }
 
     /**
-     * Update the user password.
+     * Update the user password enforcing security validations.
      */
-    public function update(Request $request): RedirectResponse
+    public function update(ChangePasswordRequest $request): RedirectResponse
     {
         $user = $request->user();
-
-        $request->validate([
-            'current_password' => ['required', 'string'],
-            'password' => ['required', 'string', 'min:8', 'confirmed'],
-            'accept_terms' => ['required', 'accepted'],
-        ], [
-            'current_password.required' => 'Debes ingresar tu contraseña actual o temporal.',
-            'password.required' => 'Debes ingresar una nueva contraseña.',
-            'password.min' => 'La nueva contraseña debe tener al menos 8 caracteres.',
-            'password.confirmed' => 'La confirmación de la nueva contraseña no coincide.',
-            'accept_terms.required' => 'Debes leer y aceptar los Términos y Condiciones y la Política de Tratamiento de Datos Personales para continuar.',
-            'accept_terms.accepted' => 'Debes leer y aceptar los Términos y Condiciones y la Política de Tratamiento de Datos Personales para continuar.',
-        ]);
 
         if (! Hash::check($request->current_password, $user->password)) {
             return back()->withErrors([
@@ -45,25 +31,14 @@ class ChangePasswordController extends Controller
             ]);
         }
 
-        if (Hash::check($request->password, $user->password)) {
-            return back()->withErrors([
-                'password' => 'La nueva contraseña debe ser diferente de la contraseña actual.',
-            ]);
-        }
-
         $user->update([
             'password' => Hash::make($request->password),
             'must_change_password' => false,
-            'terms_accepted_at' => now(),
-            'terms_accepted_ip' => $request->ip(),
+            'terms_accepted_at' => $user->terms_accepted_at ?: now(),
+            'terms_accepted_ip' => $user->terms_accepted_ip ?: $request->ip(),
         ]);
 
         $request->session()->regenerate();
-
-        if ($user->is_superadmin) {
-            return redirect()->route('superadmin.dashboard')
-                ->with('status', 'Tu contraseña ha sido actualizada exitosamente.');
-        }
 
         return redirect()->route('dashboard')
             ->with('status', 'Tu contraseña ha sido actualizada exitosamente.');

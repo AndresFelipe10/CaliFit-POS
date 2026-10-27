@@ -49,15 +49,15 @@
         }
         .btn-back {
             margin-top: 1.5rem;
-            background-color: #4f46e5;
-            border-color: #4f46e5;
+            background-color: #10B981;
+            border-color: #10B981;
             border-radius: 0.75rem;
             padding: 0.6rem 1.75rem;
             font-weight: 600;
         }
         .btn-back:hover {
-            background-color: #4338ca;
-            border-color: #4338ca;
+            background-color: #059669;
+            border-color: #059669;
         }
     </style>
 </head>

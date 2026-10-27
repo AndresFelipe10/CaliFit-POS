@@ -1,9 +1,10 @@
-# Seguridad
+# Seguridad — CaliFit Sistema POS
 
 ## Autenticación y autorización
 - Laravel Auth nativo (sesión), sin frameworks adicionales.
 - Autorización siempre en backend vía Policies/Gates; nunca confiar en ocultar elementos de UI.
-- Roles mínimos: Administrador, Empleado/Vendedor (permisos detallados en `docs/PLAN_PROYECTO.md`).
+- Roles: Administrador / Dueño (`admin`), Empleado / Cajero / Mesero (`employee`) (permisos detallados en `docs/PLAN_PROYECTO.md`).
+- **Nota:** Este es un sistema mono-negocio. No existe multi-tenancy, ni consola `/superadmin`, ni aislamiento por `business_id`.
 
 ## OWASP — controles obligatorios
 | Riesgo | Control |
@@ -12,89 +13,82 @@
 | XSS | Escape por defecto de Blade (`{{ }}`); prohibido `{!! !!}` con input de usuario |
 | CSRF | `@csrf` en todo formulario; verificación de token en todas las rutas POST/PUT/DELETE |
 | Mass Assignment | `$fillable` explícito o Form Requests; prohibido `$guarded = []` |
-| Broken Access Control | Policy en cada recurso sensible, verificada en backend |
+| Broken Access Control | Policy en cada recurso sensible, verificada en backend. RBAC bipartito (Admin, Empleado) |
 | Secretos expuestos | Todo secreto en `.env`, nunca en el repositorio; `.env.example` con placeholders |
 | Errores en producción | `APP_DEBUG=false`; páginas de error genéricas; sin stack traces visibles |
 | Logs | Sin contraseñas, tokens, ni datos sensibles en logs |
-| Fuerza bruta | Rate limiting en login |
-| Registro no autorizado | Registro público `/register` eliminado (404); alta controlada por Superadmin |
-| Bypass de TenantScope por Superadmin | Middleware `EnsureUserIsSuperadmin` redirige a `/superadmin` en rutas de negocio |
-| Manipulación de membresías | Restricción `UNIQUE(user_id)` en `business_user` y resolución autoritativa de tenant |
-| Asignación masiva de privilegios | `is_superadmin` protegido fuera de `$fillable` en `User` |
-| Falsificación de Consumidor Final | Prohibición en Form Requests (`not_in:222222222222`) de registrar clientes con documento reservado |
-| XSS en autocomplete y modal POS | Renderizado estricto mediante `textContent` en Vanilla JS; prohibido `innerHTML` con datos del usuario |
-| Alteración de histórico de ventas | Snapshot inmutable en `sales` (`customer_name`, `customer_document`); edición de cliente no afecta ventas |
-| Abuso y DoS en búsqueda de clientes | Rate limiting `throttle:60,1`, longitud mínima de 3 caracteres y escape de comodines SQL (`!`, `%`, `_`) |
-| Discrepancia en suma de pagos | Validación autoritativa en centavos enteros (`round($amount * 100) === round($total * 100)`) en `SaleService` |
-| Inyección de cambio o vueltos | Cálculo autoritativo en backend (`change_given = cash_received - amount`); el cliente solo sugiere |
-| Duplicación de efectivo | Máximo una sola línea en efectivo (`cash`) permitida por venta |
-| XSS en referencia de pago | Sanitización con `strip_tags()` y acotado a 60 caracteres en backend |
-| Distorsión de ingresos | Ingresos calculados exclusivamente como `SUM(sale_payments.amount)` (nunca sumando `cash_received`) |
-| Inconsistencia de pago/stock | Transaccionalidad estricta (`DB::transaction`): falla en pago revierte venta, ítems y stock |
-| Subida de archivos maliciosos en adjuntos | Almacenamiento en disco privado (`storage/app/private/expenses`), nombre con hash aleatorio, validación estricta de MIME real (PDF, JPG, PNG <= 3MB), rechazo de SVG, HTML, PHP y doble extensión |
-| Descarga insegura de comprobantes | Streaming bajo `ExpensePolicy` con `Content-Disposition` y cabecera obligatoria `X-Content-Type-Options: nosniff` |
-| Fuga de métricas financieras a vendedores | Enmascaramiento autoritativo en `DashboardService` y `/api/dashboard`; vendedores no reciben montos de ventas, gastos ni utilidades |
-| Acceso no autorizado a gastos | Módulo exclusivo para Administradores de negocio bajo `ExpensePolicy` y middleware `role:admin`; empleados reciben 403 Forbidden |
+| Fuerza bruta | Rate limiting en login (5 intentos/min) |
+| Registro no autorizado | Registro público `/register` desactivado (404); alta de equipo controlada por Administrador / Dueño |
+| Falsificación de Consumidor Final | Prohibición en Form Requests (`not_in:222222222222`) |
+| XSS en autocomplete y modal POS | Renderizado estricto mediante `textContent` en Vanilla JS; prohibido `innerHTML` |
+| Alteración de histórico de ventas | Snapshot inmutable en `sales` y `venta_adicion` |
+| Abuso de búsqueda de clientes | Rate limiting, longitud mínima y escape de comodines SQL |
+| Discrepancia en pagos | Validación autoritativa en centavos enteros |
+| Inyección de cambio o vueltos | Cálculo autoritativo en backend |
+| Duplicación de efectivo | Máximo una sola línea en efectivo por venta |
 
-## Seguridad de Gastos, Adjuntos y Métricas Financieras (Bloque D)
-- **Almacenamiento Privado de Facturas**: Los comprobantes se guardan en el disco `'local'` (`storage/app/private/expenses`), inaccesible directamente por el servidor web o por enlaces simbólicos públicos (`storage:link`). La ruta en disco utiliza nombres completamente aleatorios (`Str::random(40)`) sin conservar el nombre original del archivo en la ruta física.
-- **Validación Estricta de Mime y Extensiones**: Se bloquean ejecutables, scripts web (PHP, HTML, JS), imágenes vectoriales SVG (vectores de XSS) y archivos con doble extensión (`factura.php.pdf`).
-- **Descarga Segura con Headers de Protección**: La ruta `GET /expenses/{expense}/attachment` está protegida por `ExpensePolicy`, verificando que el usuario sea administrador del mismo tenant. Se emite streaming con `Content-Disposition: inline` y cabecera obligatoria `X-Content-Type-Options: nosniff`.
-- **Limpieza Física de Archivos**: Al eliminar un gasto o al actualizarlo reemplazando o retirando el adjunto, el archivo físico anterior es eliminado inmediatamente del almacenamiento privado.
-- **Control de Acceso Basado en Roles (RBAC)**: El módulo de gastos está restringido exclusivamente al rol Administrador del negocio. Los empleados y vendedores reciben 403 Forbidden en todas las operaciones.
-- **Enmascaramiento de Dashboard**: El endpoint `/api/dashboard` y la vista Blade filtran todos los montos monetarios de ventas, gastos y utilidades para usuarios no administradores.
+## Integridad del Motor de Recetas y Adiciones
+- **Validación de Recetas:** Las cantidades por porción (`cantidad_por_porcion`) deben ser positivas y en la unidad correcta del insumo. Form Requests validan coherencia entre `unidad_base` del ingrediente y la unidad declarada en la receta.
+- **Validación de Adiciones:** El precio de cada adición debe ser positivo. Los insumos en `adicion_detalle` deben existir y tener `tipo_producto = INSUMO`.
+- **Tabla Pivote `producto_adicion`:** Solo se pueden vincular adiciones a productos con `tipo_producto = PLATO`. Validación en Form Request.
+- **Deducción Atómica:** Toda venta con receta se ejecuta bajo `DB::transaction` con `lockForUpdate`. Si falta un solo gramo de cualquier insumo (de la receta base o de las adiciones), la venta completa se rechaza en bloque.
+- **Cero Stock Negativo:** No se admiten ventas parciales ni descuentos fraccionados de inventario.
+- **Snapshot de Precios:** `venta_adicion.precio_unitario` congela el precio al momento de la venta. Modificaciones futuras del catálogo no afectan ventas históricas.
+- **Anulación Simétrica:** La anulación restaura exactamente los insumos del plato base y sus adiciones, con movimiento `DEVOLUCION_ANULACION`.
 
-## Integridad de Pagos Mixtos y Vueltos (Bloque C)
-- **Comparación en Centavos Enteros**: Para prevenir vulnerabilidades derivadas de la imprecisión de coma flotante IEEE 754, la suma de los montos de pago (`amount`) se compara contra el total de la venta convirtiendo ambos a centavos enteros: `(int) round($amt * 100)`.
-- **Cálculo Autoritativo de Vueltos**: El cliente jamás determina el vuelto. Si se envía `cash_received`, se valida que sea mayor o igual al monto en efectivo asignado y el backend calcula `change_given = cash_received - amount`. Si no se envía `cash_received`, se asume igual al monto (`change_given = 0.00`).
-- **Regla Estricta de Efectivo Único**: Se permite un máximo de 5 líneas de pago, pero estrictamente un máximo de una sola línea con método `cash` para evitar complejidades y ambigüedades en el arqueo de caja y cálculo de cambio.
-- **Sanitización de Referencias**: El campo `reference` (código de voucher, ID de transferencia o Nequi) se limpia con `strip_tags()` tanto en `prepareForValidation` como en `SaleService`, acotado a 60 caracteres.
-- **Reportes Contables Reales**: Todos los reportes, resúmenes y exportaciones CSV calculan los ingresos por método de pago a partir del monto real aplicado (`sale_payments.amount`), ignorando por completo el efectivo recibido (`cash_received`), el cual incluye el vuelto devuelto al comprador.
+## Integridad de Pagos Mixtos y Vueltos
+- **Comparación en Centavos Enteros**: `(int) round($amt * 100)` para evitar imprecisiones IEEE 754.
+- **Cálculo Autoritativo de Vueltos**: El backend calcula `change_given = cash_received - amount`. El frontend solo sugiere.
+- **Regla de Efectivo Único**: Máximo una sola línea con método `cash` por venta.
+- **Sanitización de Referencias**: `strip_tags()` y acotado a 60 caracteres.
+- **Reportes Contables**: Ingresos calculados por `SUM(sale_payments.amount)`, no por `cash_received`.
 
-## Integridad de Clientes, Snapshot Histórico y Consumidor Final (DIAN)
-- **Consumidor Final Seguro**: Las ventas a consumidor final mantienen `customer_id = NULL` sin crear registros ficticios en la tabla `customers`. El snapshot registra `CONSUMIDOR FINAL` y `222222222222` según `config/sales.php`.
-- **Inmutabilidad del Comprador**: Toda vista de detalle e impresión (ticket/carta) lee exclusivamente los campos copiados en la venta (`customer_name` y `customer_document`), asegurando que futuras ediciones o eliminaciones lógicas del cliente no alteren el histórico contable.
-- **Unicidad de Documento por Tenant**: Índice compuesto único `(business_id, document)` en `customers` y validación de formato numérico / NIT (`^\d{5,15}(-\d)?$`).
-- **Búsqueda POS Segura y Aislada**: Endpoint `GET /customers/search` con `throttle:60,1`, mínimo 3 caracteres, escape de comodines `!` `%` `_` para SQLite y MySQL, y aislamiento estricto por `business_id` vía `TenantScope`.
+## Integridad de Clientes y Consumidor Final (DIAN)
+- **Consumidor Final**: `customer_id = NULL` en ventas. Snapshot: `CONSUMIDOR FINAL` / `222222222222`.
+- **Inmutabilidad del Comprador**: Vistas leen de snapshot, no de FK dinámica.
+- **Unicidad de Documento**: Índice UNIQUE en `customers.document`.
 
-## Integridad de Plataforma y Aislamiento Multi-Tenant (SaaS Cerrado)
-- **Superadmin de plataforma**: Flag booleano `users.is_superadmin` exclusivo de plataforma. El superadmin no pertenece a ningún tenant; el middleware `SetCurrentTenant` lo redirige a `/superadmin` para evitar que consulte datos de negocios con el Global Scope deshabilitado. Usuarios normales reciben 404 al intentar ingresar a `/superadmin`.
-- **Aislamiento por membresía única autoritativa**: `SetCurrentTenant` resuelve el tenant directamente desde la membresía activa del usuario en `business_user`. Nunca confía en inputs de la request o valores en sesión. Si el usuario o el negocio están inactivos, la sesión web se destruye y los tokens Sanctum de API se revocan.
-- **Creación interactiva sin secretos**: El comando `php artisan superadmin:create` solicita contraseña por CLI oculto con validación de 12 caracteres mínimos, prohibiendo seeders con credenciales expuestas en el código.
-- **Forzado de cambio de contraseña**: Usuarios creados o restablecidos por superadmin tienen `must_change_password = true`, siendo redirigidos por middleware a cambiar su contraseña antes de poder operar el sistema.
+## Integridad Financiera
+- **Precio unitario**: Resuelto desde `productos.precio_venta` en BD bajo `lockForUpdate`.
+- **Subtotales y Total**: Calculados en `SaleService`, no aceptados del frontend.
+- **Descuentos**: Porcentaje validado (0-100), monto derivado en backend.
+- **Stock**: Validado bajo transacción con bloqueo pesimista.
+- **Cantidad por ítem**: Acotada (`min: 1`, `max: 99999`).
 
-## Integridad financiera y cálculos autoritativos en backend
-Los siguientes valores críticos NUNCA se confían al cliente y se calculan o resuelven exclusivamente en backend:
-- **Precio unitario de productos**: El precio de cada línea de venta se obtiene directamente de `products.sale_price` en base de datos mediante bloqueo pesimista (`lockForUpdate`). Los inputs enviados por el navegador (`unit_price`) son ignorados en el cálculo.
-- **Subtotales y Total de venta**: Calculados estrictamente en el servicio (`SaleService`) como `cantidad × precio_autoritativo`, sin aceptar valores derivados enviados desde el frontend.
-- **Descuentos monetarios**: Se valida el porcentaje de descuento en rango (0-100) y se deriva el monto monetario en backend (`subtotal * (porcentaje / 100)`).
-- **Descuento y verificación de Stock**: Validado bajo transacción con bloqueo pesimista (`lockForUpdate`) en `InventoryService`; se rechaza la transacción completa si el stock disponible es insuficiente.
-- **Rango de cantidades**: La cantidad por ítem en venta está acotada numéricamente (`min: 1`, `max: 99999`) para prevenir desbordamientos o valores atípicos.
+## Gastos, Adjuntos y Métricas
+- **Adjuntos en disco privado** (`storage/app/private/expenses`) con hash aleatorio.
+- **Validación de MIME**: Bloqueo de ejecutables, PHP, HTML, SVG, doble extensión.
+- **Descarga segura** con `X-Content-Type-Options: nosniff` y `ExpensePolicy`.
+- **Métricas financieras enmascaradas** para empleados en Dashboard y API.
+- **Gastos exclusivos** para Administradores (403 para empleados).
 
-## Aislamiento entre emprendimientos
-Ver `.agents/rules/02-database.md`. Debe estar cubierto por tests desde la Fase 5 del roadmap (`.agents/rules/05-testing.md`).
-
-## Auditoría de Seguridad Integral — Run 4 (Restaurantes, RBAC y Reglas Financieras)
-
-En septiembre de 2026 se ejecutó la cuarta auditoría integral de seguridad conforme a `.agents/skills/security-audit/SKILL.md`, focalizada en las superficies introducidas por el vertical de Restaurante (Bloques R-A a R-H), el aprovisionamiento de colaboradores desde SuperAdmin y las reglas tributarias/financieras.
-
-### Matriz de Hallazgos y Remediaciones (Run 4)
-
-| ID | Severidad | Vulnerabilidad / CWE | Componente / Archivo | Vector de Ataque | Mitigación Aplicada | Estado |
-|---|---|---|---|---|---|---|
-| SEC-RUN4-001 | Alta | Stored DOM XSS (CWE-79) | `resources/views/restaurant/orders/create-delivery.blade.php` | Inyección de payload script/HTML en nombre, dirección o teléfono de cliente devuelto por autocomplete renderizado mediante `innerHTML`. | Reemplazo total de interpolación `innerHTML` por nodos DOM seguros (`document.createElement`) y asignación estricta vía `textContent`. | Resuelto |
-| SEC-RUN4-002 | Media | Stored DOM XSS (CWE-79) | `orders/create.blade.php`, `orders/create-delivery.blade.php`, `orders/show.blade.php` | Nombres o categorías de platos con caracteres HTML interpolados en dropdown reactivo vía `itemBtn.innerHTML`. | Construcción estructurada de elementos DOM con asignación de texto mediante `textContent` para nombres, categorías y precios. | Resuelto |
-| SEC-RUN4-003 | Media | Manipulación Arbitraria de Impuestos y Propinas (CWE-319 / CWE-835) | `app/Services/Sales/SaleService.php` | Envío de `tax_inc` arbitrario o desproporcionado, o inclusión de propinas e INC sobre base de consumo cero (`netFoodBase <= 0`). | Validación matemática autoritativa en backend: si `netFoodBase <= 0`, `service_fee = 0` y `tax_inc = 0`. Si `tax_inc > 0`, se verifica que coincida con el 8% estatutario (Art. 512-1 E.T.) y se fija autoritativamente. | Resuelto |
-| SEC-RUN4-004 | Baja | Defensa en Profundidad en Autorización (CWE-284) | `RestaurantOrderController::addItems` | Dependencia exclusiva de la verificación en `AddOrderItemsRequest` sin chequeo explícito en controlador. | Incorporación de `Gate::authorize('update', $order)` directo en el método del controlador antes de invocar la capa de servicio. | Resuelto |
-| SEC-RUN4-005 | Informativa | Aislamiento Multi-Tenant en Comandas y Salón (CWE-200 / CWE-284) | `RestaurantOrderPolicy`, `RestaurantTablePolicy`, `TenantScope` | Intento de IDOR en rutas de comandas (`show`, `kitchen-ticket`, `pre-bill`, `dispatch-ticket`, `cancel-empty`, `status`) y mesas (`edit`, `update`, `destroy`). | Verificación bidireccional: `TenantScope` prepuesto a `SubstituteBindings` (devuelve 404) y cláusula de Policy obligatoria `$model->business_id !== session('current_business_id')` (devuelve 403). | Verificado Conforme |
-| SEC-RUN4-006 | Informativa | Inmunidad a Escalada de Privilegios en SuperAdmin (CWE-269) | `StoreTenantUserRequest`, `BusinessController::storeUser` | Inyección de `is_superadmin=true` o `role=superadmin` al dar de alta colaboradores de negocio. | `is_superadmin` excluido de `$fillable`, `role` acotado a `admin|employee`, asignación explícita `is_superadmin = false` y `must_change_password = true`. | Verificado Conforme |
-| SEC-RUN4-007 | Informativa | Escape en Plantillas de Impresión Térmica 80 mm (CWE-79) | `kitchen-ticket`, `pre-bill-ticket`, `dispatch-ticket`, `print-receipt` | Inyección de etiquetas maliciosas en notas de cocina, observaciones de mesa o nombres de clientes. | Uso exclusivo de directiva Blade `{{ }}` (escape nativo `htmlspecialchars`) y cero ocurrencias de `{!! !!}` con datos de usuario. | Verificado Conforme |
+## Cumplimiento Normativo Colombiano
+- **Ley 1935/2018**: Propina voluntaria sugerida (10%), no genera IVA ni INC.
+- **Art. 512-1 E.T.**: INC (8%) sobre consumo neto de alimentos y bebidas (`Subtotal - Descuento`), sin incluir propina ni flete.
+- **Rotulación**: "Comprobante interno de venta. No reemplaza la factura electrónica de venta ante la DIAN."
 
 ## Riesgos específicos del módulo IA
-- **Prompt injection**: mitigado por la whitelist de intents en código, no por instrucciones al modelo.
-- **Evasión de restricciones**: cualquier intent fuera de whitelist se rechaza sin ejecutar consulta.
-- **Fuga entre tenants**: el `business_id` siempre lo inyecta Laravel, nunca el modelo ni el usuario en texto libre.
-- **Alucinaciones**: la intención devuelta por el modelo siempre se valida antes de ejecutar cualquier acción.
-- **Abuso de cuota**: rate limiting específico en el endpoint del asistente.
+- **Prompt injection**: Mitigado por whitelist de intents en código.
+- **Evasión**: Cualquier intent fuera de whitelist se rechaza.
+- **Alucinaciones**: Intención validada antes de ejecutar cualquier acción.
+- **Abuso de cuota**: Rate limiting en endpoint del asistente.
+- Detalle completo → `docs/MODULO_IA.md`.
 
-Detalle completo del módulo IA → `docs/MODULO_IA.md`.
+## Certificación Automatizada de Seguridad (Fase 19)
+Toda la matriz de controles de seguridad y consistencia transaccional se certifica mediante tests automatizados en CI/CD:
+1. **Concurrencia Pesimista y Cero Stock Negativo** (`tests/Feature/Concurrency/RecipeConcurrencyTest.php`):
+   - Ventas concurrentes compitiendo por stock límite de insumo base (aprobación atómica de 1 venta y rechazo de la excedente sin generar gramos negativos).
+   - Ventas concurrentes compitiendo por insumo compartido entre plato base y adición extra.
+2. **Atomicidad y Rollback Transaccional** (`tests/Feature/Sales/SaleAtomicityTest.php`):
+   - Fallo en insumo secundario de recetas compuestas revierte la totalidad de la transacción (rollback simétrico en cabeceras, detalles e inventario).
+   - Anulación de ventas restaura simétricamente los insumos tanto de platos como de adiciones cobradas con movimientos `DEVOLUCION_ANULACION`.
+3. **Auditoría Estricta OWASP** (`tests/Feature/Security/OwaspHardeningAuditTest.php`):
+   - Verificación reflexiva de que el 100% de los modelos Eloquent declaran `$fillable` explícito (prohibición de `$guarded = []`).
+   - Matriz RBAC validada: 403 Forbidden para usuarios `employee` en 10 endpoints administrativos.
+   - Protección DIAN estricta contra la asignación de `222222222222` a clientes.
+   - Almacenamiento privado de adjuntos de gastos con cabecera forzada `X-Content-Type-Options: nosniff`.
+   - Escaneo estático del 100% de vistas Blade: cero directivas no escapadas `{!! $... !!}` con variables de usuario.
+4. **Sanitización de Credenciales IA** (`tests/Feature/Security/AiApiKeyLogSanitizationTest.php`):
+   - Clave de API enviada exclusivamente por headers HTTP (`x-goog-api-key`), nunca en querystring URL.
+   - Enmascaramiento garantizado de credenciales en logs de Laravel ante fallas de red del proveedor.
+

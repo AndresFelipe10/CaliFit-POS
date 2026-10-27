@@ -1,146 +1,160 @@
 <div class="sidebar-nav-container">
     <ul class="nav flex-column gap-1">
-        {{-- 1. Dashboard --}}
+        {{-- OPERACIÓN Y ATENCIÓN: Visible para Cajeros, Meseros y Administradores --}}
+        <div class="sidebar-heading text-uppercase fw-bold text-muted px-3 mt-2 mb-2" style="font-size: 0.72rem; letter-spacing: 0.06em;">
+            OPERACIÓN Y ATENCIÓN
+        </div>
+
         <li class="nav-item">
-            <a class="nav-link fw-semibold {{ request()->routeIs('dashboard') ? 'active text-primary' : 'text-secondary' }}" href="{{ route('dashboard') }}">
-                <i class="bi bi-speedometer2 me-2"></i> Dashboard
+            <a class="nav-link fw-semibold {{ request()->routeIs('pos.*') ? 'active text-white' : 'text-secondary' }}" 
+               href="{{ route('pos.index') }}"
+               style="{{ request()->routeIs('pos.*') ? 'background-color: #10B981;' : '' }}">
+                <i class="bi bi-calculator me-2 {{ request()->routeIs('pos.*') ? 'text-white' : 'text-success' }}"></i> POS Mostrador
             </a>
         </li>
 
-        {{-- 2. Ventas (Solo para Comercio / Retail; en Restaurantes las ventas se canalizan por Salón/Mesas, Comandas y Domicilios) --}}
-        @if (! app(\App\Services\Tenant\TenantManager::class)->get()?->isRestaurant())
-            <li class="nav-item">
-                <a class="nav-link fw-semibold {{ request()->routeIs('sales.*') && !request()->routeIs('reports.cash-register') ? 'active text-primary' : 'text-secondary' }}" href="{{ route('sales.index') }}">
-                    <i class="bi bi-cart-check me-2"></i> Ventas
-                </a>
-            </li>
-        @endif
-
-        {{-- Módulo Restaurante: Salón y Comandas (Solo Restaurante) --}}
-        @if (app(\App\Services\Tenant\TenantManager::class)->get()?->isRestaurant())
-            <li class="nav-item">
-                <a class="nav-link fw-semibold {{ request()->routeIs('restaurant.tables.*') ? 'active text-primary' : 'text-secondary' }}" href="{{ route('restaurant.tables.index') }}">
-                    <i class="bi bi-grid-3x3-gap-fill me-2"></i> Salón y Mesas
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link fw-semibold {{ request()->routeIs('restaurant.orders.*') && !request()->routeIs('restaurant.orders.deliveries') ? 'active text-primary' : 'text-secondary' }}" href="{{ route('restaurant.orders.index') }}">
-                    <i class="bi bi-receipt me-2"></i> Comandas
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link fw-semibold {{ request()->routeIs('restaurant.orders.deliveries') ? 'active text-primary' : 'text-secondary' }}" href="{{ route('restaurant.orders.deliveries') }}">
-                    <i class="bi bi-bicycle me-2"></i> Domicilios y Despacho
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link fw-semibold {{ request()->routeIs('sales.*') && !request()->routeIs('reports.cash-register') ? 'active text-primary' : 'text-secondary' }}" href="{{ route('sales.index') }}">
-                    <i class="bi bi-receipt me-2"></i> Ventas de Mostrador
-                </a>
-            </li>
-        @endif
-
-        {{-- 2b. Cuadre de Caja (Para Administrador y Empleados) --}}
         <li class="nav-item">
-            <a class="nav-link fw-semibold {{ request()->routeIs('reports.cash-register') ? 'active text-primary' : 'text-secondary' }}" href="{{ route('reports.cash-register') }}">
-                <i class="bi bi-cash-coin me-2"></i> Cuadre de Caja
+            <a class="nav-link fw-semibold {{ request()->routeIs('restaurant.tables.*') ? 'active text-white' : 'text-secondary' }}" 
+               href="{{ route('restaurant.tables.index') }}"
+               style="{{ request()->routeIs('restaurant.tables.*') ? 'background-color: #10B981;' : '' }}">
+                <i class="bi bi-grid-3x3-gap-fill me-2 {{ request()->routeIs('restaurant.tables.*') ? 'text-white' : 'text-success' }}"></i> Salón / Mesas
             </a>
         </li>
 
-        {{-- 3. Inventario (Solo Administrador) --}}
-        @if (auth()->check() && auth()->user()->isCurrentAdmin())
-            <li class="nav-item">
-                <a class="nav-link fw-semibold {{ request()->routeIs('inventory.*') ? 'active text-primary' : 'text-secondary' }}" href="{{ route('inventory.index') }}">
-                    <i class="bi bi-arrow-left-right me-2"></i> Inventario
-                </a>
-            </li>
-        @endif
-
-        @if (auth()->check() && auth()->user()->isCurrentAdmin())
-            @if (app(\App\Services\Tenant\TenantManager::class)->get()?->isRestaurant())
-                {{-- Catálogo para Restaurante: Menú / Productos y Categorías --}}
-                <li class="nav-item">
-                    <a class="nav-link fw-semibold {{ request()->routeIs('products.*') ? 'active text-primary' : 'text-secondary' }}" href="{{ route('products.index') }}">
-                        <i class="bi bi-book-half me-2"></i> Menú / Productos
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link fw-semibold {{ request()->routeIs('categories.*') ? 'active text-primary' : 'text-secondary' }}" href="{{ route('categories.index') }}">
-                        <i class="bi bi-tags me-2"></i> Categorías
-                    </a>
-                </li>
-            @else
-                {{-- 4. Productos (Comercio / Retail) --}}
-                <li class="nav-item">
-                    <a class="nav-link fw-semibold {{ request()->routeIs('products.*') ? 'active text-primary' : 'text-secondary' }}" href="{{ route('products.index') }}">
-                        <i class="bi bi-boxes me-2"></i> Productos
-                    </a>
-                </li>
-
-                {{-- 5. Categorías (Comercio / Retail) --}}
-                <li class="nav-item">
-                    <a class="nav-link fw-semibold {{ request()->routeIs('categories.*') ? 'active text-primary' : 'text-secondary' }}" href="{{ route('categories.index') }}">
-                        <i class="bi bi-tags me-2"></i> Categorías
-                    </a>
-                </li>
-            @endif
-        @endif
-
-        {{-- 6. Clientes --}}
         <li class="nav-item">
-            <a class="nav-link fw-semibold {{ request()->routeIs('customers.*') ? 'active text-primary' : 'text-secondary' }}" href="{{ route('customers.index') }}">
-                <i class="bi bi-people-fill me-2"></i> Clientes
+            <a class="nav-link fw-semibold {{ request()->routeIs('restaurant.orders.*') ? 'active text-white' : 'text-secondary' }}" 
+               href="{{ route('restaurant.orders.index') }}"
+               style="{{ request()->routeIs('restaurant.orders.*') ? 'background-color: #10B981;' : '' }}">
+                <i class="bi bi-receipt-cutoff me-2 {{ request()->routeIs('restaurant.orders.*') ? 'text-white' : 'text-success' }}"></i> Comandas
             </a>
         </li>
 
-        {{-- 7. Proveedores (Solo Administrador) --}}
-        @if (auth()->check() && auth()->user()->isCurrentAdmin())
+        <li class="nav-item">
+            <a class="nav-link fw-semibold {{ request()->routeIs('restaurant.dispatch.*') ? 'active text-white' : 'text-secondary' }}" 
+               href="{{ route('restaurant.dispatch.index') }}"
+               style="{{ request()->routeIs('restaurant.dispatch.*') ? 'background-color: #10B981;' : '' }}">
+                <i class="bi bi-bicycle me-2 {{ request()->routeIs('restaurant.dispatch.*') ? 'text-white' : 'text-success' }}"></i> Despacho / Domicilios
+            </a>
+        </li>
+
+        <li class="nav-item">
+            <a class="nav-link fw-semibold {{ request()->routeIs('cash-register.*') || request()->routeIs('reports.cash-register') ? 'active text-white' : 'text-secondary' }}" 
+               href="{{ route('cash-register.index') }}"
+               style="{{ request()->routeIs('cash-register.*') || request()->routeIs('reports.cash-register') ? 'background-color: #10B981;' : '' }}">
+                <i class="bi bi-cash-stack me-2 {{ request()->routeIs('cash-register.*') ? 'text-white' : 'text-success' }}"></i> Cuadre de Caja
+            </a>
+        </li>
+
+        <li class="nav-item">
+            <a class="nav-link fw-semibold {{ request()->routeIs('credit.*') ? 'active text-white' : 'text-secondary' }}" 
+               href="{{ route('credit.index') }}"
+               style="{{ request()->routeIs('credit.*') ? 'background-color: #10B981;' : '' }}">
+                <i class="bi bi-wallet2 me-2 {{ request()->routeIs('credit.*') ? 'text-white' : 'text-danger' }}"></i> Cartera / Fiados
+            </a>
+        </li>
+
+        {{-- Clientes (Directorio Operativo) --}}
+        <li class="nav-item">
+            <a class="nav-link fw-semibold {{ request()->routeIs('customers.*') ? 'active text-white' : 'text-secondary' }}" 
+               href="{{ route('customers.index') }}"
+               style="{{ request()->routeIs('customers.*') ? 'background-color: #10B981;' : '' }}">
+                <i class="bi bi-people-fill me-2 {{ request()->routeIs('customers.*') ? 'text-white' : 'text-success' }}"></i> Clientes
+            </a>
+        </li>
+
+        @if (auth()->check() && auth()->user()->isAdmin())
+            <hr class="my-2 border-secondary opacity-25">
+            <div class="sidebar-heading text-uppercase fw-bold text-muted px-3 mt-2 mb-2" style="font-size: 0.72rem; letter-spacing: 0.06em;">
+                GESTIÓN Y ADMINISTRACIÓN
+            </div>
+
+            {{-- Dashboard Financiero --}}
             <li class="nav-item">
-                <a class="nav-link fw-semibold {{ request()->routeIs('suppliers.*') ? 'active text-primary' : 'text-secondary' }}" href="{{ route('suppliers.index') }}">
+                <a class="nav-link fw-semibold {{ request()->routeIs('dashboard') ? 'active text-white' : 'text-secondary' }}" 
+                   href="{{ route('dashboard') }}"
+                   style="{{ request()->routeIs('dashboard') ? 'background-color: #10B981;' : '' }}">
+                    <i class="bi bi-speedometer2 me-2"></i> Dashboard
+                </a>
+            </li>
+
+            {{-- Reportes Gerenciales --}}
+            <li class="nav-item">
+                <a class="nav-link fw-semibold {{ request()->routeIs('reports.*') ? 'active text-white' : 'text-secondary' }}" 
+                   href="{{ route('reports.index') }}"
+                   style="{{ request()->routeIs('reports.*') ? 'background-color: #10B981;' : '' }}">
+                    <i class="bi bi-graph-up-arrow me-2 {{ request()->routeIs('reports.*') ? 'text-white' : 'text-success' }}"></i> Reportes
+                </a>
+            </li>
+
+            {{-- Inventario e Insumos --}}
+            <li class="nav-item">
+                <a class="nav-link fw-semibold {{ request()->routeIs('inventory.*') ? 'active text-white' : 'text-secondary' }}" 
+                   href="{{ route('inventory.index') }}"
+                   style="{{ request()->routeIs('inventory.*') ? 'background-color: #10B981;' : '' }}">
+                    <i class="bi bi-boxes me-2"></i> Inventario Físico
+                </a>
+            </li>
+
+            {{-- Catálogo de Productos --}}
+            <li class="nav-item">
+                <a class="nav-link fw-semibold {{ request()->routeIs('products.*') ? 'active text-white' : 'text-secondary' }}" 
+                   href="{{ route('products.index') }}"
+                   style="{{ request()->routeIs('products.*') ? 'background-color: #10B981;' : '' }}">
+                    <i class="bi bi-collection-fill me-2"></i> Catálogo Productos
+                </a>
+            </li>
+
+            {{-- Fórmulas y Recetas --}}
+            <li class="nav-item">
+                <a class="nav-link fw-semibold {{ request()->routeIs('recipes.*') ? 'active text-white' : 'text-secondary' }}" 
+                   href="{{ route('recipes.index') }}"
+                   style="{{ request()->routeIs('recipes.*') ? 'background-color: #10B981;' : '' }}">
+                    <i class="bi bi-book-half me-2"></i> Fórmulas y Recetas
+                </a>
+            </li>
+
+            {{-- Adiciones y Extras --}}
+            <li class="nav-item">
+                <a class="nav-link fw-semibold {{ request()->routeIs('additions.*') ? 'active text-white' : 'text-secondary' }}" 
+                   href="{{ route('additions.index') }}"
+                   style="{{ request()->routeIs('additions.*') ? 'background-color: #10B981;' : '' }}">
+                    <i class="bi bi-plus-square-fill me-2"></i> Adiciones y Extras
+                </a>
+            </li>
+
+            {{-- Proveedores --}}
+            <li class="nav-item">
+                <a class="nav-link fw-semibold {{ request()->routeIs('suppliers.*') ? 'active text-white' : 'text-secondary' }}" 
+                   href="{{ route('suppliers.index') }}"
+                   style="{{ request()->routeIs('suppliers.*') ? 'background-color: #10B981;' : '' }}">
                     <i class="bi bi-truck me-2"></i> Proveedores
                 </a>
             </li>
-        @endif
 
-        {{-- 8. Gastos (Solo Administrador) --}}
-        @if (auth()->check() && auth()->user()->isCurrentAdmin())
+            {{-- Gastos y Facturas de Compra --}}
             <li class="nav-item">
-                <a class="nav-link fw-semibold {{ request()->routeIs('expenses.*') ? 'active text-primary' : 'text-secondary' }}" href="{{ route('expenses.index') }}">
-                    <i class="bi bi-receipt-cutoff me-2"></i> Gastos
+                <a class="nav-link fw-semibold {{ request()->routeIs('expenses.*') ? 'active text-white' : 'text-secondary' }}" 
+                   href="{{ route('expenses.index') }}"
+                   style="{{ request()->routeIs('expenses.*') ? 'background-color: #10B981;' : '' }}">
+                    <i class="bi bi-receipt-cutoff me-2"></i> Gastos y Facturas
                 </a>
             </li>
-        @endif
 
-        {{-- 9. Reportes (Solo Administrador) --}}
-        @if (auth()->check() && auth()->user()->isCurrentAdmin())
+            {{-- Equipo y Colaboradores --}}
             <li class="nav-item">
-                <a class="nav-link fw-semibold {{ request()->routeIs('reports.*') ? 'active text-primary' : 'text-secondary' }}" href="{{ route('reports.index') }}">
-                    <i class="bi bi-file-earmark-bar-graph me-2"></i> Reportes
+                <a class="nav-link fw-semibold {{ request()->routeIs('users.*') ? 'active text-white' : 'text-secondary' }}" 
+                   href="{{ route('users.index') }}"
+                   style="{{ request()->routeIs('users.*') ? 'background-color: #10B981;' : '' }}">
+                    <i class="bi bi-people me-2"></i> Equipo y Colaboradores
                 </a>
             </li>
-        @endif
 
-        {{-- 9. Asistente IA --}}
-        <li class="nav-item">
-            <a class="nav-link fw-semibold {{ request()->routeIs('ai.*') ? 'active text-primary' : 'text-secondary' }}" href="{{ route('ai.index') }}">
-                <i class="bi bi-stars text-primary me-2"></i> Asistente IA
-            </a>
-        </li>
-
-        {{-- 10. Mi Negocio (Solo Administrador) --}}
-        @if (auth()->check() && auth()->user()->isCurrentAdmin())
+            {{-- Asistente de Consultas IA --}}
             <li class="nav-item">
-                <a class="nav-link fw-semibold {{ request()->routeIs('businesses.*') ? 'active text-primary' : 'text-secondary' }}" href="{{ route('businesses.edit') }}">
-                    <i class="bi bi-buildings me-2"></i> Mi negocio
-                </a>
-            </li>
-        @endif
-
-        {{-- 11. Equipo (Solo Administrador) --}}
-        @if (auth()->check() && auth()->user()->isCurrentAdmin())
-            <li class="nav-item">
-                <a class="nav-link fw-semibold {{ request()->routeIs('users.*') ? 'active text-primary' : 'text-secondary' }}" href="{{ route('users.index') }}">
-                    <i class="bi bi-person-badge me-2"></i> Equipo
+                <a class="nav-link fw-semibold {{ request()->routeIs('ai.*') ? 'active text-white' : 'text-secondary' }}" 
+                   href="{{ route('ai.index') }}"
+                   style="{{ request()->routeIs('ai.*') ? 'background-color: #10B981;' : '' }}">
+                    <i class="bi bi-stars me-2 {{ request()->routeIs('ai.*') ? 'text-white' : 'text-warning' }}"></i> Asistente IA
                 </a>
             </li>
         @endif

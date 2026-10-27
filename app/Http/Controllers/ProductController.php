@@ -2,32 +2,36 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Requests\Product\StoreProductRequest;
-use App\Http\Requests\Product\UpdateProductRequest;
+use App\Http\Requests\StoreProductRequest;
+use App\Http\Requests\UpdateProductRequest;
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\Recipe;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
 
 class ProductController extends Controller
 {
     /**
-     * Display a listing of the products.
+     * Display a listing of products with type filter tabs and search.
      */
     public function index(Request $request): View
     {
-        Gate::authorize('viewAny', Product::class);
-
-        $query = Product::with('category');
+        $query = Product::with(['category', 'receta']);
 
         if ($search = $request->input('search')) {
             $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
+                $q->where('nombre', 'like', "%{$search}%")
                   ->orWhere('sku', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%");
+                  ->orWhere('descripcion', 'like', "%{$search}%");
             });
+        }
+
+        if ($tipo = $request->input('tipo')) {
+            if (in_array($tipo, ['INSUMO', 'PREPARACION', 'PLATO', 'SUPLEMENTO'], true)) {
+                $query->where('tipo_producto', $tipo);
+            }
         }
 
         if ($categoryId = $request->input('category_id')) {
@@ -35,37 +39,28 @@ class ProductController extends Controller
         }
 
         if ($request->filled('status')) {
-            $query->where('is_active', $request->boolean('status'));
+            $query->where('activo', $request->boolean('status'));
         }
 
-        if ($request->boolean('low_stock')) {
-            $query->whereColumn('stock', '<=', 'min_stock');
-        }
-
-        $tenant = app(\App\Services\Tenant\TenantManager::class)->get();
-        $isRestaurant = $tenant?->isRestaurant() ?? false;
-        $tab = $request->input('tab', 'all');
-
-        if ($isRestaurant) {
-            if ($tab === 'menu') {
-                $query->where('product_type', 'dish');
-            } elseif ($tab === 'merchandise') {
-                $query->where('product_type', 'standard');
-            }
-        }
-
-        $products = $query->latest()->paginate(15)->withQueryString();
+        $products = $query->orderBy('tipo_producto')->orderBy('nombre')->paginate(15)->withQueryString();
         $categories = Category::where('is_active', true)->orderBy('name')->get();
 
-        return view('products.index', [
-            'products' => $products,
-            'categories' => $categories,
-            'search' => $search,
-            'selectedCategory' => $categoryId,
-            'selectedStatus' => $request->input('status'),
-            'lowStockOnly' => $request->boolean('low_stock'),
-            'activeTab' => $tab,
-        ]);
+        // Conteos para pestañas
+        $totalCount = Product::count();
+        $platosCount = Product::where('tipo_producto', 'PLATO')->count();
+        $suplementosCount = Product::where('tipo_producto', 'SUPLEMENTO')->count();
+        $insumosCount = Product::where('tipo_producto', 'INSUMO')->count();
+        $prepCount = Product::where('tipo_producto', 'PREPARACION')->count();
+
+        return view('products.index', compact(
+            'products',
+            'categories',
+            'totalCount',
+            'platosCount',
+            'suplementosCount',
+            'insumosCount',
+            'prepCount'
+        ));
     }
 
     /**
@@ -73,12 +68,19 @@ class ProductController extends Controller
      */
     public function create(): View
     {
-        Gate::authorize('create', Product::class);
-
         $categories = Category::where('is_active', true)->orderBy('name')->get();
 
-        return view('products.create', [
+        return view('products.form', [
+            'product' => new Product([
+                'tipo_producto' => 'PLATO',
+                'unidad_base' => 'UNIDAD',
+                'stock_minimo' => 5,
+                'precio_compra' => 0,
+                'precio_venta' => 0,
+                'activo' => true,
+            ]),
             'categories' => $categories,
+            'isEdit' => false,
         ]);
     }
 
@@ -87,33 +89,33 @@ class ProductController extends Controller
      */
     public function store(StoreProductRequest $request): RedirectResponse
     {
-        $data = $request->validated();
+        $product = Product::create([
+            'sku' => strtoupper(trim($request->sku)),
+            'nombre' => trim($request->nombre),
+            'descripcion' => $request->descripcion,
+            'tipo_producto' => $request->tipo_producto,
+            'unidad_base' => $request->unidad_base,
+            'category_id' => $request->category_id,
+            'stock' => 0.000,
+            'stock_minimo' => $request->stock_minimo,
+            'precio_compra' => $request->precio_compra ?: 0.00,
+            'precio_venta' => $request->precio_venta,
+            'activo' => true,
+        ]);
 
-        if (empty($data['sku'])) {
-            $tenantId = app(\App\Services\Tenant\TenantManager::class)->id();
-            $data['sku'] = Product::generateUniqueSku($tenantId, $data['product_type'] ?? 'standard');
+        // Si es de tipo PLATO, crear automáticamente cabecera de receta
+        if ($product->tipo_producto === 'PLATO') {
+            Recipe::firstOrCreate(
+                ['producto_plato_id' => $product->id],
+                [
+                    'nombre' => 'Receta ' . $product->nombre,
+                    'activa' => true,
+                ]
+            );
         }
 
-        $product = Product::create($data);
-
         return redirect()->route('products.index')
-            ->with('status', "Producto '{$product->name}' (SKU: {$product->sku}) registrado exitosamente.");
-    }
-
-    /**
-     * Display the specified product.
-     */
-    public function show(Product $product): View
-    {
-        Gate::authorize('view', $product);
-
-        $product->load(['category', 'inventoryMovements' => function ($q) {
-            $q->latest()->take(10);
-        }]);
-
-        return view('products.show', [
-            'product' => $product,
-        ]);
+            ->with('success', "Producto '{$product->nombre}' creado exitosamente.");
     }
 
     /**
@@ -121,45 +123,55 @@ class ProductController extends Controller
      */
     public function edit(Product $product): View
     {
-        Gate::authorize('update', $product);
-
         $categories = Category::where('is_active', true)->orderBy('name')->get();
 
-        return view('products.edit', [
+        return view('products.form', [
             'product' => $product,
             'categories' => $categories,
+            'isEdit' => true,
         ]);
     }
 
     /**
-     * Update the specified product in storage.
+     * Update the specified product in storage (sin alterar stock físico directo).
      */
     public function update(UpdateProductRequest $request, Product $product): RedirectResponse
     {
-        $product->update($request->validated());
+        $product->update([
+            'sku' => strtoupper(trim($request->sku)),
+            'nombre' => trim($request->nombre),
+            'descripcion' => $request->descripcion,
+            'tipo_producto' => $request->tipo_producto,
+            'unidad_base' => $request->unidad_base,
+            'category_id' => $request->category_id,
+            'stock_minimo' => $request->stock_minimo,
+            'precio_compra' => $request->precio_compra ?: 0.00,
+            'precio_venta' => $request->precio_venta,
+        ]);
+
+        if ($product->tipo_producto === 'PLATO') {
+            Recipe::firstOrCreate(
+                ['producto_plato_id' => $product->id],
+                [
+                    'nombre' => 'Receta ' . $product->nombre,
+                    'activa' => true,
+                ]
+            );
+        }
 
         return redirect()->route('products.index')
-            ->with('status', "Producto '{$product->name}' actualizado correctamente.");
+            ->with('success', "Producto '{$product->nombre}' actualizado exitosamente.");
     }
 
     /**
-     * Remove the specified product from storage.
+     * Toggle active/inactive status of a product.
      */
-    public function destroy(Product $product): RedirectResponse
+    public function toggleStatus(Product $product): RedirectResponse
     {
-        Gate::authorize('delete', $product);
-
-        if ($product->saleDetails()->exists()) {
-            $product->update(['is_active' => false]);
-
-            return redirect()->route('products.index')
-                ->with('info', "El producto '{$product->name}' no se puede eliminar porque tiene ventas registradas. Ha sido desactivado.");
-        }
-
-        $name = $product->name;
-        $product->delete();
+        $product->update(['activo' => ! $product->activo]);
+        $statusText = $product->activo ? 'activado' : 'desactivado';
 
         return redirect()->route('products.index')
-            ->with('status', "Producto '{$name}' eliminado correctamente.");
+            ->with('success', "Producto '{$product->nombre}' {$statusText}.");
     }
 }

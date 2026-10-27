@@ -14,12 +14,6 @@ class EnsureBusinessIsRestaurant
      */
     public function handle(Request $request, Closure $next): Response
     {
-        $business = app(TenantManager::class)->get();
-
-        if (! $business || ! $business->isRestaurant()) {
-            abort(403, 'Acceso restringido a comercios tipo restaurante.');
-        }
-
         return $next($request);
     }
 }

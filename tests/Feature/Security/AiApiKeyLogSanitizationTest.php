@@ -6,7 +6,6 @@ use App\AI\Contracts\AiProviderInterface;
 use App\AI\Exceptions\AiProviderException;
 use App\AI\Providers\GeminiProvider;
 use App\AI\Services\AiQueryService;
-use App\Models\Business;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;

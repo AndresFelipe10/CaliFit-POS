@@ -10,30 +10,42 @@ use Illuminate\Http\Request;
 class ProductSearchController extends Controller
 {
     /**
-     * Search products by name or SKU for the active tenant.
+     * Search products by name or SKU.
      * Used by the POS sale form for autocomplete.
      */
     public function __invoke(Request $request): JsonResponse
     {
         $rawSearch = trim((string) $request->input('q', ''));
 
-        $query = Product::where('is_active', true);
+        $query = Product::where('activo', true);
 
         if ($rawSearch !== '') {
             $escaped = addcslashes($rawSearch, '%_\\');
 
             $query->where(function ($q) use ($escaped, $rawSearch) {
-                // Si coincide exactamente con SKU, búsqueda directa indexada
                 $q->where('sku', $rawSearch)
-                  ->orWhere('name', 'like', "%{$escaped}%")
+                  ->orWhere('nombre', 'like', "%{$escaped}%")
                   ->orWhere('sku', 'like', "%{$escaped}%");
             });
         }
 
-        $products = $query->select(['id', 'name', 'sku', 'sale_price', 'stock'])
-            ->orderBy('name')
+        $products = $query->select(['id', 'nombre', 'sku', 'precio_venta', 'stock', 'tipo_producto', 'unidad_base', 'activo'])
+            ->orderBy('nombre')
             ->limit(15)
-            ->get();
+            ->get()
+            ->map(fn ($p) => [
+                'id' => $p->id,
+                'nombre' => $p->nombre,
+                'name' => $p->nombre,
+                'sku' => $p->sku,
+                'precio_venta' => (float) $p->precio_venta,
+                'sale_price' => (float) $p->precio_venta,
+                'stock' => (float) $p->stock,
+                'tipo_producto' => $p->tipo_producto,
+                'unidad_base' => $p->unidad_base,
+                'activo' => (bool) $p->activo,
+                'is_active' => (bool) $p->activo,
+            ]);
 
         return response()->json($products)
             ->header('Cache-Control', 'private, max-age=5');

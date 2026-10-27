@@ -8,11 +8,19 @@ use App\Models\User;
 class ExpensePolicy
 {
     /**
+     * Determine whether the user is an admin.
+     */
+    protected function canManage(User $user): bool
+    {
+        return $user->isAdmin();
+    }
+
+    /**
      * Determine whether the user can view any expenses.
      */
     public function viewAny(User $user): bool
     {
-        return $user->isCurrentAdmin();
+        return $this->canManage($user);
     }
 
     /**
@@ -20,11 +28,7 @@ class ExpensePolicy
      */
     public function view(User $user, Expense $expense): bool
     {
-        if ((int) $expense->business_id !== (int) session('current_business_id')) {
-            return false;
-        }
-
-        return $user->isCurrentAdmin();
+        return $this->canManage($user);
     }
 
     /**
@@ -32,7 +36,7 @@ class ExpensePolicy
      */
     public function create(User $user): bool
     {
-        return $user->isCurrentAdmin();
+        return $this->canManage($user);
     }
 
     /**
@@ -40,11 +44,7 @@ class ExpensePolicy
      */
     public function update(User $user, Expense $expense): bool
     {
-        if ((int) $expense->business_id !== (int) session('current_business_id')) {
-            return false;
-        }
-
-        return $user->isCurrentAdmin();
+        return $this->canManage($user);
     }
 
     /**
@@ -52,11 +52,7 @@ class ExpensePolicy
      */
     public function delete(User $user, Expense $expense): bool
     {
-        if ((int) $expense->business_id !== (int) session('current_business_id')) {
-            return false;
-        }
-
-        return $user->isCurrentAdmin();
+        return $this->canManage($user);
     }
 
     /**
@@ -64,11 +60,7 @@ class ExpensePolicy
      */
     public function pay(User $user, Expense $expense): bool
     {
-        if ((int) $expense->business_id !== (int) session('current_business_id')) {
-            return false;
-        }
-
-        return $user->isCurrentAdmin();
+        return $this->canManage($user);
     }
 
     /**
@@ -76,10 +68,6 @@ class ExpensePolicy
      */
     public function downloadAttachment(User $user, Expense $expense): bool
     {
-        if ((int) $expense->business_id !== (int) session('current_business_id')) {
-            return false;
-        }
-
-        return $user->isCurrentAdmin();
+        return $this->canManage($user);
     }
 }

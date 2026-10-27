@@ -2,41 +2,41 @@
 
 namespace App\Models;
 
-use App\Models\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class InventoryMovement extends Model
 {
-    use HasFactory, BelongsToTenant;
+    use HasFactory;
 
-    public const TYPE_ENTRY = 'entry';
-    public const TYPE_EXIT = 'exit';
-    public const TYPE_ADJUSTMENT = 'adjustment';
+    public const TYPE_SALIDA_VENTA = 'SALIDA_VENTA';
+    public const TYPE_ENTRADA_COMPRA = 'ENTRADA_COMPRA';
+    public const TYPE_MERMA = 'MERMA';
+    public const TYPE_AJUSTE = 'AJUSTE';
+    public const TYPE_DEVOLUCION_ANULACION = 'DEVOLUCION_ANULACION';
 
     protected $table = 'inventory_movements';
 
     protected $fillable = [
-        'business_id',
         'product_id',
         'user_id',
-        'sale_id',
         'type',
         'quantity',
         'previous_stock',
         'new_stock',
         'reason',
-        'movement_date',
+        'reference_type',
+        'reference_id',
     ];
 
     protected function casts(): array
     {
         return [
-            'quantity' => 'float',
-            'previous_stock' => 'float',
-            'new_stock' => 'float',
-            'movement_date' => 'datetime',
+            'quantity' => 'decimal:3',
+            'previous_stock' => 'decimal:3',
+            'new_stock' => 'decimal:3',
         ];
     }
 
@@ -50,8 +50,8 @@ class InventoryMovement extends Model
         return $this->belongsTo(User::class);
     }
 
-    public function sale(): BelongsTo
+    public function reference(): MorphTo
     {
-        return $this->belongsTo(Sale::class);
+        return $this->morphTo();
     }
 }

@@ -2,11 +2,9 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
-use App\Services\Tenant\TenantManager;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -22,10 +20,12 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $fillable = [
+        'role_id',
         'name',
         'email',
         'password',
         'must_change_password',
+        'is_active',
         'terms_accepted_at',
         'terms_accepted_ip',
     ];
@@ -50,24 +50,15 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
-            'is_superadmin' => 'boolean',
             'must_change_password' => 'boolean',
+            'is_active' => 'boolean',
             'terms_accepted_at' => 'datetime',
         ];
     }
 
-    public function businesses(): BelongsToMany
+    public function role(): BelongsTo
     {
-        return $this->belongsToMany(Business::class, 'business_user')
-            ->withPivot('role_id', 'is_active')
-            ->withTimestamps();
-    }
-
-    public function roles(): BelongsToMany
-    {
-        return $this->belongsToMany(Role::class, 'business_user')
-            ->withPivot('business_id', 'is_active')
-            ->withTimestamps();
+        return $this->belongsTo(Role::class, 'role_id');
     }
 
     public function sales(): HasMany
@@ -75,77 +66,46 @@ class User extends Authenticatable
         return $this->hasMany(Sale::class);
     }
 
+    public function restaurantOrders(): HasMany
+    {
+        return $this->hasMany(RestaurantOrder::class);
+    }
+
+    public function expenses(): HasMany
+    {
+        return $this->hasMany(Expense::class, 'created_by');
+    }
+
     public function inventoryMovements(): HasMany
     {
         return $this->hasMany(InventoryMovement::class);
     }
 
-    /**
-     * Get the role of the user in a specific business.
-     */
-    public function roleInBusiness(Business $business): ?Role
+    public function hasRole(string $slug): bool
     {
-        $membership = $this->businesses()
-            ->where('businesses.id', $business->id)
-            ->wherePivot('is_active', true)
-            ->first();
-
-        if (! $membership) {
-            return null;
-        }
-
-        return Role::find($membership->pivot->role_id);
+        return $this->role?->slug === $slug;
     }
 
-    /**
-     * Check if user is an admin in a specific business.
-     */
-    public function isAdminOf(Business $business): bool
+    public function isAdmin(): bool
     {
-        return $this->roleInBusiness($business)?->slug === Role::ROLE_ADMIN;
+        return $this->hasRole(Role::ROLE_ADMIN);
     }
 
-    /**
-     * Check if user is an employee in a specific business.
-     */
-    public function isEmployeeOf(Business $business): bool
+    public function isEmployee(): bool
     {
-        return $this->roleInBusiness($business)?->slug === Role::ROLE_EMPLOYEE;
+        return $this->hasRole(Role::ROLE_EMPLOYEE);
     }
 
-    /**
-     * Get user's role in the currently active tenant business.
-     */
-    public function currentRole(): ?Role
-    {
-        $tenant = app(TenantManager::class)->get();
-
-        if (! $tenant) {
-            return null;
-        }
-
-        return $this->roleInBusiness($tenant);
-    }
-
-    /**
-     * Check if user is an admin in the currently active tenant business.
-     */
     public function isCurrentAdmin(): bool
     {
-        return $this->currentRole()?->slug === Role::ROLE_ADMIN;
+        return $this->isAdmin();
     }
 
-    /**
-     * Check if user is an employee in the currently active tenant business.
-     */
-     public function isCurrentEmployee(): bool
-     {
-         return $this->currentRole()?->slug === Role::ROLE_EMPLOYEE;
-     }
+    public function isCurrentEmployee(): bool
+    {
+        return $this->isEmployee();
+    }
 
-    /**
-     * Check if user has accepted the terms of service (Ley 527 de 1999).
-     */
     public function hasAcceptedTerms(): bool
     {
         return ! is_null($this->terms_accepted_at);

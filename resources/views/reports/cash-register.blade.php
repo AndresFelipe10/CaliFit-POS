@@ -68,11 +68,11 @@
         <a href="{{ route('reports.cash-register', array_merge(request()->all(), ['export' => 'csv'])) }}" class="btn btn-outline-secondary rounded-pill px-3 shadow-sm">
             <i class="bi bi-file-earmark-excel me-1"></i> Exportar a CSV
         </a>
-        <a href="{{ route('sales.index') }}" class="btn btn-outline-secondary rounded-pill px-3 shadow-sm">
+        <a href="{{ route('reports.sales') }}" class="btn btn-outline-secondary rounded-pill px-3 shadow-sm">
             <i class="bi bi-receipt me-1"></i> Historial Ventas
         </a>
-        <a href="{{ route('sales.create') }}" class="btn btn-primary fw-semibold rounded-pill px-3 shadow-sm">
-            <i class="bi bi-cart-plus me-1"></i> + Nueva Venta
+        <a href="{{ route('pos.index') }}" class="btn btn-primary fw-semibold rounded-pill px-3 shadow-sm">
+            <i class="bi bi-cart-plus me-1"></i> Nueva Venta
         </a>
     </div>
 </div>
@@ -665,7 +665,7 @@
                                 @endif
                             </td>
                             <td class="small">
-                                {{ $sale->sale_date->format('d/m/Y H:i') }}
+                                {{ ($sale->sale_date ?? $sale->created_at)?->format('d/m/Y H:i') }}
                             </td>
                             <td class="small">
                                 <i class="bi bi-person me-1 text-muted"></i>{{ $sale->user ? $sale->user->name : 'N/A' }}

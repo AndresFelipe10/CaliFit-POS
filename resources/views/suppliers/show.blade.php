@@ -1,155 +1,159 @@
 @extends('layouts.app')
 
-@section('title', $supplier->name)
+@section('title', 'Historial del Proveedor: ' . $supplier->name)
 
 @section('content')
-<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
-    <div class="d-flex align-items-center gap-3">
-        <a href="{{ route('suppliers.index') }}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
-            <i class="bi bi-arrow-left me-1"></i> Volver al Directorio
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <a href="{{ route('suppliers.index') }}" class="text-decoration-none text-muted small fw-semibold">
+            <i class="bi bi-arrow-left me-1"></i> Volver a Proveedores
         </a>
-        <div>
-            <h3 class="fw-bold mb-0">{{ $supplier->name }}</h3>
-            @if ($supplier->identification_number)
-                <span class="badge bg-light text-dark font-monospace border">NIT: {{ $supplier->identification_number }}</span>
-            @endif
-        </div>
+        <h3 class="fw-bold mb-0 text-dark mt-1">
+            Ficha del Proveedor
+        </h3>
     </div>
-
-    @can('update', $supplier)
-        <a href="{{ route('suppliers.edit', $supplier) }}" class="btn btn-primary rounded-pill px-4 fw-semibold">
-            <i class="bi bi-pencil-square me-1"></i> Editar Proveedor
-        </a>
-    @endcan
+    <div class="d-flex gap-2">
+        <form action="{{ route('suppliers.toggle-status', $supplier) }}" method="POST" class="d-inline">
+            @csrf
+            @method('PATCH')
+            <button type="submit" class="btn btn-outline-secondary rounded-pill px-3">
+                <i class="bi bi-arrow-repeat me-1"></i> {{ $supplier->is_active ? 'Desactivar' : 'Activar' }}
+            </button>
+        </form>
+    </div>
 </div>
 
-<div class="row justify-content-center">
-    <div class="col-lg-8">
-        <div class="card card-custom p-4 bg-white mb-4">
-            <h5 class="fw-bold mb-3 border-bottom pb-2">Información del Proveedor</h5>
-
-            <div class="row g-3">
-                <div class="col-sm-6 mb-2">
-                    <span class="text-muted small d-block">Razón Social</span>
-                    <span class="fw-semibold">{{ $supplier->name }}</span>
+<div class="row g-4 mb-4">
+    {{-- Tarjeta de Perfil y Contacto --}}
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm rounded-4 bg-white p-4 h-100">
+            <div class="text-center mb-3">
+                <div class="rounded-circle d-inline-flex align-items-center justify-content-center text-white mb-2" style="width: 70px; height: 70px; background-color: #10B981; font-size: 1.8rem;">
+                    <i class="bi bi-truck"></i>
                 </div>
-                <div class="col-sm-6 mb-2">
-                    <span class="text-muted small d-block">NIT / Identificación Tributaria</span>
-                    <span class="fw-semibold font-monospace">{{ $supplier->identification_number ?? 'No especificado' }}</span>
-                </div>
-                <div class="col-sm-6 mb-2">
-                    <span class="text-muted small d-block">Persona de Contacto</span>
-                    <span class="fw-semibold">{{ $supplier->contact_name ?? 'No especificada' }}</span>
-                </div>
-                <div class="col-sm-6 mb-2">
-                    <span class="text-muted small d-block">Teléfono / WhatsApp</span>
-                    <span class="fw-semibold">{{ $supplier->phone ?? 'No registrado' }}</span>
-                </div>
-                <div class="col-sm-6 mb-2">
-                    <span class="text-muted small d-block">Correo Electrónico</span>
-                    <span class="fw-semibold">{{ $supplier->email ?? 'No registrado' }}</span>
-                </div>
-                <div class="col-sm-6 mb-2">
-                    <span class="text-muted small d-block">Dirección Comercial</span>
-                    <span class="fw-semibold">{{ $supplier->address ?? 'No registrada' }}</span>
-                </div>
-                <div class="col-12 border-top pt-2">
-                    <span class="text-muted small d-block">Estado</span>
+                <h5 class="fw-bold text-dark mb-0">{{ $supplier->name }}</h5>
+                <span class="badge bg-light text-secondary border font-monospace mt-1">NIT: {{ $supplier->nit }}</span>
+                <div class="mt-2">
                     @if ($supplier->is_active)
-                        <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2.5 py-1">
-                            <i class="bi bi-check-circle-fill me-1"></i> Activo
-                        </span>
+                        <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1 rounded-pill small">Activo</span>
                     @else
-                        <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle rounded-pill px-2.5 py-1">
-                            <i class="bi bi-dash-circle-fill me-1"></i> Inactivo
-                        </span>
+                        <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 px-2 py-1 rounded-pill small">Inactivo</span>
                     @endif
                 </div>
             </div>
-        </div>
 
-        @if(auth()->check() && auth()->user()->isCurrentAdmin())
-            {{-- Sección de Gastos y Facturas Asociadas (Solo Administrador) --}}
-            <div class="card card-custom p-4 bg-white mb-4">
-                <div class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-2 border-bottom pb-3 mb-3">
-                    <div>
-                        <h5 class="fw-bold mb-0">Facturas y Gastos Asociados</h5>
-                        <small class="text-muted">Historial de compras y obligaciones financieras con este proveedor.</small>
-                    </div>
-                    <a href="{{ route('expenses.create') }}?supplier_id={{ $supplier->id }}" class="btn btn-outline-primary btn-sm rounded-pill px-3">
-                        <i class="bi bi-plus-circle me-1"></i> Registrar Factura
-                    </a>
+            <hr class="my-3">
+
+            <div class="d-flex flex-column gap-2 small">
+                <div>
+                    <span class="text-muted d-block">Contacto / Asesor:</span>
+                    <strong class="text-dark">{{ $supplier->contact_name ?: 'No especificado' }}</strong>
                 </div>
-
-                {{-- Balance de obligaciones --}}
-                <div class="row g-3 mb-3">
-                    <div class="col-sm-6">
-                        <div class="p-3 bg-light rounded-3 border">
-                            <span class="text-muted small d-block">Total Facturado</span>
-                            <span class="fs-5 fw-bold text-dark">${{ number_format($totalExpensesAmount, 0, ',', '.') }}</span>
-                        </div>
-                    </div>
-                    <div class="col-sm-6">
-                        <div class="p-3 bg-light rounded-3 border border-warning">
-                            <span class="text-muted small d-block">Saldo Por Pagar / Pendiente</span>
-                            <span class="fs-5 fw-bold text-warning">${{ number_format($pendingAmount, 0, ',', '.') }}</span>
-                        </div>
-                    </div>
+                <div>
+                    <span class="text-muted d-block">Teléfono / Celular:</span>
+                    <strong class="text-dark">{{ $supplier->phone ?: 'No registrado' }}</strong>
                 </div>
-
-                {{-- Tabla de gastos asociados --}}
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0 small">
-                        <thead class="table-light text-secondary">
-                            <tr>
-                                <th>Emisión</th>
-                                <th>Factura</th>
-                                <th>Categoría</th>
-                                <th class="text-end">Monto</th>
-                                <th>Estado</th>
-                                <th class="text-end">Acción</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @forelse($supplier->expenses as $exp)
-                                <tr>
-                                    <td>{{ $exp->issue_date->format('d/m/Y') }}</td>
-                                    <td>
-                                        @if($exp->invoice_number)
-                                            <span class="badge bg-light text-dark border font-monospace">{{ $exp->invoice_number }}</span>
-                                        @else
-                                            <span class="text-muted">S/N</span>
-                                        @endif
-                                    </td>
-                                    <td>{{ $exp->category_label }}</td>
-                                    <td class="text-end fw-bold">${{ number_format($exp->amount, 0, ',', '.') }}</td>
-                                    <td>
-                                        @if($exp->status === 'paid')
-                                            <span class="badge bg-success-subtle text-success">Pagada</span>
-                                        @elseif($exp->is_overdue)
-                                            <span class="badge bg-danger-subtle text-danger">Vencida</span>
-                                        @else
-                                            <span class="badge bg-warning-subtle text-warning">Pendiente</span>
-                                        @endif
-                                    </td>
-                                    <td class="text-end">
-                                        <a href="{{ route('expenses.show', $exp) }}" class="btn btn-outline-secondary btn-sm py-0 px-2" title="Ver detalle">
-                                            <i class="bi bi-eye"></i>
-                                        </a>
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="6" class="text-center py-4 text-muted">
-                                        No hay facturas ni gastos registrados para este proveedor.
-                                    </td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
+                <div>
+                    <span class="text-muted d-block">Correo Electrónico:</span>
+                    <strong class="text-dark">{{ $supplier->email ?: 'No registrado' }}</strong>
+                </div>
+                <div>
+                    <span class="text-muted d-block">Dirección / Sede:</span>
+                    <strong class="text-dark">{{ $supplier->address ?: 'No registrada' }}</strong>
                 </div>
             </div>
-        @endif
+        </div>
+    </div>
+
+    {{-- Resumen de Compras / Facturas --}}
+    <div class="col-lg-8">
+        <div class="row g-3 mb-4">
+            <div class="col-sm-6">
+                <div class="card border-0 shadow-sm rounded-4 bg-white p-3">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <span class="text-muted small fw-semibold text-uppercase">Facturas / Gastos</span>
+                            <h3 class="fw-bold mb-0 text-dark">{{ $supplier->expenses->count() }}</h3>
+                        </div>
+                        <div class="rounded-circle p-2 bg-primary bg-opacity-10 text-primary">
+                            <i class="bi bi-receipt-cutoff fs-4"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6">
+                <div class="card border-0 shadow-sm rounded-4 bg-white p-3">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <span class="text-muted small fw-semibold text-uppercase">Total Facturado</span>
+                            <h3 class="fw-bold mb-0 text-danger">
+                                ${{ number_format($supplier->expenses->sum('amount'), 0, ',', '.') }}
+                            </h3>
+                        </div>
+                        <div class="rounded-circle p-2 bg-danger bg-opacity-10 text-danger">
+                            <i class="bi bi-cash-stack fs-4"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {{-- Tabla de Facturas y Gastos Asociados --}}
+        <div class="card border-0 shadow-sm rounded-4 bg-white overflow-hidden">
+            <div class="p-3 border-bottom d-flex align-items-center justify-content-between">
+                <h6 class="fw-bold text-dark mb-0">
+                    <i class="bi bi-journal-check me-2" style="color: #10B981;"></i>Facturas y Compras Asociadas
+                </h6>
+                <span class="small text-muted">Últimos registros</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr class="small text-uppercase text-muted">
+                            <th class="ps-3">Código / Factura</th>
+                            <th>Fecha Emisión</th>
+                            <th>Categoría</th>
+                            <th>Monto</th>
+                            <th class="text-end pe-3">Comprobante</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse ($supplier->expenses as $expense)
+                            <tr>
+                                <td class="ps-3">
+                                    <span class="font-monospace fw-bold text-dark">{{ $expense->invoice_number ?: '#' . $expense->id }}</span>
+                                    <div class="small text-muted">{{ $expense->description }}</div>
+                                </td>
+                                <td>
+                                    <small class="text-muted">{{ $expense->issue_date ? \Carbon\Carbon::parse($expense->issue_date)->format('d/m/Y') : '—' }}</small>
+                                </td>
+                                <td>
+                                    <span class="badge bg-light text-secondary border small">{{ $expense->category }}</span>
+                                </td>
+                                <td>
+                                    <span class="fw-bold text-danger">${{ number_format($expense->amount, 0, ',', '.') }}</span>
+                                </td>
+                                <td class="text-end pe-3">
+                                    @if ($expense->receipt_file_path)
+                                        <a href="{{ route('expenses.receipt', $expense) }}" target="_blank" class="btn btn-sm btn-outline-primary rounded-pill px-3" title="Descargar Comprobante">
+                                            <i class="bi bi-file-earmark-pdf me-1"></i> Ver
+                                        </a>
+                                    @else
+                                        <span class="text-muted small">Sin adjunto</span>
+                                    @endif
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="5" class="text-center py-4 text-muted small">
+                                    No hay gastos o facturas de compras registradas para este proveedor.
+                                </td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 </div>
 @endsection

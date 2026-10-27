@@ -1,6 +1,7 @@
-<link rel="icon" type="image/svg+xml" href="{{ asset('favicon.svg') }}?v=1">
-<link rel="icon" href="{{ asset('favicon.ico') }}?v=1" sizes="48x48">
-<link rel="icon" type="image/png" sizes="32x32" href="{{ asset('favicon-32x32.png') }}?v=1">
-<link rel="icon" type="image/png" sizes="16x16" href="{{ asset('favicon-16x16.png') }}?v=1">
-<link rel="apple-touch-icon" href="{{ asset('apple-touch-icon.png') }}?v=1">
-<meta name="theme-color" content="#1B2A49">
+<!-- Favicon & PWA Icons -->
+<link rel="icon" type="image/x-icon" href="{{ asset('favicon.ico') }}">
+<link rel="icon" type="image/png" sizes="16x16" href="{{ asset('favicon-16x16.png') }}">
+<link rel="icon" type="image/png" sizes="32x32" href="{{ asset('favicon-32x32.png') }}">
+<link rel="apple-touch-icon" sizes="180x180" href="{{ asset('apple-touch-icon.png') }}">
+<link rel="manifest" href="{{ asset('images/brand/site.webmanifest') }}">
+<meta name="theme-color" content="#111827">

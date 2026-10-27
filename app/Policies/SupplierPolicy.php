@@ -12,7 +12,7 @@ class SupplierPolicy
      */
     public function viewAny(User $user): bool
     {
-        return $user->isCurrentAdmin() || $user->isCurrentEmployee();
+        return $user->isAdmin();
     }
 
     /**
@@ -20,11 +20,7 @@ class SupplierPolicy
      */
     public function view(User $user, Supplier $supplier): bool
     {
-        if ((int) $supplier->business_id !== (int) session('current_business_id')) {
-            return false;
-        }
-
-        return $user->isCurrentAdmin() || $user->isCurrentEmployee();
+        return $user->isAdmin();
     }
 
     /**
@@ -32,7 +28,7 @@ class SupplierPolicy
      */
     public function create(User $user): bool
     {
-        return $user->isCurrentAdmin();
+        return $user->isAdmin();
     }
 
     /**
@@ -40,11 +36,7 @@ class SupplierPolicy
      */
     public function update(User $user, Supplier $supplier): bool
     {
-        if ((int) $supplier->business_id !== (int) session('current_business_id')) {
-            return false;
-        }
-
-        return $user->isCurrentAdmin();
+        return $user->isAdmin();
     }
 
     /**
@@ -52,10 +44,6 @@ class SupplierPolicy
      */
     public function delete(User $user, Supplier $supplier): bool
     {
-        if ((int) $supplier->business_id !== (int) session('current_business_id')) {
-            return false;
-        }
-
-        return $user->isCurrentAdmin();
+        return $user->isAdmin();
     }
 }

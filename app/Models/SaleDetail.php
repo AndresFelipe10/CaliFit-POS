@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class SaleDetail extends Model
 {
@@ -23,7 +24,7 @@ class SaleDetail extends Model
     protected function casts(): array
     {
         return [
-            'quantity' => 'integer',
+            'quantity' => 'decimal:3',
             'unit_price' => 'decimal:2',
             'subtotal' => 'decimal:2',
         ];
@@ -37,5 +38,15 @@ class SaleDetail extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function additions(): HasMany
+    {
+        return $this->hasMany(SaleDetailAddition::class, 'sale_detail_id');
+    }
+
+    public function adiciones(): HasMany
+    {
+        return $this->additions();
     }
 }

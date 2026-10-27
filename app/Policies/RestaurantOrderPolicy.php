@@ -12,7 +12,7 @@ class RestaurantOrderPolicy
      */
     public function viewAny(User $user): bool
     {
-        return $user->isCurrentAdmin() || $user->isCurrentEmployee();
+        return $user->isAdmin() || $user->isEmployee();
     }
 
     /**
@@ -20,11 +20,7 @@ class RestaurantOrderPolicy
      */
     public function view(User $user, RestaurantOrder $order): bool
     {
-        if ((int) $order->business_id !== (int) session('current_business_id')) {
-            return false;
-        }
-
-        return $user->isCurrentAdmin() || $user->isCurrentEmployee();
+        return $user->isAdmin() || $user->isEmployee();
     }
 
     /**
@@ -32,7 +28,7 @@ class RestaurantOrderPolicy
      */
     public function create(User $user): bool
     {
-        return $user->isCurrentAdmin() || $user->isCurrentEmployee();
+        return $user->isAdmin() || $user->isEmployee();
     }
 
     /**
@@ -40,11 +36,7 @@ class RestaurantOrderPolicy
      */
     public function update(User $user, RestaurantOrder $order): bool
     {
-        if ((int) $order->business_id !== (int) session('current_business_id')) {
-            return false;
-        }
-
-        return $user->isCurrentAdmin() || $user->isCurrentEmployee();
+        return $user->isAdmin() || $user->isEmployee();
     }
 
     /**
@@ -52,11 +44,7 @@ class RestaurantOrderPolicy
      */
     public function delete(User $user, RestaurantOrder $order): bool
     {
-        if ((int) $order->business_id !== (int) session('current_business_id')) {
-            return false;
-        }
-
-        return $user->isCurrentAdmin();
+        return $user->isAdmin();
     }
 
     /**
@@ -64,10 +52,14 @@ class RestaurantOrderPolicy
      */
     public function cancelEmpty(User $user, RestaurantOrder $order): bool
     {
-        if ((int) $order->business_id !== (int) session('current_business_id')) {
-            return false;
-        }
+        return $user->isAdmin() || $user->isEmployee();
+    }
 
-        return $user->isCurrentAdmin() || $user->isCurrentEmployee();
+    /**
+     * Determine whether the user can change table of an active order.
+     */
+    public function changeTable(User $user, RestaurantOrder $order): bool
+    {
+        return $user->isAdmin() || $user->isEmployee();
     }
 }

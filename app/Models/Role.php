@@ -4,7 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Role extends Model
 {
@@ -21,10 +21,18 @@ class Role extends Model
         'description',
     ];
 
-    public function users(): BelongsToMany
+    public function users(): HasMany
     {
-        return $this->belongsToMany(User::class, 'business_user')
-            ->withPivot('business_id', 'is_active')
-            ->withTimestamps();
+        return $this->hasMany(User::class, 'role_id');
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->slug === self::ROLE_ADMIN;
+    }
+
+    public function isEmployee(): bool
+    {
+        return $this->slug === self::ROLE_EMPLOYEE;
     }
 }

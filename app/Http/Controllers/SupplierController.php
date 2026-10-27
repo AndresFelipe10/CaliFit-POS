@@ -2,29 +2,26 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Requests\Supplier\StoreSupplierRequest;
-use App\Http\Requests\Supplier\UpdateSupplierRequest;
+use App\Http\Requests\StoreSupplierRequest;
+use App\Http\Requests\UpdateSupplierRequest;
 use App\Models\Supplier;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
 
 class SupplierController extends Controller
 {
     /**
-     * Display a listing of the suppliers.
+     * Display a listing of suppliers.
      */
     public function index(Request $request): View
     {
-        Gate::authorize('viewAny', Supplier::class);
-
-        $query = Supplier::query();
+        $query = Supplier::withCount('expenses');
 
         if ($search = $request->input('search')) {
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('identification_number', 'like', "%{$search}%")
+                  ->orWhere('nit', 'like', "%{$search}%")
                   ->orWhere('contact_name', 'like', "%{$search}%")
                   ->orWhere('email', 'like', "%{$search}%")
                   ->orWhere('phone', 'like', "%{$search}%");
@@ -35,23 +32,9 @@ class SupplierController extends Controller
             $query->where('is_active', $request->boolean('status'));
         }
 
-        $suppliers = $query->latest()->paginate(15)->withQueryString();
+        $suppliers = $query->orderBy('name')->paginate(15)->withQueryString();
 
-        return view('suppliers.index', [
-            'suppliers' => $suppliers,
-            'search' => $search,
-            'selectedStatus' => $request->input('status'),
-        ]);
-    }
-
-    /**
-     * Show the form for creating a new supplier.
-     */
-    public function create(): View
-    {
-        Gate::authorize('create', Supplier::class);
-
-        return view('suppliers.create');
+        return view('suppliers.index', compact('suppliers', 'search'));
     }
 
     /**
@@ -59,47 +42,24 @@ class SupplierController extends Controller
      */
     public function store(StoreSupplierRequest $request): RedirectResponse
     {
-        $supplier = Supplier::create($request->validated());
+        $supplier = Supplier::create(array_merge($request->validated(), [
+            'is_active' => true,
+        ]));
 
         return redirect()->route('suppliers.index')
-            ->with('status', "Proveedor '{$supplier->name}' registrado exitosamente.");
+            ->with('success', "Proveedor '{$supplier->name}' registrado exitosamente.");
     }
 
     /**
-     * Display the specified supplier.
+     * Display the specified supplier with expense history.
      */
     public function show(Supplier $supplier): View
     {
-        Gate::authorize('view', $supplier);
+        $supplier->load(['expenses' => function ($q) {
+            $q->latest('issue_date')->take(20);
+        }]);
 
-        $pendingAmount = 0.0;
-        $totalExpensesAmount = 0.0;
-
-        if (auth()->check() && auth()->user()->isCurrentAdmin()) {
-            $supplier->load(['expenses' => function ($q) {
-                $q->latest('issue_date')->latest('id');
-            }]);
-            $pendingAmount = (float) $supplier->expenses->where('status', 'pending')->sum('amount');
-            $totalExpensesAmount = (float) $supplier->expenses->sum('amount');
-        }
-
-        return view('suppliers.show', [
-            'supplier' => $supplier,
-            'pendingAmount' => $pendingAmount,
-            'totalExpensesAmount' => $totalExpensesAmount,
-        ]);
-    }
-
-    /**
-     * Show the form for editing the specified supplier.
-     */
-    public function edit(Supplier $supplier): View
-    {
-        Gate::authorize('update', $supplier);
-
-        return view('suppliers.edit', [
-            'supplier' => $supplier,
-        ]);
+        return view('suppliers.show', compact('supplier'));
     }
 
     /**
@@ -110,20 +70,18 @@ class SupplierController extends Controller
         $supplier->update($request->validated());
 
         return redirect()->route('suppliers.index')
-            ->with('status', "Proveedor '{$supplier->name}' actualizado correctamente.");
+            ->with('success', "Proveedor '{$supplier->name}' actualizado correctamente.");
     }
 
     /**
-     * Remove the specified supplier from storage.
+     * Toggle active/inactive status of a supplier.
      */
-    public function destroy(Supplier $supplier): RedirectResponse
+    public function toggleStatus(Supplier $supplier): RedirectResponse
     {
-        Gate::authorize('delete', $supplier);
-
-        $name = $supplier->name;
-        $supplier->delete();
+        $supplier->update(['is_active' => ! $supplier->is_active]);
+        $statusText = $supplier->is_active ? 'activado' : 'desactivado';
 
         return redirect()->route('suppliers.index')
-            ->with('status', "Proveedor '{$name}' eliminado correctamente.");
+            ->with('success', "Proveedor '{$supplier->name}' {$statusText}.");
     }
 }

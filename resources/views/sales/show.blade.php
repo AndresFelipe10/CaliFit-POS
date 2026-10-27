@@ -5,8 +5,8 @@
 @section('content')
 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
     <div class="d-flex align-items-center gap-3">
-        <a href="{{ route('sales.index') }}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
-            <i class="bi bi-arrow-left me-1"></i> Volver
+        <a href="{{ route('reports.sales') }}" class="btn btn-outline-secondary btn-sm rounded-pill px-3 d-inline-flex align-items-center">
+            <i class="bi bi-arrow-left me-1.5" style="margin-right: 6px;"></i> <span>Volver</span>
         </a>
         <div>
             <h3 class="fw-bold mb-0">Comprobante de Venta</h3>
@@ -27,21 +27,16 @@
                 <i class="bi bi-printer me-1"></i> Imprimir comprobante (carta)
             </a>
             <a href="{{ route('sales.print.receipt', $sale) }}" target="_blank"
-               class="btn btn-outline-secondary btn-sm rounded-pill px-3" title="Imprimir comprobante para impresora térmica 80mm">
+               class="btn btn-outline-secondary btn-sm rounded-pill px-3" title="Imprimir comprobante para impresora térmica 58mm">
                 <i class="bi bi-receipt me-1"></i> Imprimir comprobante (ticket)
             </a>
             <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3 py-2">
                 <i class="bi bi-check-circle-fill me-1"></i> Completada
             </span>
             @can('delete', $sale)
-                <form method="POST" action="{{ route('sales.destroy', $sale) }}"
-                      onsubmit="return confirm('¿Está seguro de anular esta venta? El stock de los productos será restaurado.')">
-                    @csrf
-                    @method('DELETE')
-                    <button type="submit" class="btn btn-outline-danger btn-sm rounded-pill px-3">
-                        <i class="bi bi-x-circle me-1"></i> Anular Venta
-                    </button>
-                </form>
+                <button type="button" class="btn btn-outline-danger btn-sm rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#cancelSaleModal">
+                    <i class="bi bi-x-circle me-1"></i> Anular Venta
+                </button>
             @endcan
         @else
             <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill px-3 py-2">
@@ -58,7 +53,7 @@
             <div class="row g-3">
                 <div class="col-sm-6 col-md-3">
                     <span class="text-muted small d-block">Fecha</span>
-                    <span class="fw-semibold">{{ $sale->sale_date->format('d/m/Y H:i') }}</span>
+                    <span class="fw-semibold">{{ ($sale->sale_date ?? $sale->created_at)?->format('d/m/Y H:i') }}</span>
                 </div>
                 <div class="col-sm-6 col-md-3">
                     <span class="text-muted small d-block">Cliente</span>
@@ -78,6 +73,9 @@
                 <div class="col-sm-6 col-md-3">
                     <span class="text-muted small d-block">Vendedor</span>
                     <span class="fw-semibold">{{ $sale->user->name }}</span>
+                    @if($sale->waiter_name)
+                        <span class="text-success small d-block"><i class="bi bi-person-badge me-1"></i>Mesero: <strong>{{ $sale->waiter_name }}</strong></span>
+                    @endif
                 </div>
                 <div class="col-sm-6 col-md-3">
                     <span class="text-muted small d-block">Método de Pago</span>
@@ -228,4 +226,42 @@
         </div>
     </div>
 </div>
+
+{{-- MODAL ANULAR VENTA --}}
+@can('delete', $sale)
+<div class="modal fade" id="cancelSaleModal" tabindex="-1" aria-labelledby="cancelSaleModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-3 overflow-hidden">
+            <div class="modal-header bg-light border-bottom py-3 px-4">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="rounded-circle bg-danger-subtle d-flex align-items-center justify-content-center" style="width: 38px; height: 38px;">
+                        <i class="bi bi-exclamation-triangle text-danger fs-5"></i>
+                    </div>
+                    <h6 class="modal-title fw-bold text-dark mb-0" id="cancelSaleModalLabel">
+                        ¿Deseas anular la venta {{ $sale->invoice_number }}?
+                    </h6>
+                </div>
+                <button type="button" class="btn-close ms-auto" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body py-4 px-4 bg-white">
+                <p class="text-muted mb-0" style="line-height: 1.6;">
+                    Esta acción anulará la venta y el stock de los productos e insumos consumidos será restaurado simétricamente al inventario. Esta operación no se puede deshacer.
+                </p>
+            </div>
+            <div class="modal-footer bg-light border-top py-3 px-4 d-flex justify-content-end gap-2">
+                <button type="button" class="btn btn-light border px-3" data-bs-dismiss="modal">
+                    Volver
+                </button>
+                <form method="POST" action="{{ route('sales.destroy', $sale) }}" class="d-inline m-0">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit" class="btn btn-danger px-4 fw-semibold">
+                        <i class="bi bi-x-circle me-1"></i> Sí, Anular Venta
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+@endcan
 @endsection

@@ -10,24 +10,56 @@ use App\Models\Sale;
 use App\Models\SaleDetail;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ReportService
 {
     /**
-     * Generate sales report for a business within an optional date range and filters.
-     *
-     * @param int $businessId
-     * @param array $filters
-     * @return array
+     * Hub overview data for Managerial Reports.
      */
-    public function getSalesReport(int $businessId, array $filters = []): array
+    public function getHubSummary(): array
     {
-        $dateFrom = !empty($filters['date_from']) ? Carbon::parse($filters['date_from'])->startOfDay() : Carbon::now()->startOfMonth();
-        $dateTo = !empty($filters['date_to']) ? Carbon::parse($filters['date_to'])->endOfDay() : Carbon::now()->endOfDay();
+        $now = Carbon::now('America/Bogota');
+        $startOfMonth = $now->copy()->startOfMonth();
+        $endOfMonth = $now->copy()->endOfMonth();
 
-        $query = Sale::where('business_id', $businessId)
-            ->where('status', 'completed')
-            ->whereBetween('sale_date', [$dateFrom, $dateTo])
+        $monthRevenue = (float) Sale::where('status', 'completed')
+            ->whereBetween('created_at', [$startOfMonth, $endOfMonth])
+            ->sum('total');
+
+        $inventoryCost = (float) Product::where('activo', true)
+            ->whereIn('tipo_producto', ['INSUMO', 'SUPLEMENTO'])
+            ->selectRaw('SUM(stock * precio_compra) as total_cost')
+            ->value('total_cost') ?? 0.0;
+
+        return [
+            'salesSummary' => [
+                'total_revenue' => $monthRevenue,
+            ],
+            'inventorySummary' => [
+                'total_cost_valuation' => $inventoryCost,
+            ],
+        ];
+    }
+
+    /**
+     * Generate sales performance report.
+     */
+    public function getSalesReport(array $filters = [], bool $paginate = true): array
+    {
+        $dateFromStr = $filters['start_date'] ?? $filters['date_from'] ?? null;
+        $dateToStr = $filters['end_date'] ?? $filters['date_to'] ?? null;
+
+        $dateFrom = !empty($dateFromStr)
+            ? Carbon::parse($dateFromStr, 'America/Bogota')->startOfDay()
+            : Carbon::now('America/Bogota')->startOfMonth();
+
+        $dateTo = !empty($dateToStr)
+            ? Carbon::parse($dateToStr, 'America/Bogota')->endOfDay()
+            : Carbon::now('America/Bogota')->endOfDay();
+
+        $query = Sale::where('status', 'completed')
+            ->whereBetween('created_at', [$dateFrom, $dateTo])
             ->with(['customer', 'user', 'payments']);
 
         if (!empty($filters['payment_method'])) {
@@ -48,46 +80,17 @@ class ReportService
             $query->where('customer_id', $filters['customer_id']);
         }
 
-        $sales = $query->orderByDesc('sale_date')->get();
-
-        $totalRevenue = (float) $sales->sum('total');
-        $salesCount = $sales->count();
+        // Métricas superiores consolidadas sobre el universo filtrado
+        $totalRevenue = (float) (clone $query)->sum('total');
+        $salesCount = (int) (clone $query)->count();
         $averageTicket = $salesCount > 0 ? round($totalRevenue / $salesCount, 2) : 0.0;
-        $totalDiscounts = (float) $sales->sum('discount');
+        $totalDiscounts = (float) (clone $query)->sum('discount');
 
-        $methodTotals = [];
-        foreach ($sales as $sale) {
-            if ($sale->payments->isNotEmpty()) {
-                foreach ($sale->payments as $payment) {
-                    $m = $payment->method instanceof \App\Enums\PaymentMethod ? $payment->method->value : (string) $payment->method;
-                    if (!isset($methodTotals[$m])) {
-                        $methodTotals[$m] = ['method' => $m, 'count' => 0, 'total' => 0.0, 'sale_ids' => []];
-                    }
-                    $methodTotals[$m]['total'] += (float) $payment->amount;
-                    if (!in_array($sale->id, $methodTotals[$m]['sale_ids'])) {
-                        $methodTotals[$m]['sale_ids'][] = $sale->id;
-                        $methodTotals[$m]['count']++;
-                    }
-                }
-            } else {
-                $m = (string) $sale->payment_method;
-                if (!isset($methodTotals[$m])) {
-                    $methodTotals[$m] = ['method' => $m, 'count' => 0, 'total' => 0.0, 'sale_ids' => []];
-                }
-                $methodTotals[$m]['total'] += (float) $sale->total;
-                $methodTotals[$m]['count']++;
-            }
-        }
+        $sales = $paginate
+            ? (clone $query)->orderByDesc('created_at')->paginate(15)->withQueryString()
+            : (clone $query)->orderByDesc('created_at')->get();
 
-        $byPaymentMethod = collect($methodTotals)->map(function ($item) {
-            return [
-                'method' => $item['method'],
-                'count' => $item['count'],
-                'total' => round($item['total'], 2),
-            ];
-        });
-
-        $customers = Customer::where('business_id', $businessId)->orderBy('name')->get();
+        $customers = Customer::where('is_active', true)->orderBy('name')->get();
 
         return [
             'sales' => $sales,
@@ -96,25 +99,81 @@ class ReportService
             'sales_count' => $salesCount,
             'average_ticket' => $averageTicket,
             'total_discounts' => $totalDiscounts,
-            'by_payment_method' => $byPaymentMethod,
             'date_from' => $dateFrom->format('Y-m-d'),
             'date_to' => $dateTo->format('Y-m-d'),
+            'start_date' => $dateFrom->format('Y-m-d'),
+            'end_date' => $dateTo->format('Y-m-d'),
             'selected_payment_method' => $filters['payment_method'] ?? '',
             'selected_customer_id' => $filters['customer_id'] ?? '',
         ];
     }
 
     /**
-     * Generate inventory valuation report for a business.
-     *
-     * @param int $businessId
-     * @param array $filters
-     * @return array
+     * Export sales report as StreamedResponse with UTF-8 BOM.
      */
-    public function getInventoryValuationReport(int $businessId, array $filters = []): array
+    public function exportSalesCsv(array $filters = []): StreamedResponse
     {
-        $query = Product::where('business_id', $businessId)
-            ->where('is_active', true)
+        $data = $this->getSalesReport($filters, paginate: false);
+        $filename = 'califit_reporte_ventas_' . Carbon::now('America/Bogota')->format('Ymd_His') . '.csv';
+
+        $headers = [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+            'Pragma' => 'no-cache',
+            'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
+            'Expires' => '0',
+        ];
+
+        return response()->stream(function () use ($data) {
+            $handle = fopen('php://output', 'w');
+
+            // Escribir BOM UTF-8 para apertura directa en Excel en español
+            fprintf($handle, chr(0xEF) . chr(0xBB) . chr(0xBF));
+
+            fputcsv($handle, [
+                'Consecutivo',
+                'Fecha / Hora',
+                'Cliente',
+                'Vendedor / Cajero',
+                'Método de Pago',
+                'Subtotal',
+                'Descuento',
+                'Total Facturado',
+            ]);
+
+            foreach ($data['sales'] as $sale) {
+                $paymentMethod = $sale->payment_method;
+                if ($sale->payments->isNotEmpty()) {
+                    $methodsList = $sale->payments->map(fn ($p) => $p->method_label ?? (string) $p->method)->implode(', ');
+                    $paymentMethod = $methodsList ?: $paymentMethod;
+                }
+
+                $row = [
+                    $sale->invoice_number,
+                    $sale->created_at->format('Y-m-d H:i:s'),
+                    $sale->customer_name ?: ($sale->customer ? $sale->customer->name : 'CONSUMIDOR FINAL'),
+                    $sale->user ? $sale->user->name : ($sale->waiter_name ?: 'N/A'),
+                    $paymentMethod,
+                    number_format((float) $sale->subtotal, 2, '.', ''),
+                    number_format((float) $sale->discount, 2, '.', ''),
+                    number_format((float) $sale->total, 2, '.', ''),
+                ];
+
+                fputcsv($handle, array_map([$this, 'sanitizeCsvCell'], $row));
+            }
+
+            fclose($handle);
+        }, 200, $headers);
+    }
+
+    /**
+     * Generate inventory valuation report (Costo vs Comercial y Margen Proyectado).
+     */
+    public function getInventoryValuationReport(array $filters = []): array
+    {
+        // Considera productos activos de tipo INSUMO y SUPLEMENTO
+        $query = Product::where('activo', true)
+            ->whereIn('tipo_producto', ['INSUMO', 'SUPLEMENTO'])
             ->with('category');
 
         if (!empty($filters['category_id'])) {
@@ -122,16 +181,16 @@ class ReportService
         }
 
         if (!empty($filters['search'])) {
-            $search = $filters['search'];
+            $search = trim($filters['search']);
             $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
+                $q->where('nombre', 'like', "%{$search}%")
                   ->orWhere('sku', 'like', "%{$search}%");
             });
         }
 
-        $products = $query->orderBy('name')->get();
+        $products = $query->orderBy('nombre')->get();
 
-        $totalUnits = 0;
+        $totalUnits = 0.0;
         $totalCostValuation = 0.0;
         $totalRetailValuation = 0.0;
 
@@ -140,9 +199,9 @@ class ReportService
             &$totalCostValuation,
             &$totalRetailValuation
         ) {
-            $stock = max(0, (int) $product->stock);
-            $costPrice = (float) $product->cost_price;
-            $salePrice = (float) $product->sale_price;
+            $stock = max(0, (float) $product->stock);
+            $costPrice = (float) $product->precio_compra;
+            $salePrice = (float) $product->precio_venta;
 
             $costVal = round($stock * $costPrice, 2);
             $retailVal = round($stock * $salePrice, 2);
@@ -153,10 +212,15 @@ class ReportService
             $totalCostValuation += $costVal;
             $totalRetailValuation += $retailVal;
 
+            // Atributos dinámicos para presentación
             $product->cost_valuation = $costVal;
             $product->retail_valuation = $retailVal;
             $product->potential_profit = $potentialProfit;
             $product->margin_percent = $marginPercent;
+            $product->name = $product->nombre;
+            $product->cost_price = $costPrice;
+            $product->sale_price = $salePrice;
+            $product->min_stock = $product->stock_minimo;
 
             return $product;
         });
@@ -166,7 +230,7 @@ class ReportService
             ? round(($totalPotentialProfit / $totalRetailValuation) * 100, 1)
             : 0.0;
 
-        $categories = Category::where('business_id', $businessId)->orderBy('name')->get();
+        $categories = Category::where('is_active', true)->orderBy('name')->get();
 
         return [
             'products' => $enrichedProducts,
@@ -183,47 +247,112 @@ class ReportService
     }
 
     /**
-     * Generate top selling products and profitability report.
-     *
-     * @param int $businessId
-     * @param array $filters
-     * @return array
+     * Export inventory valuation report as StreamedResponse with UTF-8 BOM.
      */
-    public function getTopProductsReport(int $businessId, array $filters = []): array
+    public function exportInventoryCsv(array $filters = []): StreamedResponse
     {
-        $dateFrom = !empty($filters['date_from']) ? Carbon::parse($filters['date_from'])->startOfDay() : Carbon::now()->startOfMonth();
-        $dateTo = !empty($filters['date_to']) ? Carbon::parse($filters['date_to'])->endOfDay() : Carbon::now()->endOfDay();
+        $data = $this->getInventoryValuationReport($filters);
+        $filename = 'califit_reporte_inventario_' . Carbon::now('America/Bogota')->format('Ymd_His') . '.csv';
+
+        $headers = [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+            'Pragma' => 'no-cache',
+            'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
+            'Expires' => '0',
+        ];
+
+        return response()->stream(function () use ($data) {
+            $handle = fopen('php://output', 'w');
+
+            // BOM UTF-8
+            fprintf($handle, chr(0xEF) . chr(0xBB) . chr(0xBF));
+
+            fputcsv($handle, [
+                'SKU',
+                'Producto',
+                'Categoría',
+                'Tipo de Producto',
+                'Stock Actual',
+                'Unidad Base',
+                'Stock Mínimo',
+                'Costo Unitario',
+                'Precio Venta',
+                'Valor Costo',
+                'Valor Venta',
+                'Ganancia Estimada',
+                'Margen %',
+            ]);
+
+            foreach ($data['products'] as $prod) {
+                $row = [
+                    $prod->sku,
+                    $prod->nombre,
+                    $prod->category ? $prod->category->name : 'Sin categoría',
+                    $prod->tipo_producto,
+                    $prod->stock,
+                    $prod->unidad_base,
+                    $prod->stock_minimo,
+                    number_format((float) $prod->precio_compra, 2, '.', ''),
+                    number_format((float) $prod->precio_venta, 2, '.', ''),
+                    number_format((float) $prod->cost_valuation, 2, '.', ''),
+                    number_format((float) $prod->retail_valuation, 2, '.', ''),
+                    number_format((float) $prod->potential_profit, 2, '.', ''),
+                    $prod->margin_percent . '%',
+                ];
+
+                fputcsv($handle, array_map([$this, 'sanitizeCsvCell'], $row));
+            }
+
+            fclose($handle);
+        }, 200, $headers);
+    }
+
+    /**
+     * Generate top selling products and profitability report (Rotación, COGS y Utilidad Bruta).
+     */
+    public function getTopProductsReport(array $filters = []): array
+    {
+        $dateFromStr = $filters['start_date'] ?? $filters['date_from'] ?? null;
+        $dateToStr = $filters['end_date'] ?? $filters['date_to'] ?? null;
+
+        $dateFrom = !empty($dateFromStr)
+            ? Carbon::parse($dateFromStr, 'America/Bogota')->startOfDay()
+            : Carbon::now('America/Bogota')->startOfMonth();
+
+        $dateTo = !empty($dateToStr)
+            ? Carbon::parse($dateToStr, 'America/Bogota')->endOfDay()
+            : Carbon::now('America/Bogota')->endOfDay();
 
         $results = SaleDetail::join('sales', 'sale_details.sale_id', '=', 'sales.id')
             ->join('products', 'sale_details.product_id', '=', 'products.id')
-            ->where('sales.business_id', $businessId)
             ->where('sales.status', 'completed')
-            ->whereBetween('sales.sale_date', [$dateFrom, $dateTo])
+            ->whereBetween('sales.created_at', [$dateFrom, $dateTo])
             ->select(
                 'products.id',
-                'products.name',
+                'products.nombre as name',
                 'products.sku',
-                'products.cost_price',
-                'products.sale_price',
+                'products.precio_compra as cost_price',
+                'products.precio_venta as sale_price',
                 DB::raw('SUM(sale_details.quantity) as total_quantity'),
                 DB::raw('SUM(sale_details.subtotal) as total_revenue')
             )
             ->groupBy(
                 'products.id',
-                'products.name',
+                'products.nombre',
                 'products.sku',
-                'products.cost_price',
-                'products.sale_price'
+                'products.precio_compra',
+                'products.precio_venta'
             )
-            ->orderByDesc('total_quantity')
+            ->orderByDesc('total_revenue')
             ->get();
 
-        $totalItemsSold = 0;
+        $totalItemsSold = 0.0;
         $totalRevenue = 0.0;
         $totalCogs = 0.0;
 
         $products = $results->map(function ($item) use (&$totalItemsSold, &$totalRevenue, &$totalCogs) {
-            $qty = (int) $item->total_quantity;
+            $qty = (float) $item->total_quantity;
             $revenue = (float) $item->total_revenue;
             $costPrice = (float) $item->cost_price;
 
@@ -254,530 +383,65 @@ class ReportService
             'overall_margin_percent' => $overallMarginPercent,
             'date_from' => $dateFrom->format('Y-m-d'),
             'date_to' => $dateTo->format('Y-m-d'),
+            'start_date' => $dateFrom->format('Y-m-d'),
+            'end_date' => $dateTo->format('Y-m-d'),
         ];
     }
 
     /**
-     * Export sales report as CSV string.
-     *
-     * @param int $businessId
-     * @param array $filters
-     * @return string
+     * Export top products and profitability report as StreamedResponse with UTF-8 BOM.
      */
-    public function exportSalesCsv(int $businessId, array $filters = []): string
+    public function exportTopProductsCsv(array $filters = []): StreamedResponse
     {
-        $data = $this->getSalesReport($businessId, $filters);
-        $handle = fopen('php://temp', 'r+');
+        $data = $this->getTopProductsReport($filters);
+        $filename = 'califit_reporte_top_productos_' . Carbon::now('America/Bogota')->format('Ymd_His') . '.csv';
 
-        // UTF-8 BOM for Excel compatibility
-        fprintf($handle, chr(0xEF) . chr(0xBB) . chr(0xBF));
-
-        fputcsv($handle, [
-            'Factura',
-            'Fecha',
-            'Cliente',
-            'Vendedor',
-            'Metodo de Pago',
-            'Subtotal',
-            'Descuento',
-            'Total',
-        ]);
-
-        foreach ($data['sales'] as $sale) {
-            $row = [
-                $sale->invoice_number,
-                $sale->sale_date->format('Y-m-d H:i'),
-                $sale->customer_name ?? ($sale->customer ? $sale->customer->name : config('sales.default_customer_name', 'CONSUMIDOR FINAL')),
-                $sale->user ? $sale->user->name : 'N/A',
-                $sale->payment_method_label ?? $sale->payment_method,
-                $sale->subtotal,
-                $sale->discount,
-                $sale->total,
-            ];
-            fputcsv($handle, array_map([$this, 'sanitizeCsvCell'], $row));
-        }
-
-        rewind($handle);
-        $csv = stream_get_contents($handle);
-        fclose($handle);
-
-        return $csv;
-    }
-
-    /**
-     * Export inventory valuation report as CSV string.
-     *
-     * @param int $businessId
-     * @param array $filters
-     * @return string
-     */
-    public function exportInventoryCsv(int $businessId, array $filters = []): string
-    {
-        $data = $this->getInventoryValuationReport($businessId, $filters);
-        $handle = fopen('php://temp', 'r+');
-
-        // UTF-8 BOM
-        fprintf($handle, chr(0xEF) . chr(0xBB) . chr(0xBF));
-
-        fputcsv($handle, [
-            'SKU',
-            'Producto',
-            'Categoria',
-            'Stock Actual',
-            'Stock Minimo',
-            'Costo Unitario',
-            'Precio Venta',
-            'Valoracion Costo',
-            'Valoracion Venta',
-            'Ganancia Potencial',
-            'Margen %',
-        ]);
-
-        foreach ($data['products'] as $prod) {
-            $row = [
-                $prod->sku,
-                $prod->name,
-                $prod->category ? $prod->category->name : 'Sin categoría',
-                $prod->stock,
-                $prod->min_stock,
-                $prod->cost_price,
-                $prod->sale_price,
-                $prod->cost_valuation,
-                $prod->retail_valuation,
-                $prod->potential_profit,
-                $prod->margin_percent . '%',
-            ];
-            fputcsv($handle, array_map([$this, 'sanitizeCsvCell'], $row));
-        }
-
-        rewind($handle);
-        $csv = stream_get_contents($handle);
-        fclose($handle);
-
-        return $csv;
-    }
-
-    /**
-     * Generate daily or monthly Cash Register balancing report (Cuadre de Caja).
-     *
-     * @param int $businessId
-     * @param array $filters
-     * @return array
-     */
-    public function getCashRegisterReport(int $businessId, array $filters = []): array
-    {
-        $periodType = ($filters['period_type'] ?? 'daily') === 'monthly' ? 'monthly' : 'daily';
-
-        if ($periodType === 'monthly') {
-            $monthStr = $filters['month'] ?? Carbon::now()->format('Y-m');
-            try {
-                $dateFrom = Carbon::createFromFormat('Y-m', $monthStr)->startOfMonth()->startOfDay();
-                $dateTo = (clone $dateFrom)->endOfMonth()->endOfDay();
-            } catch (\Exception $e) {
-                $dateFrom = Carbon::now()->startOfMonth()->startOfDay();
-                $dateTo = Carbon::now()->endOfMonth()->endOfDay();
-                $monthStr = Carbon::now()->format('Y-m');
-            }
-            $selectedDate = null;
-            $selectedMonth = $monthStr;
-        } else {
-            $dateStr = $filters['date'] ?? Carbon::today()->format('Y-m-d');
-            try {
-                $dateFrom = Carbon::parse($dateStr)->startOfDay();
-                $dateTo = (clone $dateFrom)->endOfDay();
-            } catch (\Exception $e) {
-                $dateFrom = Carbon::today()->startOfDay();
-                $dateTo = Carbon::today()->endOfDay();
-                $dateStr = Carbon::today()->format('Y-m-d');
-            }
-            $selectedDate = $dateStr;
-            $selectedMonth = null;
-        }
-
-        $query = Sale::where('business_id', $businessId)
-            ->where('status', 'completed')
-            ->whereBetween('sale_date', [$dateFrom, $dateTo])
-            ->with(['customer', 'user', 'payments']);
-
-        if (!empty($filters['user_id'])) {
-            $query->where('user_id', (int) $filters['user_id']);
-        }
-
-        $sales = $query->orderBy('sale_date', 'asc')->get();
-
-        $byMethod = [
-            'cash' => [
-                'name' => 'Efectivo',
-                'icon' => 'bi-cash-stack',
-                'color' => 'success',
-                'amount' => 0.00,
-                'nominal_received' => 0.00,
-                'change_given' => 0.00,
-                'transactions_count' => 0,
-            ],
-            'transfer' => [
-                'name' => 'Transferencia / Nequi',
-                'icon' => 'bi-phone',
-                'color' => 'info',
-                'amount' => 0.00,
-                'transactions_count' => 0,
-            ],
-            'card' => [
-                'name' => 'Tarjeta',
-                'icon' => 'bi-credit-card',
-                'color' => 'primary',
-                'amount' => 0.00,
-                'transactions_count' => 0,
-            ],
-            'other' => [
-                'name' => 'Otro',
-                'icon' => 'bi-wallet2',
-                'color' => 'secondary',
-                'amount' => 0.00,
-                'transactions_count' => 0,
-            ],
+        $headers = [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+            'Pragma' => 'no-cache',
+            'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
+            'Expires' => '0',
         ];
 
-        foreach ($sales as $sale) {
-            if ($sale->payments->isNotEmpty()) {
-                foreach ($sale->payments as $payment) {
-                    $m = $payment->method instanceof \App\Enums\PaymentMethod ? $payment->method->value : (string) $payment->method;
-                    if (!isset($byMethod[$m])) {
-                        $byMethod[$m] = [
-                            'name' => ucfirst($m),
-                            'icon' => 'bi-credit-card-2-front',
-                            'color' => 'secondary',
-                            'amount' => 0.00,
-                            'transactions_count' => 0,
-                        ];
-                    }
-                    $amt = (float) $payment->amount;
-                    $byMethod[$m]['amount'] += $amt;
-                    $byMethod[$m]['transactions_count']++;
+        return response()->stream(function () use ($data) {
+            $handle = fopen('php://output', 'w');
 
-                    if ($m === 'cash') {
-                        $rec = $payment->cash_received !== null ? (float) $payment->cash_received : $amt;
-                        $chg = $payment->change_given !== null ? (float) $payment->change_given : 0.0;
-                        $byMethod['cash']['nominal_received'] += $rec;
-                        $byMethod['cash']['change_given'] += $chg;
-                    }
-                }
-            } else {
-                $m = (string) $sale->payment_method;
-                if (!isset($byMethod[$m])) {
-                    $byMethod[$m] = [
-                        'name' => ucfirst($m),
-                        'icon' => 'bi-credit-card-2-front',
-                        'color' => 'secondary',
-                        'amount' => 0.00,
-                        'transactions_count' => 0,
-                    ];
-                }
-                $amt = (float) $sale->total;
-                $byMethod[$m]['amount'] += $amt;
-                $byMethod[$m]['transactions_count']++;
+            // BOM UTF-8
+            fprintf($handle, chr(0xEF) . chr(0xBB) . chr(0xBF));
 
-                if ($m === 'cash') {
-                    $byMethod['cash']['nominal_received'] += $amt;
-                    $byMethod['cash']['change_given'] += 0.0;
-                }
-            }
-        }
+            fputcsv($handle, [
+                'Posición',
+                'SKU',
+                'Producto',
+                'Unidades Vendidas',
+                'Costo Unitario',
+                'Precio Venta',
+                'Ingresos Totales',
+                'Costo Mercancía (COGS)',
+                'Utilidad Bruta',
+                'Margen %',
+            ]);
 
-        $totalRevenue = (float) $sales->sum('total');
-        $salesCount = $sales->count();
-
-        // Discriminación por Canal de Venta (Salón, Domicilios, Para Llevar, Retail)
-        $channels = [
-            'table' => [
-                'name' => 'Ventas de Salón (Mesas)',
-                'icon' => 'bi-aspect-ratio',
-                'color' => 'primary',
-                'count' => 0,
-                'total' => 0.00,
-            ],
-            'delivery' => [
-                'name' => 'Ventas por Domicilios (Delivery)',
-                'icon' => 'bi-bicycle',
-                'color' => 'info',
-                'count' => 0,
-                'total' => 0.00,
-            ],
-            'takeout' => [
-                'name' => 'Ventas Para Llevar (Takeout)',
-                'icon' => 'bi-bag',
-                'color' => 'secondary',
-                'count' => 0,
-                'total' => 0.00,
-            ],
-            'retail' => [
-                'name' => 'Ventas de Mostrador / Retail',
-                'icon' => 'bi-shop',
-                'color' => 'success',
-                'count' => 0,
-                'total' => 0.00,
-            ],
-        ];
-
-        $totalDeliveryFee = 0.00;
-
-        foreach ($sales as $sale) {
-            $type = $sale->order_type ?: 'retail';
-            if (!isset($channels[$type])) {
-                $channels[$type] = [
-                    'name' => ucfirst($type),
-                    'icon' => 'bi-tag',
-                    'color' => 'secondary',
-                    'count' => 0,
-                    'total' => 0.00,
-                ];
-            }
-            $channels[$type]['count']++;
-            $channels[$type]['total'] = round($channels[$type]['total'] + (float) $sale->total, 2);
-
-            $totalDeliveryFee = round($totalDeliveryFee + (float) ($sale->delivery_fee ?? 0.00), 2);
-        }
-
-        // Consultar Gastos pagados del tenant para el rango de fechas (Caja Menor vs Caja General)
-        $expenseQuery = Expense::where('business_id', $businessId)
-            ->where('status', 'paid')
-            ->with(['supplier', 'creator']);
-
-        if ($periodType === 'monthly') {
-            $expenseQuery->where(function ($q) use ($dateFrom, $dateTo) {
-                $q->whereBetween('paid_at', [$dateFrom->toDateString(), $dateTo->toDateString()])
-                  ->orWhere(function ($sub) use ($dateFrom, $dateTo) {
-                      $sub->whereNull('paid_at')
-                          ->whereBetween('issue_date', [$dateFrom->toDateString(), $dateTo->toDateString()]);
-                  });
-            });
-        } else {
-            $dateStr = $dateFrom->toDateString();
-            $expenseQuery->where(function ($q) use ($dateStr) {
-                $q->whereDate('paid_at', $dateStr)
-                  ->orWhere(function ($sub) use ($dateStr) {
-                      $sub->whereNull('paid_at')
-                          ->whereDate('issue_date', $dateStr);
-                  });
-            });
-        }
-
-        $expenses = $expenseQuery->orderBy('paid_at', 'asc')->get();
-
-        $cashExpenses = 0.00;
-        $digitalExpenses = 0.00;
-        $expensesByMethod = [
-            'cash' => 0.00,
-            'transfer' => 0.00,
-            'card' => 0.00,
-            'other' => 0.00,
-        ];
-
-        foreach ($expenses as $expense) {
-            $amt = (float) $expense->amount;
-            $m = $expense->payment_method instanceof \App\Enums\PaymentMethod 
-                ? $expense->payment_method->value 
-                : (string) ($expense->payment_method ?? 'cash');
-
-            if ($m === 'cash') {
-                $cashExpenses = round($cashExpenses + $amt, 2);
-                $expensesByMethod['cash'] = round($expensesByMethod['cash'] + $amt, 2);
-            } else {
-                $digitalExpenses = round($digitalExpenses + $amt, 2);
-                if (!isset($expensesByMethod[$m])) {
-                    $expensesByMethod[$m] = 0.00;
-                }
-                $expensesByMethod[$m] = round($expensesByMethod[$m] + $amt, 2);
-            }
-        }
-        $totalExpenses = round($cashExpenses + $digitalExpenses, 2);
-
-        // Conciliación de Efectivo Físico (Caja Menor) y Cuentas Digitales (Caja General)
-        $cashSales = (float) ($byMethod['cash']['amount'] ?? 0.00);
-        $digitalSales = round(
-            (float) ($byMethod['transfer']['amount'] ?? 0.00) +
-            (float) ($byMethod['card']['amount'] ?? 0.00) +
-            (float) ($byMethod['other']['amount'] ?? 0.00),
-            2
-        );
-
-        $netCashInDrawer = round($cashSales - $cashExpenses, 2);
-        $netDigitalMoney = round($digitalSales - $digitalExpenses, 2);
-        $netTurnBalance = round($totalRevenue - $totalExpenses, 2);
-
-        $cashiers = \App\Models\User::whereHas('businesses', function ($q) use ($businessId) {
-            $q->where('businesses.id', $businessId);
-        })->orderBy('name')->get();
-
-        return [
-            'sales' => $sales,
-            'expenses' => $expenses,
-            'cashiers' => $cashiers,
-            'by_method' => $byMethod,
-            'channels' => $channels,
-            'total_delivery_fee' => $totalDeliveryFee,
-            'cash_in_drawer' => $cashSales,
-            'digital_money' => $digitalSales,
-            'cash_expenses' => $cashExpenses,
-            'digital_expenses' => $digitalExpenses,
-            'total_expenses' => $totalExpenses,
-            'expenses_by_method' => $expensesByMethod,
-            'net_cash_in_drawer' => $netCashInDrawer,
-            'net_digital_money' => $netDigitalMoney,
-            'net_turn_balance' => $netTurnBalance,
-            'total_revenue' => $totalRevenue,
-            'sales_count' => $salesCount,
-            'expenses_count' => $expenses->count(),
-            'period_type' => $periodType,
-            'selected_date' => $selectedDate,
-            'selected_month' => $selectedMonth,
-            'selected_user_id' => !empty($filters['user_id']) ? (int) $filters['user_id'] : null,
-            'date_from' => $dateFrom,
-            'date_to' => $dateTo,
-        ];
-    }
-
-    /**
-     * Alias for getCashRegisterReport (Cuadre y Arqueo de Caja).
-     */
-    public function getCashRegisterSummary(int $businessId, array $filters = []): array
-    {
-        return $this->getCashRegisterReport($businessId, $filters);
-    }
-
-    /**
-     * Export Cash Register balancing report as CSV.
-     *
-     * @param int $businessId
-     * @param array $filters
-     * @return string
-     */
-    public function exportCashRegisterCsv(int $businessId, array $filters = []): string
-    {
-        $data = $this->getCashRegisterReport($businessId, $filters);
-        $handle = fopen('php://temp', 'r+');
-
-        // UTF-8 BOM
-        fprintf($handle, chr(0xEF) . chr(0xBB) . chr(0xBF));
-
-        // Resumen de Cabecera
-        $periodLabel = $data['period_type'] === 'monthly' ? 'Mensual (' . $data['selected_month'] . ')' : 'Diario (' . $data['selected_date'] . ')';
-        fputcsv($handle, array_map([$this, 'sanitizeCsvCell'], ['CUADRE DE CAJA - ' . $periodLabel]));
-        fputcsv($handle, array_map([$this, 'sanitizeCsvCell'], ['Total Recaudado (Ventas)', $data['total_revenue']]));
-        fputcsv($handle, array_map([$this, 'sanitizeCsvCell'], ['Total Egresos (Gastos Operativos)', $data['total_expenses']]));
-        fputcsv($handle, array_map([$this, 'sanitizeCsvCell'], ['Balance Neto Consolidado', $data['net_turn_balance']]));
-        fputcsv($handle, array_map([$this, 'sanitizeCsvCell'], ['Caja Menor (Efectivo Neto Esperado)', $data['net_cash_in_drawer']]));
-        fputcsv($handle, array_map([$this, 'sanitizeCsvCell'], ['Caja General (Saldo Neto Digital)', $data['net_digital_money']]));
-        fputcsv($handle, array_map([$this, 'sanitizeCsvCell'], ['Cantidad de Ventas', $data['sales_count']]));
-        fputcsv($handle, array_map([$this, 'sanitizeCsvCell'], ['Cantidad de Gastos', $data['expenses_count']]));
-        fputcsv($handle, []);
-
-        // Discriminación de Ventas por Método de Pago
-        fputcsv($handle, array_map([$this, 'sanitizeCsvCell'], ['VENTAS POR METODO DE PAGO']));
-        fputcsv($handle, array_map([$this, 'sanitizeCsvCell'], [
-            'Metodo de Pago',
-            'Transacciones',
-            'Monto Ingresado',
-            'Efectivo Recibido (Nominal)',
-            'Cambio / Vueltos Entregados',
-        ]));
-
-        foreach ($data['by_method'] as $key => $method) {
-            $row = [
-                $method['name'],
-                $method['transactions_count'],
-                $method['amount'],
-                $key === 'cash' ? $method['nominal_received'] : 'N/A',
-                $key === 'cash' ? $method['change_given'] : 'N/A',
-            ];
-            fputcsv($handle, array_map([$this, 'sanitizeCsvCell'], $row));
-        }
-
-        fputcsv($handle, []);
-
-        // Discriminación de Gastos Operativos
-        fputcsv($handle, array_map([$this, 'sanitizeCsvCell'], ['EGRESOS Y GASTOS OPERATIVOS']));
-        fputcsv($handle, array_map([$this, 'sanitizeCsvCell'], [
-            'Tipo de Caja / Metodo',
-            'Total Egresos',
-        ]));
-        fputcsv($handle, array_map([$this, 'sanitizeCsvCell'], ['Caja Menor (Gastos en Efectivo)', $data['cash_expenses']]));
-        fputcsv($handle, array_map([$this, 'sanitizeCsvCell'], ['Caja General (Gastos Digitales / Bancos)', $data['digital_expenses']]));
-        fputcsv($handle, array_map([$this, 'sanitizeCsvCell'], ['Total Gastos Operativos', $data['total_expenses']]));
-
-        fputcsv($handle, []);
-
-        // Detalle de Ventas
-        fputcsv($handle, array_map([$this, 'sanitizeCsvCell'], ['DETALLE DE VENTAS']));
-        fputcsv($handle, array_map([$this, 'sanitizeCsvCell'], [
-            'Factura',
-            'Fecha y Hora',
-            'Cajero / Vendedor',
-            'Cliente',
-            'Total',
-            'Metodos Aplicados',
-            'Notas',
-        ]));
-
-        foreach ($data['sales'] as $sale) {
-            $methodsApplied = [];
-            if ($sale->payments->isNotEmpty()) {
-                foreach ($sale->payments as $p) {
-                    $methodsApplied[] = $p->method_label . ': $' . number_format($p->amount, 0, ',', '.') . ($p->reference ? ' (' . $p->reference . ')' : '');
-                }
-            } else {
-                $methodsApplied[] = ($sale->payment_method_label ?? $sale->payment_method) . ': $' . number_format($sale->total, 0, ',', '.');
-            }
-
-            $row = [
-                $sale->invoice_number,
-                $sale->sale_date->format('Y-m-d H:i'),
-                $sale->user ? $sale->user->name : 'N/A',
-                $sale->customer_name ?? ($sale->customer ? $sale->customer->name : config('sales.default_customer_name', 'CONSUMIDOR FINAL')),
-                $sale->total,
-                implode(' | ', $methodsApplied),
-                $sale->notes ?? '',
-            ];
-            fputcsv($handle, array_map([$this, 'sanitizeCsvCell'], $row));
-        }
-
-        fputcsv($handle, []);
-
-        // Detalle de Gastos
-        if (!empty($data['expenses']) && count($data['expenses']) > 0) {
-            fputcsv($handle, array_map([$this, 'sanitizeCsvCell'], ['DETALLE DE GASTOS']));
-            fputcsv($handle, array_map([$this, 'sanitizeCsvCell'], [
-                'Factura / Recibo',
-                'Fecha',
-                'Categoria',
-                'Descripcion',
-                'Proveedor',
-                'Metodo de Pago',
-                'Caja Afectada',
-                'Monto',
-            ]));
-
-            foreach ($data['expenses'] as $exp) {
-                $isCash = ($exp->payment_method instanceof \App\Enums\PaymentMethod ? $exp->payment_method->value : (string)$exp->payment_method) === 'cash';
+            foreach ($data['products'] as $idx => $prod) {
                 $row = [
-                    $exp->invoice_number ?? 'S/N',
-                    $exp->paid_at ? $exp->paid_at->format('Y-m-d') : ($exp->issue_date ? $exp->issue_date->format('Y-m-d') : 'N/A'),
-                    $exp->category_label ?? (string) $exp->category,
-                    $exp->description ?? '',
-                    $exp->supplier ? $exp->supplier->name : 'N/A',
-                    $exp->payment_method_label ?? (string) $exp->payment_method,
-                    $isCash ? 'Caja Menor (Efectivo)' : 'Caja General (Digital)',
-                    $exp->amount,
+                    $idx + 1,
+                    $prod->sku,
+                    $prod->name,
+                    $prod->total_quantity,
+                    number_format((float) $prod->cost_price, 2, '.', ''),
+                    number_format((float) $prod->sale_price, 2, '.', ''),
+                    number_format((float) $prod->total_revenue, 2, '.', ''),
+                    number_format((float) $prod->cogs, 2, '.', ''),
+                    number_format((float) $prod->gross_profit, 2, '.', ''),
+                    $prod->margin_percent . '%',
                 ];
+
                 fputcsv($handle, array_map([$this, 'sanitizeCsvCell'], $row));
             }
-        }
 
-        rewind($handle);
-        $csv = stream_get_contents($handle);
-        fclose($handle);
-
-        return $csv;
+            fclose($handle);
+        }, 200, $headers);
     }
 
     /**
