@@ -23,7 +23,7 @@ class RestaurantDispatchController extends Controller
     {
         $orders = RestaurantOrder::whereIn('order_type', ['delivery', 'takeout'])
             ->whereIn('status', ['open', 'in_kitchen', 'dispatched', 'delivered'])
-            ->with(['items.product', 'items.additions.addition', 'user'])
+            ->with(['items.product', 'items.additions.addition', 'user', 'customer'])
             ->orderByDesc('created_at')
             ->get();
 
@@ -68,9 +68,12 @@ class RestaurantDispatchController extends Controller
                 'order_number' => $orderNumber,
                 'order_type' => $data['order_type'],
                 'status' => 'in_kitchen',
+                'customer_id' => $data['customer_id'] ?? null,
                 'customer_name' => $data['customer_name'],
+                'delivery_phone' => $data['phone'] ?? null,
+                'delivery_address' => $data['order_type'] === 'delivery' ? ($data['address'] ?? null) : null,
                 'delivery_fee' => $data['delivery_fee'] ?? 0.00,
-                'notes' => trim("Tel: {$data['phone']}" . (! empty($data['address']) ? " | Dir: {$data['address']}" : '') . (! empty($data['notes']) ? " | {$data['notes']}" : '')),
+                'notes' => !empty($data['notes']) ? trim($data['notes']) : null,
                 'subtotal' => 0.00,
                 'total' => 0.00,
             ]);

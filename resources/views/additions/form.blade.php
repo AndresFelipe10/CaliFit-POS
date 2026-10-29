@@ -67,7 +67,7 @@
                     </div>
                 </div>
 
-                {{-- Sección: Insumos Consumidos (adicion_detalle) --}}
+                {{-- Sección: Insumos Consumidos por Porción --}}
                 <div class="border rounded-4 p-3 bg-light bg-opacity-50 mb-4">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <h6 class="fw-bold text-dark mb-0">
@@ -169,7 +169,7 @@
                     </div>
                 </div>
 
-                {{-- Sección: Platos Autorizados (producto_adicion) --}}
+                {{-- Sección: Platos Autorizados en Carta --}}
                 <div class="border rounded-4 p-3 bg-white mb-4">
                     <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                         <div>

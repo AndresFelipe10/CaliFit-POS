@@ -10,9 +10,12 @@
         <i class="bi bi-person me-1 text-muted"></i>{{ $order->customer_name ?? 'Consumidor Final' }}
     </div>
 
-    @if($order->notes)
-        <div class="text-muted text-truncate small" style="font-size: 0.75rem;" title="{{ $order->notes }}">
-            <i class="bi bi-info-circle me-1"></i>{{ $order->notes }}
+    @php
+        $displayNotes = $order->clean_notes ?: $order->notes;
+    @endphp
+    @if($displayNotes)
+        <div class="text-muted text-truncate small" style="font-size: 0.75rem;" title="{{ $displayNotes }}">
+            <i class="bi bi-info-circle me-1"></i>{{ $displayNotes }}
         </div>
     @endif
 
@@ -31,19 +34,26 @@
     </div>
 
     <div class="d-flex justify-content-between align-items-center mb-2">
-        <span class="small text-muted">Total + Flete:</span>
+        <span class="small text-muted">{{ $order->order_type === 'takeout' ? 'Total a Pagar:' : 'Total + Flete:' }}</span>
         <span class="fw-black text-success" style="color: #10B981 !important;">${{ number_format($order->total, 0, ',', '.') }}</span>
     </div>
 
     <div class="d-flex gap-1">
-        <a href="{{ route('prints.orders.dispatch', $order) }}" target="_blank" class="btn btn-outline-secondary btn-sm p-1 flex-grow-1" style="font-size: 0.72rem;" title="Imprimir Tirilla de Despacho">
+        <button type="button" onclick="window.open('{{ route('prints.orders.dispatch', $order) }}', '_blank', 'width=450,height=680')" class="btn btn-outline-secondary btn-sm p-1 flex-grow-1" style="font-size: 0.72rem;" title="Imprimir Tirilla de Despacho">
             <i class="bi bi-printer"></i> Tirilla
-        </a>
+        </button>
 
         @if($nextStatus)
-            <button type="button" class="btn btn-outline-success btn-sm p-1 flex-grow-1 fw-semibold" style="font-size: 0.72rem;" onclick="updateOrderStatus({{ $order->id }}, '{{ $nextStatus }}')">
-                {{ $nextLabel }}
-            </button>
+            @if($order->order_type === 'takeout' && in_array($order->status, ['open', 'in_kitchen']))
+                {{-- En columna 1, pedido Para Llevar salta directo a Entregado (Por Cobrar) --}}
+                <button type="button" class="btn btn-success btn-sm flex-grow-1 fw-bold p-1" style="font-size: 0.72rem;" onclick="advanceOrderStatus({{ $order->id }}, 'delivered', this)">
+                    <i class="bi bi-bag-check-fill me-1"></i> Entregado / Recogido ->
+                </button>
+            @else
+                <button type="button" class="btn btn-outline-success btn-sm p-1 flex-grow-1 fw-semibold" style="font-size: 0.72rem;" onclick="advanceOrderStatus({{ $order->id }}, '{{ $nextStatus }}', this)">
+                    {{ $nextLabel }}
+                </button>
+            @endif
         @else
             <a href="{{ route('restaurant.orders.show', $order) }}" class="btn btn-califit btn-sm p-1 flex-grow-1 fw-bold" style="font-size: 0.72rem;">
                 <i class="bi bi-wallet2 me-1"></i> {{ $nextLabel }}

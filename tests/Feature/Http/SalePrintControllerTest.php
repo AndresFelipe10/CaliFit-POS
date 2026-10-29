@@ -428,33 +428,45 @@ class SalePrintControllerTest extends TestCase
     }
 
     /**
-     * Certifica que todas las plantillas de impresión térmica están calibradas al estándar de 58 mm
-     * (área imprimible útil 48 mm - 52 mm, contenedor max-width: 50mm, contraste #000000 y logo centrado).
+     * Certifica que todas las plantillas de impresión térmica están calibradas al estándar de 80 mm
+     * (área imprimible útil 72 mm - 74 mm, contenedor max-width: 74mm, contraste #000000, logo y WhatsApp 312 770 4455).
      */
-    public function test_all_thermal_print_templates_are_calibrated_for_58mm_standard(): void
+    public function test_all_thermal_print_templates_are_calibrated_for_80mm_standard(): void
     {
         $this->actingAs($this->cajero);
 
         // 1. Factura / Comprobante de venta (receipt)
         $resReceipt = $this->get(route('prints.sales.receipt', $this->sale));
         $resReceipt->assertOk();
-        $resReceipt->assertSee('size: 58mm auto', false);
-        $resReceipt->assertSee('max-width: 50mm', false);
+        $resReceipt->assertSee('size: 80mm auto', false);
+        $resReceipt->assertSee('max-width: 74mm', false);
+        $resReceipt->assertSee('max-width: 62mm', false);
+        $resReceipt->assertSee('max-height: 42mm', false);
         $resReceipt->assertSee('images/brand/logo-califit.svg');
+        $resReceipt->assertSee('312 770 4455');
+        $resReceipt->assertDontSee('+57 312 770 4455');
+        $resReceipt->assertSee('width: 11%', false);
+        $resReceipt->assertSee('width: 41%', false);
+        $resReceipt->assertSee('width: 23%', false);
+        $resReceipt->assertSee('width: 25%', false);
 
         // 2. Comanda de cocina (kitchen)
         $resKitchen = $this->get(route('prints.orders.kitchen', ['order' => $this->order, 'batch' => 1]));
         $resKitchen->assertOk();
-        $resKitchen->assertSee('size: 58mm auto', false);
-        $resKitchen->assertSee('max-width: 50mm', false);
+        $resKitchen->assertSee('size: 80mm auto', false);
+        $resKitchen->assertSee('max-width: 74mm', false);
+        $resKitchen->assertSee('max-width: 62mm', false);
         $resKitchen->assertSee('images/brand/logo-califit.svg');
 
         // 3. Pre-cuenta general (pre-bill)
         $resPreBill = $this->get(route('prints.orders.pre-bill', $this->order));
         $resPreBill->assertOk();
-        $resPreBill->assertSee('size: 58mm auto', false);
-        $resPreBill->assertSee('max-width: 50mm', false);
+        $resPreBill->assertSee('size: 80mm auto', false);
+        $resPreBill->assertSee('max-width: 74mm', false);
+        $resPreBill->assertSee('max-width: 62mm', false);
         $resPreBill->assertSee('images/brand/logo-califit.svg');
+        $resPreBill->assertSee('312 770 4455');
+        $resPreBill->assertDontSee('+57 312 770 4455');
 
         // 4. Pre-cuenta parcial por platos (pre-bill-partial)
         $orderItem = $this->order->items()->first();
@@ -463,22 +475,209 @@ class SalePrintControllerTest extends TestCase
             'items' => $orderItem->id,
         ]));
         $resPreBillPartial->assertOk();
-        $resPreBillPartial->assertSee('size: 58mm auto', false);
-        $resPreBillPartial->assertSee('max-width: 50mm', false);
+        $resPreBillPartial->assertSee('size: 80mm auto', false);
+        $resPreBillPartial->assertSee('max-width: 74mm', false);
+        $resPreBillPartial->assertSee('max-width: 62mm', false);
         $resPreBillPartial->assertSee('images/brand/logo-califit.svg');
+        $resPreBillPartial->assertSee('312 770 4455');
+        $resPreBillPartial->assertDontSee('+57 312 770 4455');
 
         // 5. Tirilla de despacho (dispatch)
         $resDispatch = $this->get(route('prints.orders.dispatch', $this->order));
         $resDispatch->assertOk();
-        $resDispatch->assertSee('size: 58mm auto', false);
-        $resDispatch->assertSee('max-width: 50mm', false);
+        $resDispatch->assertSee('size: 80mm auto', false);
+        $resDispatch->assertSee('max-width: 74mm', false);
+        $resDispatch->assertSee('max-width: 62mm', false);
         $resDispatch->assertSee('images/brand/logo-califit.svg');
+        $resDispatch->assertSee('312 770 4455');
+        $resDispatch->assertDontSee('+57 312 770 4455');
 
         // 6. Tirilla de cuadre de caja (cash-register)
         $resCash = $this->get(route('prints.cash-register'));
         $resCash->assertOk();
-        $resCash->assertSee('size: 58mm auto', false);
-        $resCash->assertSee('max-width: 50mm', false);
+        $resCash->assertSee('size: 80mm auto', false);
+        $resCash->assertSee('max-width: 74mm', false);
+        $resCash->assertSee('max-width: 62mm', false);
         $resCash->assertSee('images/brand/logo-califit.svg');
+        $resCash->assertSee('312 770 4455');
+        $resCash->assertDontSee('+57 312 770 4455');
+        $resCash->assertDontSee('#EEEEEE', false);
+    }
+
+    public function test_dispatch_ticket_displays_separated_customer_info_and_itemized_prices(): void
+    {
+        $this->actingAs($this->cajero);
+
+        $deliveryOrder = RestaurantOrder::create([
+            'user_id' => $this->cajero->id,
+            'order_number' => 'ORD-000888',
+            'order_type' => 'delivery',
+            'status' => 'in_kitchen',
+            'customer_name' => 'Valentina Restrepo',
+            'delivery_phone' => '3161234567',
+            'delivery_address' => 'Cra 105 # 14-30 Apto 402',
+            'notes' => 'Dejar en portería con el celador de turno',
+            'delivery_fee' => 4000.00,
+            'subtotal' => 41000.00,
+            'total' => 45000.00,
+        ]);
+
+        $item = RestaurantOrderItem::create([
+            'order_id' => $deliveryOrder->id,
+            'product_id' => $this->platoFit->id,
+            'quantity' => 1,
+            'unit_price' => 32000.00,
+            'subtotal' => 32000.00,
+            'status' => 'kitchen',
+            'batch_number' => 1,
+        ]);
+
+        RestaurantOrderItemAddition::create([
+            'order_item_id' => $item->id,
+            'adicion_id' => $this->adicionCarne->id,
+            'quantity' => 1,
+            'unit_price' => 9000.00,
+            'subtotal' => 9000.00,
+        ]);
+
+        $response = $this->get(route('prints.orders.dispatch', $deliveryOrder));
+
+        $response->assertStatus(200);
+        $response->assertSee('CLIENTE:');
+        $response->assertSee('Valentina Restrepo');
+        $response->assertSee('TELÉFONO:');
+        $response->assertSee('3161234567');
+        $response->assertSee('DIRECCIÓN:');
+        $response->assertSee('Cra 105 # 14-30 Apto 402');
+        $response->assertSee('INSTRUCCIONES:');
+        $response->assertSee('Dejar en portería con el celador de turno');
+
+        // Precios discriminados de platos y adiciones
+        $response->assertSee('VALOR');
+        $response->assertSee('Lomo Fit Bochalema');
+        $response->assertSee('$32.000');
+        $response->assertSee('+ Carne Extra 120g');
+        $response->assertSee('$9.000');
+
+        // Ausencia del precinto de seguridad y texto simplificado
+        $response->assertDontSee('Verificar precinto de seguridad');
+        $response->assertSee('¡Que disfrutes tu comida saludable!');
+    }
+
+    public function test_receipt_for_retail_pos_omits_partial_payment_and_table_labels(): void
+    {
+        $this->actingAs($this->cajero);
+
+        $response = $this->get(route('prints.sales.receipt', $this->sale));
+
+        $response->assertStatus(200);
+        $response->assertSee('CANAL:');
+        $response->assertSee('MOSTRADOR POS');
+        $response->assertDontSee('*** COMPROBANTE DE PAGO PARCIAL ***');
+        $response->assertDontSee('MESA: Salón');
+    }
+
+    public function test_receipt_for_delivery_and_takeout_omits_partial_payment_and_table_labels(): void
+    {
+        $this->actingAs($this->cajero);
+
+        // Pedido de delivery
+        $delOrder = RestaurantOrder::create([
+            'user_id' => $this->cajero->id,
+            'order_number' => 'ORD-DEL-777',
+            'order_type' => 'delivery',
+            'status' => 'delivered',
+            'customer_name' => 'Felipe Delivery',
+            'delivery_phone' => '3189990000',
+            'delivery_address' => 'Cl 50 # 100-20',
+            'delivery_fee' => 5000.00,
+            'subtotal' => 32000.00,
+            'total' => 37000.00,
+        ]);
+
+        $saleDel = Sale::create([
+            'user_id' => $this->cajero->id,
+            'restaurant_order_id' => $delOrder->id,
+            'customer_name' => 'Felipe Delivery',
+            'customer_document' => 'CC-123456',
+            'order_type' => 'delivery',
+            'invoice_number' => 'FAC-DEL-01',
+            'subtotal' => 32000.00,
+            'total' => 37000.00,
+            'payment_method' => 'cash',
+            'status' => 'completed',
+        ]);
+
+        $resDel = $this->get(route('prints.sales.receipt', $saleDel));
+        $resDel->assertStatus(200);
+        $resDel->assertSee('CANAL:');
+        $resDel->assertSee('DOMICILIO');
+        $resDel->assertSee('ORDEN DE DOMICILIO:');
+        $resDel->assertSee('ORD-DEL-777');
+        $resDel->assertDontSee('*** COMPROBANTE DE PAGO PARCIAL ***');
+        $resDel->assertDontSee('MESA: Salón');
+
+        // Pedido para llevar (takeout)
+        $takeOrder = RestaurantOrder::create([
+            'user_id' => $this->cajero->id,
+            'order_number' => 'ORD-TAK-888',
+            'order_type' => 'takeout',
+            'status' => 'delivered',
+            'customer_name' => 'Diana Llevar',
+            'delivery_phone' => '3171112233',
+            'delivery_fee' => 0.00,
+            'subtotal' => 32000.00,
+            'total' => 32000.00,
+        ]);
+
+        $saleTake = Sale::create([
+            'user_id' => $this->cajero->id,
+            'restaurant_order_id' => $takeOrder->id,
+            'customer_name' => 'Diana Llevar',
+            'customer_document' => 'CC-654321',
+            'order_type' => 'takeout',
+            'invoice_number' => 'FAC-TAK-01',
+            'subtotal' => 32000.00,
+            'total' => 32000.00,
+            'payment_method' => 'nequi',
+            'status' => 'completed',
+        ]);
+
+        $resTake = $this->get(route('prints.sales.receipt', $saleTake));
+        $resTake->assertStatus(200);
+        $resTake->assertSee('CANAL:');
+        $resTake->assertSee('PARA LLEVAR / RECOGER');
+        $resTake->assertSee('ORDEN PARA LLEVAR:');
+        $resTake->assertSee('ORD-TAK-888');
+        $resTake->assertDontSee('*** COMPROBANTE DE PAGO PARCIAL ***');
+        $resTake->assertDontSee('MESA: Salón');
+    }
+
+    public function test_takeout_order_can_transition_directly_from_in_kitchen_to_delivered(): void
+    {
+        $this->actingAs($this->cajero);
+
+        $takeoutOrder = RestaurantOrder::create([
+            'user_id' => $this->cajero->id,
+            'order_number' => 'ORD-TAK-999',
+            'order_type' => 'takeout',
+            'status' => 'in_kitchen',
+            'customer_name' => 'Andrés Llevar',
+            'delivery_fee' => 0.00,
+            'subtotal' => 32000.00,
+            'total' => 32000.00,
+        ]);
+
+        $response = $this->patchJson(route('restaurant.dispatch.update-status', $takeoutOrder), [
+            'status' => 'delivered',
+        ]);
+
+        $response->assertOk();
+        $response->assertJson([
+            'success' => true,
+            'status' => 'delivered',
+        ]);
+
+        $this->assertEquals('delivered', $takeoutOrder->fresh()->status);
     }
 }

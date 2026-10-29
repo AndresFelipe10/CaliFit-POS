@@ -31,7 +31,7 @@
         <div>
             <h6 class="fw-bold mb-1 text-dark">Adiciones con Precio y Consumo de Stock Propio</h6>
             <p class="text-muted small mb-0">
-                Cada adición cobra un precio extra al cliente y deduce de forma atómica sus insumos en <code>adicion_detalle</code>. Además, se asocia solo a los platos autorizados mediante <code>producto_adicion</code>.
+                Cada adición suma su valor al pedido del cliente y descuenta automáticamente del inventario los gramos o mililitros de insumo configurados, mostrándose únicamente en los platos autorizados de la carta.
             </p>
         </div>
     </div>

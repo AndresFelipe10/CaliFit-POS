@@ -10,7 +10,7 @@ use Illuminate\View\View;
 class SalePrintController extends Controller
 {
     /**
-     * Comprobante térmico de venta no DIAN (58 mm).
+     * Comprobante térmico de venta no DIAN (80 mm).
      */
     public function receipt(Sale $sale): View
     {
@@ -19,13 +19,15 @@ class SalePrintController extends Controller
             'details.additions.addition',
             'payments',
             'user',
+            'restaurantOrder.table',
+            'restaurantOrder.items',
         ]);
 
         return view('prints.receipt', compact('sale'));
     }
 
     /**
-     * Ticket térmico de cocina / barra por tanda (58 mm).
+     * Ticket térmico de cocina / barra por tanda (80 mm).
      * OMITIR ESTRICTAMENTE PRECIOS, TOTALES O SÍMBOLOS DE MONEDA.
      */
     public function kitchenTicket(Request $request, RestaurantOrder $order, $batch = null): View
@@ -57,7 +59,7 @@ class SalePrintController extends Controller
     }
 
     /**
-     * Pre-cuenta informativa para el cliente (58 mm).
+     * Pre-cuenta informativa para el cliente (80 mm).
      */
     public function preBill(RestaurantOrder $order): View
     {
@@ -74,7 +76,7 @@ class SalePrintController extends Controller
     }
 
     /**
-     * Tirilla de despacho y domicilio (58 mm).
+     * Tirilla de despacho y domicilio (80 mm).
      */
     public function dispatchTicket(RestaurantOrder $order): View
     {

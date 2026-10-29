@@ -22,7 +22,7 @@
             </form>
             {{-- Botón de Impresión Térmica --}}
             <button type="button" class="btn btn-califit btn-sm px-3 py-2 fw-bold shadow-sm" onclick="openPrintWindow('{{ route('prints.cash-register', ['date' => $date]) }}')">
-                <i class="bi bi-printer me-1"></i> Imprimir Cuadre Térmico (58mm)
+                <i class="bi bi-printer me-1"></i> Imprimir Cuadre Térmico (80mm)
             </button>
         </div>
     </div>
@@ -554,11 +554,11 @@
     @endif
 </div>
 
-{{-- Script para abrir ventana emergente de impresión (58mm) --}}
+{{-- Script para abrir ventana emergente de impresión (80mm) --}}
 <script>
 function openPrintWindow(url) {
-    const width = 340;
-    const height = 620;
+    const width = 450;
+    const height = 680;
     const left = (screen.width - width) / 2;
     const top = (screen.height - height) / 2;
     window.open(url, 'TicketCuadreCaliFit', `width=${width},height=${height},top=${top},left=${left},scrollbars=yes,status=no,toolbar=no`);

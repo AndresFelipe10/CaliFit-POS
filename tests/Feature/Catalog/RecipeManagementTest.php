@@ -192,4 +192,11 @@ class RecipeManagementTest extends TestCase
             $this->assertEquals(0, $recipe->items()->count());
         }
     }
+
+    public function test_recipes_index_view_omits_internal_service_references(): void
+    {
+        $response = $this->actingAs($this->admin)->get(route('recipes.index'));
+        $response->assertOk();
+        $response->assertDontSee('RecipeService');
+    }
 }

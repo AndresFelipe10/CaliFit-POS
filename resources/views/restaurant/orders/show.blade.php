@@ -923,7 +923,7 @@
                                     <span class="fs-6">Registrar Venta y Liquidar</span>
                                 </button>
                                 <small class="text-muted text-center d-block mt-2" style="font-size: 0.72rem;">
-                                    <i class="bi bi-printer me-1"></i>Genera e imprime el ticket de 58 mm y libera la mesa.
+                                    <i class="bi bi-printer me-1"></i>Genera e imprime el ticket de 80 mm y libera la mesa.
                                 </small>
                             </div>
                         </div>

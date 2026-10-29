@@ -27,7 +27,7 @@
                 <i class="bi bi-printer me-1"></i> Imprimir comprobante (carta)
             </a>
             <a href="{{ route('sales.print.receipt', $sale) }}" target="_blank"
-               class="btn btn-outline-secondary btn-sm rounded-pill px-3" title="Imprimir comprobante para impresora térmica 58mm">
+               class="btn btn-outline-secondary btn-sm rounded-pill px-3" title="Imprimir comprobante para impresora térmica 80mm">
                 <i class="bi bi-receipt me-1"></i> Imprimir comprobante (ticket)
             </a>
             <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3 py-2">

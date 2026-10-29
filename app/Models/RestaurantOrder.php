@@ -23,6 +23,8 @@ class RestaurantOrder extends Model
         'guest_count',
         'customer_id',
         'customer_name',
+        'delivery_phone',
+        'delivery_address',
         'waiter_name',
         'delivery_fee',
         'subtotal',
@@ -164,5 +166,88 @@ class RestaurantOrder extends Model
             'takeout' => 'Para Llevar / Recoger',
             default => ucfirst($this->order_type),
         };
+    }
+
+    /**
+     * Retorna el teléfono de contacto priorizando columna directa, cliente o parsing histórico.
+     */
+    public function getPhoneAttribute(): ?string
+    {
+        if (!empty($this->delivery_phone)) {
+            return $this->delivery_phone;
+        }
+
+        if ($this->customer && !empty($this->customer->phone)) {
+            return $this->customer->phone;
+        }
+
+        return $this->parsePhoneFromNotes();
+    }
+
+    /**
+     * Retorna la dirección de entrega priorizando columna directa, cliente o parsing histórico.
+     */
+    public function getAddressAttribute(): ?string
+    {
+        if (!empty($this->delivery_address)) {
+            return $this->delivery_address;
+        }
+
+        if ($this->customer && !empty($this->customer->address)) {
+            return $this->customer->address;
+        }
+
+        return $this->parseAddressFromNotes();
+    }
+
+    /**
+     * Retorna las observaciones reales digitadas por el usuario, depurando prefijos históricos Tel/Dir.
+     */
+    public function getCleanNotesAttribute(): ?string
+    {
+        $raw = trim((string) $this->notes);
+        if ($raw === '') {
+            return null;
+        }
+
+        // Si no tiene prefijos de concatenación legacy, devolver tal cual
+        if (!str_contains($raw, 'Tel:') && !str_contains($raw, 'Dir:')) {
+            return $raw;
+        }
+
+        // Separar partes divididas por '|'
+        $parts = array_map('trim', explode('|', $raw));
+        $cleanParts = [];
+
+        foreach ($parts as $part) {
+            if (str_starts_with($part, 'Tel:') || str_starts_with($part, 'Dir:')) {
+                continue;
+            }
+            if ($part !== '') {
+                $cleanParts[] = $part;
+            }
+        }
+
+        return !empty($cleanParts) ? implode(' | ', $cleanParts) : null;
+    }
+
+    protected function parsePhoneFromNotes(): ?string
+    {
+        $raw = (string) $this->notes;
+        if (preg_match('/Tel:\s*([^|]+)/i', $raw, $matches)) {
+            $val = trim($matches[1]);
+            return $val !== '' ? $val : null;
+        }
+        return null;
+    }
+
+    protected function parseAddressFromNotes(): ?string
+    {
+        $raw = (string) $this->notes;
+        if (preg_match('/Dir:\s*([^|]+)/i', $raw, $matches)) {
+            $val = trim($matches[1]);
+            return $val !== '' ? $val : null;
+        }
+        return null;
     }
 }

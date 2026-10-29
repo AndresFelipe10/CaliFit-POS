@@ -38,6 +38,7 @@ class StoreDeliveryOrderRequest extends FormRequest
     {
         return [
             'order_type' => 'required|in:delivery,takeout',
+            'customer_id' => 'nullable|exists:customers,id',
             'customer_name' => 'required|string|max:150',
             'phone' => 'required|string|max:30',
             'address' => 'required_if:order_type,delivery|nullable|string|max:255',

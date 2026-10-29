@@ -21,7 +21,7 @@ class CashRegisterController extends Controller
     }
 
     /**
-     * Renderiza la tirilla térmica de 58 mm para el cierre de caja diario.
+     * Renderiza la tirilla térmica de 80 mm para el cierre de caja diario.
      */
     public function printReceipt(Request $request): View
     {
@@ -44,6 +44,12 @@ class CashRegisterController extends Controller
             ->whereBetween('created_at', [$startOfDay, $endOfDay])
             ->with(['payments', 'details.product', 'user'])
             ->get();
+
+        $cancelledSales = Sale::where('status', 'cancelled')
+            ->whereBetween('created_at', [$startOfDay, $endOfDay])
+            ->get();
+        $cancelledSalesCount = $cancelledSales->count();
+        $cancelledSalesTotal = (float) $cancelledSales->sum('total');
 
         // 1. Ventas a Crédito del Día vs Ventas Directas
         $creditSales = $sales->where('is_credit', true);
@@ -153,6 +159,8 @@ class CashRegisterController extends Controller
             'date',
             'sales',
             'salesCount',
+            'cancelledSalesCount',
+            'cancelledSalesTotal',
             'creditSales',
             'creditSalesCount',
             'creditSalesTotal',

@@ -428,7 +428,7 @@ class SplitBillTest extends TestCase
     }
 
     /**
-     * Test 5: Comprobante térmico de 58 mm para pago parcial muestra el encabezado oficial en español.
+     * Test 5: Comprobante térmico de 80 mm para pago parcial muestra el encabezado oficial en español.
      */
     public function test_partial_payment_receipt_renders_official_spanish_header_without_anglicisms(): void
     {

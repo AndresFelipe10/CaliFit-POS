@@ -243,7 +243,7 @@
                                                             <i class="bi bi-wallet2 me-1"></i> Abonar
                                                         </button>
                                                     @endif
-                                                    <a href="{{ route('prints.sales.receipt', $cSale) }}" target="_blank" class="btn btn-sm btn-light border rounded-pill px-2" title="Imprimir Tirilla 58mm">
+                                                    <a href="{{ route('prints.sales.receipt', $cSale) }}" target="_blank" class="btn btn-sm btn-light border rounded-pill px-2" title="Imprimir Tirilla 80mm">
                                                         <i class="bi bi-printer text-secondary"></i>
                                                     </a>
                                                 </div>
@@ -308,7 +308,7 @@
                                                 @endif
                                             </td>
                                             <td class="text-end pe-2">
-                                                <a href="{{ route('prints.sales.receipt', $sale) }}" target="_blank" class="btn btn-sm btn-light border rounded-pill px-3" title="Ver tirilla 58mm">
+                                                <a href="{{ route('prints.sales.receipt', $sale) }}" target="_blank" class="btn btn-sm btn-light border rounded-pill px-3" title="Ver tirilla 80mm">
                                                     <i class="bi bi-printer text-secondary"></i>
                                                 </a>
                                             </td>

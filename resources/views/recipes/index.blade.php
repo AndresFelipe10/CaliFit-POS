@@ -31,7 +31,7 @@
         <div>
             <h6 class="fw-bold mb-1 text-dark">Política de Descuento Atómico y Cero Stock Negativo</h6>
             <p class="text-muted small mb-0">
-                Al cobrar un plato en el POS, el sistema descuenta exactamente los gramos configurados aquí mediante <code>RecipeService</code>. Si un solo insumo no tiene saldo disponible, la venta es rechazada atómicamente.
+                Al cobrar un plato en el punto de venta, el sistema descuenta automáticamente del inventario los gramos y mililitros exactos configurados en esta receta. Si algún insumo no cuenta con existencias suficientes, la venta no se procesa para evitar saldos negativos.
             </p>
         </div>
     </div>

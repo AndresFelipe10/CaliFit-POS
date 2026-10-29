@@ -192,7 +192,7 @@ class CashRegisterTest extends TestCase
     }
 
     /**
-     * Test de renderizado de la tirilla térmica de 58 mm para cuadre de caja.
+     * Test de renderizado de la tirilla térmica de 80 mm para cuadre de caja.
      */
     public function test_print_cash_register_renders_successfully(): void
     {
@@ -382,7 +382,7 @@ class CashRegisterTest extends TestCase
     }
 
     /**
-     * Test de impresión térmica de 58 mm con sección de gastos y balance neto.
+     * Test de impresión térmica de 80 mm con sección de gastos y balance neto.
      */
     public function test_cash_register_thermal_print_includes_expenses_breakdown(): void
     {

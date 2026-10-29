@@ -433,7 +433,7 @@
                                                 onclick="openPaymentModal({{ $sale->id }}, {{ $sale->credit_pending_amount }}, '{{ $sale->invoice_number }}', '{{ addslashes($sale->customer->name ?? $sale->customer_name) }}')">
                                             <i class="bi bi-wallet2 me-1"></i> Cobrar
                                         </button>
-                                        <a href="{{ route('prints.sales.receipt', $sale) }}" target="_blank" class="btn btn-sm btn-light border rounded-pill px-2" title="Imprimir Comprobante Térmico 58mm">
+                                        <a href="{{ route('prints.sales.receipt', $sale) }}" target="_blank" class="btn btn-sm btn-light border rounded-pill px-2" title="Imprimir Comprobante Térmico 80mm">
                                             <i class="bi bi-printer text-secondary"></i>
                                         </a>
                                     </div>

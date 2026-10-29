@@ -604,7 +604,7 @@
                                     <span class="fs-6">Registrar Venta</span>
                                 </button>
                                 <small class="text-muted text-center d-block mt-2" style="font-size: 0.72rem;">
-                                    <i class="bi bi-printer me-1"></i>Genera e imprime el ticket de 58 mm automáticamente.
+                                    <i class="bi bi-printer me-1"></i>Genera e imprime el ticket de 80 mm automáticamente.
                                 </small>
                             </div>
                         </div>
@@ -1858,9 +1858,9 @@ async function submitSale() {
             const modal = bootstrap.Modal.getInstance(modalEl) || bootstrap.Modal.getOrCreateInstance(modalEl);
             if (modal) modal.hide();
 
-            // Abrir ventana de impresión térmica
+            // Abrir ventana de impresión térmica (80mm)
             const printUrl = `/prints/sales/${data.sale_id}/receipt`;
-            window.open(printUrl, '_blank', 'width=340,height=620');
+            window.open(printUrl, '_blank', 'width=450,height=680');
 
             // Resetear comanda y campos del formulario
             cart = [];

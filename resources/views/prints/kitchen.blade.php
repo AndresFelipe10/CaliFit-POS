@@ -5,37 +5,38 @@
     <title>Comanda Cocina {{ $order->order_number }} - Tanda {{ $batch }}</title>
     <style>
     @page {
-        size: 58mm auto;
+        size: 80mm auto;
         margin: 0mm !important;
     }
     * {
         box-sizing: border-box;
     }
     html, body {
-        width: 58mm;
-        max-width: 58mm;
+        width: 80mm;
+        max-width: 80mm;
         margin: 0 !important;
         padding: 0 !important;
         background: #FFFFFF;
         color: #000000 !important;
         font-family: 'Courier New', Courier, monospace;
-        font-size: 11px;
-        line-height: 1.25;
+        font-size: 14px;
+        line-height: 1.35;
+        font-weight: 700;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
     }
     body.thermal-ticket {
-        width: 58mm;
-        max-width: 58mm;
+        width: 80mm;
+        max-width: 80mm;
         margin: 0 auto;
         background: #FFFFFF;
         position: relative;
     }
     .ticket-content {
         width: 100%;
-        max-width: 50mm;
+        max-width: 74mm;
         margin: 0 auto;
-        padding: 2mm 1.5mm;
+        padding: 3mm 2mm;
         box-sizing: border-box;
         overflow: hidden;
         position: relative;
@@ -45,29 +46,30 @@
         text-align: center;
     }
     .ticket-logo {
-        max-width: 34mm;
+        max-width: 62mm;
         height: auto;
-        max-height: 18mm;
+        max-height: 42mm;
         display: block;
-        margin: 0 auto 3px auto;
+        margin: 0 auto 8px auto;
         filter: contrast(200%);
     }
     .ticket-title {
-        font-size: 12px;
+        font-size: 18px;
         font-weight: 900;
         letter-spacing: 0.5px;
     }
     .ticket-subtitle {
-        font-size: 10px;
+        font-size: 13px;
+        line-height: 1.3;
     }
     .ticket-divider {
-        border-top: 1px dashed #000000;
-        margin: 4px 0;
+        border-top: 1.5px dashed #000000;
+        margin: 5px 0;
         width: 100%;
     }
     .ticket-divider-double {
-        border-top: 2px solid #000000;
-        margin: 4px 0;
+        border-top: 2.5px solid #000000;
+        margin: 6px 0;
         width: 100%;
     }
     .ticket-bold {
@@ -82,20 +84,17 @@
     .fw-bold {
         font-weight: 900;
     }
-    .fs-6 {
-        font-size: 12px;
-    }
     .border-bottom {
-        border-bottom: 1.5px dashed #000000;
+        border-bottom: 2px dashed #000000;
     }
     .pb-2 {
-        padding-bottom: 4px;
+        padding-bottom: 5px;
     }
     .mb-2 {
-        margin-bottom: 4px;
+        margin-bottom: 5px;
     }
     .mb-1 {
-        margin-bottom: 2px;
+        margin-bottom: 3px;
     }
     .table-items {
         width: 100%;
@@ -103,30 +102,48 @@
         border-collapse: collapse;
     }
     .table-items th {
-        border-bottom: 1px solid #000000;
-        padding: 2px 0;
-        font-size: 9.5px;
+        border-bottom: 2px solid #000000;
+        padding: 4px 0;
+        font-size: 14px;
+        font-weight: 900;
     }
     .table-items td {
-        padding: 2px 0;
+        padding: 4px 0;
         vertical-align: top;
         word-wrap: break-word;
         overflow-wrap: break-word;
     }
+    .dish-qty {
+        font-size: 18.5px;
+        font-weight: 900;
+        white-space: nowrap;
+        vertical-align: top;
+        padding-top: 3px;
+    }
+    .dish-name {
+        font-size: 18.5px;
+        font-weight: 900;
+        line-height: 1.25;
+        word-wrap: break-word;
+        padding: 3px 0;
+    }
     .addition-row {
-        font-size: 10px;
-        padding-left: 6px;
-        font-weight: bold;
+        font-size: 16px;
+        padding-left: 10px;
+        font-weight: 800;
+        line-height: 1.3;
     }
     .notes-box {
-        font-size: 9.5px;
+        font-size: 15px;
+        font-weight: 800;
         font-style: italic;
-        padding-left: 6px;
+        padding-left: 10px;
+        line-height: 1.3;
     }
     .box-highlight {
-        border: 1.5px solid #000000;
-        padding: 4px;
-        margin: 4px 0;
+        border: 2px solid #000000;
+        padding: 6px;
+        margin: 6px 0;
         text-align: center;
     }
     body, .ticket, table, th, td, p, span, div, strong, small {
@@ -137,9 +154,6 @@
         border-color: #000000 !important;
         opacity: 1 !important;
     }
-    .text-muted, .text-secondary, .text-black-50 {
-        color: #000000 !important;
-    }
     @media print {
         *, *::before, *::after {
             color: #000000 !important;
@@ -147,8 +161,8 @@
             box-shadow: none !important;
         }
         body {
-            width: 58mm !important;
-            max-width: 58mm !important;
+            width: 80mm !important;
+            max-width: 80mm !important;
             margin: 0 !important;
             padding: 0 !important;
             -webkit-print-color-adjust: exact;
@@ -157,9 +171,9 @@
         }
         .ticket-content {
             width: 100% !important;
-            max-width: 50mm !important;
+            max-width: 74mm !important;
             margin: 0 auto !important;
-            padding: 1mm 1mm !important;
+            padding: 2mm 1.5mm !important;
         }
     }
     </style>
@@ -171,22 +185,23 @@
 </head>
 <body class="thermal-ticket">
     <div class="ticket-content">
-        {{-- Cabecera Ultra-Compacta con Logo Vectorial --}}
+        {{-- Cabecera con Logo --}}
         <div class="ticket-header text-center pb-2 mb-2 border-bottom">
             <img src="{{ asset('images/brand/logo-califit.svg') }}" 
                  alt="SaborCaliFit" 
                  class="ticket-logo mb-1">
-            <div class="fw-bold fs-6 text-uppercase" style="letter-spacing: 0.5px; color: #000000;">*** COMANDA COCINA / BARRA ***</div>
-            <div style="font-size: 10px; color: #000000;">SABORCALIFIT | BOCHALEMA</div>
+            <div class="ticket-title text-uppercase">*** COMANDA COCINA / BARRA ***</div>
+            <div class="ticket-subtitle">SABORCALIFIT | BOCHALEMA</div>
             @if(request()->boolean('reprint') || !empty($isReprint))
-                <div style="background: #000000; color: #ffffff !important; font-weight: 900; font-size: 11px; padding: 2px 4px; margin: 3px 0; text-align: center; letter-spacing: 0.5px;">
+                <div style="background: #000000; color: #ffffff !important; font-weight: 900; font-size: 13px; padding: 3px 6px; margin: 4px 0; text-align: center; letter-spacing: 0.5px;">
                     ** COMANDA REIMPRESA **
                 </div>
             @endif
         </div>
 
+        {{-- Recuadro de Ubicación y Tanda en Tamaño Extra-Legible (19px) --}}
         <div class="box-highlight">
-            <div class="ticket-bold" style="font-size: 14px;">
+            <div class="ticket-bold" style="font-size: 19px; line-height: 1.25;">
                 @if($order->table)
                     UBICACIÓN: {{ strtoupper($order->table->name) }}
                 @elseif($order->order_type === 'delivery')
@@ -197,10 +212,11 @@
                     CANAL: SALÓN
                 @endif
             </div>
-            <div class="ticket-bold" style="font-size: 12px; margin-top: 1px;">TANDA #{{ $batch }}</div>
+            <div class="ticket-bold" style="font-size: 17px; margin-top: 3px;">TANDA #{{ $batch }}</div>
         </div>
 
-        <div style="font-size: 10px;">
+        {{-- Metadatos en Tamaño 14.5px --}}
+        <div style="font-size: 14.5px; font-weight: 700;">
             <div><strong>ORDEN:</strong> {{ $order->order_number }}</div>
             <div><strong>HORA:</strong> {{ now()->format('d/m/Y H:i:s') }}</div>
             <div><strong>MESERO:</strong> {{ $order->waiter_name ?: ($order->user->name ?? 'Personal de Servicio') }}</div>
@@ -211,19 +227,19 @@
 
         <div class="ticket-divider-double"></div>
 
-        {{-- LISTA DE PLATOS Y ADICIONES (ESTRICTAMENTE SIN PRECIOS NI $) --}}
+        {{-- LISTA DE PLATOS Y ADICIONES EN TIPOGRAFÍA GIGANTE Y EXTRA-LEGIBLE (17px / 15px) --}}
         <table class="table-items">
             <thead>
                 <tr>
-                    <th style="width: 22%; text-align: left;">CANT</th>
-                    <th style="width: 78%; text-align: left;">DESCRIPCIÓN PREPARACIÓN</th>
+                    <th style="width: 20%; text-align: left;">CANT</th>
+                    <th style="width: 80%; text-align: left;">DESCRIPCIÓN PREPARACIÓN</th>
                 </tr>
             </thead>
             <tbody>
                 @foreach($items as $item)
                     <tr>
-                        <td style="font-size: 13px; font-weight: 900; white-space: nowrap;">[ {{ (float)$item->quantity }} ]</td>
-                        <td style="font-size: 12px; font-weight: 900; word-wrap: break-word;">{{ $item->product->nombre }}</td>
+                        <td class="dish-qty">[ {{ (float)$item->quantity }} ]</td>
+                        <td class="dish-name">{{ $item->product->nombre }}</td>
                     </tr>
                     @if($item->additions && $item->additions->count() > 0)
                         @foreach($item->additions as $add)
@@ -243,17 +259,20 @@
             </tbody>
         </table>
 
-        @if($order->notes)
+        @php
+            $orderInstructions = $order->clean_notes ?: $order->notes;
+        @endphp
+        @if($orderInstructions)
             <div class="ticket-divider"></div>
-            <div style="font-size: 10px;">
+            <div style="font-size: 13px; font-weight: 700;">
                 <strong>OBSERVACIONES GENERALES:</strong><br>
-                {{ $order->notes }}
+                {{ $orderInstructions }}
             </div>
         @endif
 
         <div class="ticket-divider-double"></div>
 
-        <div class="ticket-footer" style="font-size: 10px; font-weight: bold;">
+        <div class="ticket-footer" style="font-size: 13px; font-weight: 900;">
             *** PREPARAR CON ALTO ESTÁNDAR FIT ***
         </div>
     </div>

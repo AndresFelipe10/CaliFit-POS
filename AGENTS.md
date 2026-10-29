@@ -3,7 +3,7 @@
 Este archivo es la puerta de entrada. Léelo primero, siempre, antes de tocar cualquier código.
 
 ## Qué es este proyecto
-**CaliFit Sistema POS** — Software a la medida para **SABORCALIFIT | BOCHALEMA**, un negocio de suplementación deportiva y restaurante de alimentación saludable ubicado en Arbolatta Mall, Cali, Colombia. El sistema gestiona punto de venta, inventario con motor de recetas por porciones en gramos, adiciones reutilizables con precio, salón de mesas, comandas de cocina, despachos a domicilio/para llevar, cuadre de caja adaptativo e impresión térmica de 58 mm. Detalle completo en `docs/PLAN_PROYECTO.md`.
+**CaliFit Sistema POS** — Software a la medida para **SABORCALIFIT | BOCHALEMA**, un negocio de suplementación deportiva y restaurante de alimentación saludable ubicado en Arbolatta Mall, Cali, Colombia. El sistema gestiona punto de venta, inventario con motor de recetas por porciones en gramos, adiciones reutilizables con precio, salón de mesas, comandas de cocina, despachos a domicilio/para llevar, cuadre de caja adaptativo e impresión térmica de 80 mm. Detalle completo en `docs/PLAN_PROYECTO.md`.
 
 ## Fuente de verdad
 - **Alcance y objetivo del proyecto** → `docs/PLAN_PROYECTO.md`

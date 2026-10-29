@@ -90,7 +90,7 @@ Route::middleware('auth')->group(function () {
             Route::patch('/orders/{order}/status', [RestaurantDispatchController::class, 'updateStatus'])->name('dispatch.update-status');
         });
 
-        // Impresión Térmica de 58 mm
+        // Impresión Térmica de 80 mm
         Route::prefix('prints')->name('prints.')->group(function () {
             Route::get('/sales/{sale}/receipt', [SalePrintController::class, 'receipt'])->name('sales.receipt');
             Route::get('/orders/{order}/kitchen/{batch?}', [SalePrintController::class, 'kitchenTicket'])->name('orders.kitchen');

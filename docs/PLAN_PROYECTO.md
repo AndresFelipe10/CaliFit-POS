@@ -5,7 +5,7 @@
 ## Objetivo
 Diseñar y desarrollar un software de Punto de Venta (POS) a la medida para **SABORCALIFIT | BOCHALEMA**, un negocio con modelo mixto de suplementación deportiva y restaurante de alimentación saludable ubicado en **Arbolatta Mall, Cl. 48 #106-86, Cali, Valle del Cauca, Colombia**.
 
-El sistema gestiona de manera centralizada ventas, inventario con motor de recetas por porciones, adiciones reutilizables con precio, salón de mesas, comandas de cocina, despachos a domicilio/para llevar, cuadre de caja adaptativo, impresión térmica de 58 mm y reportes gerenciales.
+El sistema gestiona de manera centralizada ventas, inventario con motor de recetas por porciones, adiciones reutilizables con precio, salón de mesas, comandas de cocina, despachos a domicilio/para llevar, cuadre de caja adaptativo, impresión térmica de 80 mm y reportes gerenciales.
 
 ## Contexto
 Software a la medida (mono-negocio), construido con estándares profesionales de producción. **No es un SaaS multi-tenant.** Toda la instancia pertenece exclusivamente a SaborCaliFit. Los flujos de registro público, creación de múltiples negocios, planes de suscripción y cobros mensuales han sido eliminados.
@@ -39,7 +39,7 @@ Software a la medida (mono-negocio), construido con estándares profesionales de
 8. Inventario (con trazabilidad por `inventory_movements`)
 9. Punto de Venta (POS) con selector de adiciones, pagos mixtos y vueltos
 10. Salón: Mapa táctil de mesas (`LIBRE`, `OCUPADA`, `EN COBRO`)
-11. Comandas de cocina/barra por tandas con ticket térmico 58 mm
+11. Comandas de cocina/barra por tandas con ticket térmico 80 mm
 12. Despacho: Tablero Kanban (Domicilios y Para Llevar, flete de envío, contraentrega)
 13. Clientes
 14. Proveedores
@@ -48,7 +48,7 @@ Software a la medida (mono-negocio), construido con estándares profesionales de
 17. Dashboard gerencial y financiero
 18. Reportes (ventas, inventario, ranking de productos)
 19. Panel inteligente de inventario y alertas (reglas determinísticas)
-20. Impresión Térmica 58 mm (Comanda cocina, Tirilla despacho, Pre-cuenta, Comprobante de venta)
+20. Impresión Térmica 80 mm (Comanda cocina, Tirilla despacho, Pre-cuenta, Comprobante de venta)
 21. Módulo de consultas en lenguaje natural (IA, opcional)
 
 ## Motor de Recetas — Reglas de Negocio Clave
@@ -62,11 +62,11 @@ Software a la medida (mono-negocio), construido con estándares profesionales de
 - **Cero Stock Negativo:** Validación bajo `lockForUpdate` en `DB::transaction`. Si falta un solo gramo, la venta se rechaza en bloque.
 - **Anulación simétrica:** Restaura exactamente los insumos del plato base y sus adiciones (`DEVOLUCION_ANULACION`).
 
-## Impresión Térmica 58 mm
+## Impresión Térmica 80 mm
 - **Comanda de cocina/barra:** Plato principal, adiciones seleccionadas, observaciones. Sin precios ni valores fiscales.
-- **Tirilla de despacho:** Cliente, dirección, teléfono, adiciones, monto de contraentrega.
+- **Tirilla de despacho:** Cliente, dirección, teléfono, adiciones, desglose de ítems y monto de contraentrega.
 - **Pre-cuenta y Comprobante de venta:** Desglose completo, propina voluntaria (10% Ley 1935/2018), INC (8% Art. 512-1 E.T.), pagos mixtos.
-- **Marca de agua sutil:** Imagotipo CaliFit con `opacity: 0.08`–`0.12`, contraste térmico `#000000`.
+- **Logo SaborCaliFit y Contraste:** Imagotipo oficial de alta legibilidad, contraste térmico puro `#000000`.
 - **Leyenda legal:** "Comprobante interno de venta. No reemplaza la factura electrónica de venta ante la DIAN." (Consumidor Final: 222222222222).
 
 ## Arquitectura general
@@ -76,4 +76,4 @@ Resumen ejecutivo: Docker (`califit_app` + `califit_nginx` + `califit_db`) en de
 Fases reorganizadas por funcionalidad del sistema CaliFit → `docs/ROADMAP.md`.
 
 ## Criterios de aceptación globales
-El proyecto se considera exitoso cuando, con datos reales de SaborCaliFit, se puede demostrar el flujo completo: login → gestión de catálogo unificado (suplementos + insumos + platos) → creación de recetas con porciones en gramos → configuración de adiciones reutilizables → venta POS con selector de adiciones y deducción atómica de inventario → salón con mapa de mesas → comandas por tandas → despacho de domicilios con flete y contraentrega → cuadre de caja adaptativo → dashboard con métricas protegidas → reportes gerenciales → impresión térmica 58 mm con marca CaliFit → módulo IA en modo solo lectura con aislamiento → sistema operando sin IA → sistema desplegable sin herramientas técnicas del lado del cliente → proveedor de IA reemplazable sin reescribir el núcleo.
+El proyecto se considera exitoso cuando, con datos reales de SaborCaliFit, se puede demostrar el flujo completo: login → gestión de catálogo unificado (suplementos + insumos + platos) → creación de recetas con porciones en gramos → configuración de adiciones reutilizables → venta POS con selector de adiciones y deducción atómica de inventario → salón con mapa de mesas → comandas por tandas → despacho de domicilios con flete y contraentrega → cuadre de caja adaptativo → dashboard con métricas protegidas → reportes gerenciales → impresión térmica 80 mm con marca CaliFit → módulo IA en modo solo lectura con aislamiento → sistema operando sin IA → sistema desplegable sin herramientas técnicas del lado del cliente → proveedor de IA reemplazable sin reescribir el núcleo.

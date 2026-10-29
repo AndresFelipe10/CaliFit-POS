@@ -103,7 +103,7 @@ class SaleController extends Controller
     }
 
     /**
-     * Print receipt format (thermal 58mm).
+     * Print receipt format (thermal 80mm).
      */
     public function printReceipt(Sale $sale): View
     {

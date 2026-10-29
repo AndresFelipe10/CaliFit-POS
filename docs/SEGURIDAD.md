@@ -26,6 +26,11 @@
 | Discrepancia en pagos | Validación autoritativa en centavos enteros |
 | Inyección de cambio o vueltos | Cálculo autoritativo en backend |
 | Duplicación de efectivo | Máximo una sola línea en efectivo por venta |
+| Inyección de fórmulas CSV | Mitigación anteponiendo apóstrofe `'` a celdas que inicien con `=`, `+`, `-`, `@` en exportaciones |
+| DOM-based XSS en POS y Despacho | Asignación estricta vía `textContent` y templates parametrizados; prohibido concatenar HTML |
+| Deuda huérfana en Cartera | Filtrado autoritativo `where('status', 'completed')` excluyendo ventas anuladas en saldos |
+| Modificación no autorizada de órdenes | Validación de estados operativos en transiciones Kanban con HTTP 422 si la orden está cerrada |
+| Auditoría de Anulaciones | Registro obligatorio de `cancellation_reason`, `cancelled_by` y `cancelled_at` con reversión simétrica |
 
 ## Integridad del Motor de Recetas y Adiciones
 - **Validación de Recetas:** Las cantidades por porción (`cantidad_por_porcion`) deben ser positivas y en la unidad correcta del insumo. Form Requests validan coherencia entre `unidad_base` del ingrediente y la unidad declarada en la receta.
@@ -91,4 +96,14 @@ Toda la matriz de controles de seguridad y consistencia transaccional se certifi
 4. **Sanitización de Credenciales IA** (`tests/Feature/Security/AiApiKeyLogSanitizationTest.php`):
    - Clave de API enviada exclusivamente por headers HTTP (`x-goog-api-key`), nunca en querystring URL.
    - Enmascaramiento garantizado de credenciales en logs de Laravel ante fallas de red del proveedor.
+
+## Auditoría Final de Cierre y Blindaje AppSec (Fase 20)
+En la fase de cierre definitivo se subsanaron y blindaron integralmente 7 vectores de riesgo operativo y consistencia:
+1. **Blindaje de Búsqueda de Comandas:** Corrección estricta de nombres de columnas relacionales (`customers.document` y `customers.phone`) previniendo excepciones SQL 500 bajo parámetros de búsqueda arbitrarios.
+2. **Unicidad e Integridad de Documentos de Clientes:** Importación canónica del modelo `Customer` y autogeneración de identificadores con garantía de unicidad vía bucle `do...while` defensivo ante registros sin documento.
+3. **Integridad de Catálogo y Recetas:** Regla de validación `distinct` en insumos de recetas y adiciones, impidiendo duplicidad de claves foráneas e inconsistencias de inventario, reforzada con validación estricta de `tipo_producto === 'INSUMO'`.
+4. **Erradicación de DOM-based XSS en POS:** Asignación exclusiva mediante `textContent` en las líneas de productos y adiciones dinámicas en mostrador, previniendo inyección de script desde nombres de platos manipulados.
+5. **Máquina de Estados Finita en Despachos:** Restricción estricta en `RestaurantDispatchController::updateStatus` que prohíbe transiciones operativas si la comanda se encuentra cerrada (`closed`) o cancelada (`cancelled`), respondiendo con HTTP 422.
+6. **Protección de Pre-cuentas:** Blindaje en `RestaurantOrderController::preBill` para no mutar el estado de órdenes que ya hayan sido canceladas o liquidadas.
+7. **Inmutabilidad y Aislamiento Contable de Cartera:** Exclusión autoritativa de ventas anuladas en la agregación de deudas (`where('status', 'completed')`) en el módulo de Cartera, saldo deudor por cliente, arqueo de turnos de caja y módulo de IA, garantizando cuadres exactos y trazabilidad 100% auditada.
 

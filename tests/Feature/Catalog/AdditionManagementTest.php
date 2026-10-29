@@ -164,4 +164,17 @@ class AdditionManagementTest extends TestCase
         $toggleResponse->assertRedirect(route('additions.index'));
         $this->assertFalse($addition->fresh()->activo);
     }
+
+    public function test_additions_views_omit_internal_schema_and_technical_terms(): void
+    {
+        $responseIndex = $this->actingAs($this->admin)->get(route('additions.index'));
+        $responseIndex->assertOk();
+        $responseIndex->assertDontSee('adicion_detalle');
+        $responseIndex->assertDontSee('producto_adicion');
+
+        $responseCreate = $this->actingAs($this->admin)->get(route('additions.create'));
+        $responseCreate->assertOk();
+        $responseCreate->assertDontSee('adicion_detalle');
+        $responseCreate->assertDontSee('producto_adicion');
+    }
 }

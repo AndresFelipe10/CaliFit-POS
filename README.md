@@ -8,7 +8,7 @@
 
 **CaliFit Sistema POS** es un software de punto de venta a la medida, diseñado exclusivamente para **SABORCALIFIT | BOCHALEMA**, un negocio con modelo mixto de suplementación deportiva y restaurante de alimentación saludable ubicado en **Arbolatta Mall, Cl. 48 #106-86, Cali, Valle del Cauca, Colombia**.
 
-El sistema gestiona punto de venta, inventario con motor de recetas por porciones en gramos, adiciones reutilizables con precio, salón de mesas, comandas de cocina, despachos a domicilio/para llevar, cuadre de caja adaptativo e impresión térmica de 58 mm.
+El sistema gestiona punto de venta, inventario con motor de recetas por porciones en gramos, adiciones reutilizables con precio, salón de mesas, comandas de cocina y barra, despachos a domicilio y para llevar, cartera de fiados, cuadre de caja diario adaptativo e impresión térmica calibrada a 80 mm.
 
 **Línea de Soporte:** +57 312 770 4455 · **Zona Horaria:** America/Bogota (UTC-5)
 
@@ -38,12 +38,12 @@ El sistema opera al 100% de su capacidad sin depender de servicios externos de i
 ## Características Principales
 
 ### 1. Software Mono-Negocio Exclusivo
-- Sistema diseñado a la medida para un único negocio (SaborCaliFit). No es un SaaS multi-tenant.
-- Panel SuperAdmin (`/superadmin`) como consola centralizada de Gestión de Usuarios, Colaboradores y Matriz RBAC.
+- Sistema diseñado a la medida para un único local físico (SaborCaliFit Bochalema). No es un SaaS multi-tenant.
+- Arquitectura RBAC bipartita nativa (`admin`, `employee`). Gestión integral de colaboradores en `/users` protegida por rol Administrador.
 
 ### 2. Modelo de Negocio Mixto y Catálogo Unificado
 - **Suplementos y Vitaminas:** Venta directa por unidad con descuento de stock unitario.
-- **Restaurante / Cafetería Saludable:** Platos y preparaciones compuestas con descuento de insumos via motor de recetas y adiciones.
+- **Restaurante / Cafetería Saludable:** Platos y preparaciones compuestas con descuento de insumos vía motor de recetas y adiciones.
 - Un solo catálogo con tipos de producto: `INSUMO`, `PREPARACION`, `PLATO`, `SUPLEMENTO`.
 
 ### 3. Motor de Recetas por Porciones en Gramos
@@ -54,41 +54,47 @@ El sistema opera al 100% de su capacidad sin depender de servicios externos de i
 
 ### 4. Adiciones Reutilizables con Precio
 - Extras vinculados a platos con su propia receta de insumos (ej. "Carne adicional 120 g").
-- Fórmula de Precio: `Total = (Precio Plato × Cant.) + Σ(Precio Adición × Cant. Adición)`
-- Fórmula de Consumo: `Insumo = (Cant. × Porción Base) + Σ(Cant. Adición × Consumo Adición)`
+- Fórmula de Precio: `Total = (Precio Plato × Cant.) + Σ(Precio Adición × Cant. Adición)`.
+- Fórmula de Consumo: `Insumo = (Cant. × Porción Base) + Σ(Cant. Adición × Consumo Adición)`.
 
 ### 5. Deducción Atómica de Inventario
 - **Cero Stock Negativo:** Toda venta valida disponibilidad bajo `lockForUpdate` en `DB::transaction`.
 - Si falta un solo gramo de insumo, la venta completa se rechaza en bloque.
-- Anulación simétrica restaura exactamente los insumos consumidos (base + adiciones).
+- Anulación simétrica restaura exactamente los insumos consumidos (base + adiciones) con tipo `DEVOLUCION_ANULACION`.
 - Precios cobrados congelados en `sale_details` y `venta_adicion` (snapshot inmutable).
 
-### 6. Punto de Venta (POS)
-- Selector reactivo de platos con adiciones permitidas (checkbox/contador + precio incremental).
+### 6. Punto de Venta (POS) y Despachos
+- Selector reactivo de platos con adiciones permitidas, escalado matemático de porciones y modal rápido de clientes AJAX.
 - Carrito con desglose de plato y adiciones seleccionadas.
-- Pagos mixtos (hasta 5 líneas: efectivo, tarjeta, Nequi/Daviplata, otro).
+- Pagos mixtos (hasta 5 líneas: efectivo, tarjeta, Nequi/Daviplata, crédito/cartera).
+- Módulo de Despachos (Para Llevar / Domicilios) con tablero Kanban, asignación de flete y comprobantes de contraentrega.
 - Numeración consecutiva de comprobantes (`FAC-000001`).
 
-### 7. Salón, Despachos e Impresión Térmica
-- **Salón:** Mapa táctil de mesas (`LIBRE`, `OCUPADA`, `EN COBRO`) con comandas por tandas.
-- **Despacho:** Tablero Kanban para Domicilios y Para Llevar con flete y contraentrega.
-- **Cuadre de Caja:** Conciliación por canales (Salón, Domicilios, Para Llevar).
-- **Impresión 58 mm:** Comanda cocina (sin precios), tirilla despacho, pre-cuenta y comprobante con propina e INC.
+### 7. Salón, Comandas e Impresión Térmica de 80 mm
+- **Salón:** Mapa táctil e interactivo de mesas (`LIBRE`, `OCUPADA`, `EN COBRO`) con apertura inmediata y división de cuentas (`split-bill`).
+- **Comandas:** Centro de comandas (`/restaurant/orders`) por pestañas y estados con auditoría de cancelaciones y trazabilidad total.
+- **Impresión Térmica 80 mm:** Comanda cocina con tipografía de 18.5px bold (sin precios), tirilla de despacho, pre-cuenta con propina sugerida (10% Ley 1935/2018), factura con INC (8% Art. 512-1 E.T.), arqueo de caja y contraste térmico puro `#000000` sobre `#FFFFFF`.
 
 ### 8. Control de Acceso (RBAC)
-- **SuperAdmin/Dueño:** Control total, gestión de usuarios, configuración.
-- **Administrador:** Catálogo, recetas, costos, gastos, reportes financieros.
-- **Empleado/Cajero/Mesero:** POS, salón, despachos, clientes, cuadre de caja. Sin acceso a costos ni reportes gerenciales (403).
+- **Administrador 1 (Dueño):** Control total del negocio, gestión del equipo (`/users`), catálogo, costos, compras/gastos, arqueos, reportes gerenciales y asistente IA.
+- **Administrador 2 (Gerente):** Control administrativo completo de la operación, catálogo y finanzas.
+- **Mesero / Cajero (`employee`):** Operación de POS Mostrador, Salón de Mesas, Comandas, Despacho, Clientes y Arqueo de turno. Sin acceso a costos, gastos ni métricas financieras (403).
 
-### 9. Dashboard y Reportes
-- KPIs operativos y financieros en tiempo real.
-- Métricas financieras protegidas (exclusivas Administrador).
-- Reportes de ventas, inventario, ranking de productos con exportación CSV.
+### 9. Cartera / Fiados y Gastos Operativos
+- **Cartera:** Créditos autorizados a clientes de confianza, control de abonos parciales o totales y exclusión autoritativa de deudas canceladas.
+- **Gastos:** Registro clasificado de compras/gastos (Efectivo Caja Chica, Transferencia/Banco, Crédito Proveedor), deducible de efectivo en cuadre de caja con adjuntos seguros (`nosniff`).
 
-### 10. Asistente de IA (Opcional)
-- Consultas en lenguaje natural adaptadas a SaborCaliFit.
-- Solo lectura, whitelist de intents, fallback controlado.
-- Desactivable sin afectar el núcleo.
+### 10. Cuadre de Caja Diario Adaptativo
+- Arqueo de caja por turnos de cajero con consolidación multicanal (Salón, Domicilios, Mostrador).
+- Conciliación de efectivo físico vs pagos digitales (Nequi, Daviplata, Tarjetas, Crédito), deducción de gastos de caja chica, cálculo de sobrante/faltante, justificación de descuadres y reporte térmico de 80 mm.
+
+### 11. Dashboard Gerencial y Reportes
+- KPIs operativos y financieros en tiempo real con segregación de privilegios (enmascaramiento de dinero a empleados).
+- Reportes exportables de ventas, inventario, balance contable y ranking de productos fit.
+
+### 12. Asistente de IA (Opcional)
+- Consultas en lenguaje natural optimizadas para SaborCaliFit mediante Gemini 2.5 Flash / Flash Lite con memoria persistente en BD.
+- Solo lectura, whitelist estricta de intents, respuestas 100% en español colombiano y fallback controlado offline.
 
 ---
 
@@ -160,15 +166,15 @@ docker compose exec app php artisan migrate --seed
 
 ---
 
-## Credenciales de Demostración
+## Credenciales Maestras del Sistema
 
-El seeder crea automáticamente datos de demostración para SaborCaliFit con productos (suplementos e insumos), recetas, adiciones, mesas y una venta de ejemplo:
+El seeder oficial (`DatabaseSeeder.php`) aprovisiona automáticamente la matriz de usuarios para **SaborCaliFit Bochalema**:
 
-| Rol | Correo Electrónico | Contraseña | Permisos |
+| Rol | Correo Electrónico | Contraseña | Permisos y Alcance |
 |---|---|---|---|
-| **SuperAdmin/Dueño** | `admin@saborcalifit.com` | `password123` | Control total (Usuarios, Configuración, Reportes, IA) |
-| **Administrador** | `admin@demo.com` | `password123` | Catálogo, recetas, costos, gastos, reportes |
-| **Empleado** | `empleado@demo.com` | `password123` | POS, salón, despachos, clientes, cuadre de caja |
+| **Administrador 1 (Dueño)** | `admin@saborcalifit.com` | `Admin1234#` | Control total del negocio, gestión del equipo (`/users`), configuración, compras/gastos, arqueos, reportes gerenciales e IA |
+| **Administrador 2 (Gerente)** | `gerente@saborcalifit.com` | `Admin1234#` | Control administrativo completo de la operación diaria, catálogo, recetas, compras y reportes |
+| **Mesero (Operación)** | `mesero@saborcalifit.com` | `Admin1234#` | Operación de mostrador POS, salón de mesas, comandas, despachos a domicilio, clientes y arqueo de turno |
 
 ---
 
@@ -184,15 +190,19 @@ Por defecto, el sistema funciona con el módulo de IA desactivado (`AI_MODULE_EN
    AI_TIMEOUT_SECONDS=10
    ```
 3. Reinicia la caché: `docker compose exec app php artisan config:clear`
-4. Ingresa al menú **"Asistente IA"** para formular consultas.
+4. Ingresa al menú **"Asistente IA"** para formular consultas financieras u operativas en lenguaje natural.
 
 ---
 
 ## Ejecución de Pruebas Automatizadas
 
+La totalidad del sistema cuenta con certificación continua mediante PHPUnit y Laravel Test Runner:
+
 ```bash
 docker compose exec app php artisan test
 ```
+
+> **Certificación:** **169 tests passing (1.340 assertions)** con 100% de éxito, 0 fallos y 0 regresiones.
 
 ---
 
@@ -200,9 +210,9 @@ docker compose exec app php artisan test
 
 | Servicio | Contenedor Dev | Contenedor Prod | Puerto Host | Función |
 |---|---|---|---|---|
-| App (PHP-FPM) | `califit_app` | `califit_app_prod` | — | Laravel + PHP 8.3 |
-| Nginx | `califit_nginx` | `califit_nginx_prod` | 8081 (dev), 80/443 (prod) | Servidor web |
-| MySQL | `califit_db` | `califit_db_prod` | 3309 (dev) | Base de datos |
+| App (PHP-FPM) | `califit_app` | `califit_app_prod` | — | Laravel 12 + PHP 8.3 FPM |
+| Nginx | `califit_nginx` | `califit_nginx_prod` | 8081 (dev), 80/443 (prod) | Servidor web y reverse proxy |
+| MySQL | `califit_db` | `califit_db_prod` | 3309 (dev) | Base de datos MySQL 8.4 LTS |
 
 | Recurso | Dev | Prod |
 |---|---|---|
@@ -214,16 +224,31 @@ docker compose exec app php artisan test
 
 ---
 
-## Despliegue en Producción
+## Despliegue en Producción y Operaciones
 
-1. **Configuración:** [`docker-compose.prod.yml`](docker-compose.prod.yml)
-2. **Script de Despliegue:** `bash scripts/deploy.sh`
-3. **Respaldos:**
-   - Consolidado (BD + adjuntos): `bash scripts/backup.sh`
-   - Solo BD: `bash scripts/backup-db.sh`
-   - Restauración: `bash scripts/restore-db.sh backups/dump_archivo.sql.gz`
+El proyecto incluye scripts en Bash totalmente automatizados, auditados y con permisos de ejecución (`chmod +x`):
 
-Guía completa → **[docs/ARQUITECTURA.md](docs/ARQUITECTURA.md)**
+1. **Configuración de Producción:** [`docker-compose.prod.yml`](docker-compose.prod.yml)
+2. **Despliegue Inmutable en 1 Comando:**
+   ```bash
+   bash scripts/deploy.sh
+   ```
+   *(Valida el entorno, levanta contenedores de producción, corre migraciones pendientes, optimiza cachés de rutas/vistas/config y reinicia workers).*
+3. **Copias de Seguridad (Backups):**
+   - **Respaldo Completo (Base de Datos + Archivos de Storage):**
+     ```bash
+     bash scripts/backup.sh
+     ```
+   - **Respaldo Rápido de Base de Datos MySQL:**
+     ```bash
+     bash scripts/backup-db.sh
+     ```
+   - **Restauración Atómica de Base de Datos:**
+     ```bash
+     bash scripts/restore-db.sh backups/db_califit_pos_prod_YYYYMMDD_HHMMSS.sql.gz
+     ```
+
+Guía completa de arquitectura → **[docs/ARQUITECTURA.md](docs/ARQUITECTURA.md)**
 
 ---
 

@@ -484,7 +484,7 @@ class RestaurantOrderController extends Controller
     }
 
     /**
-     * Emite la pre-cuenta térmica de 58 mm para platos seleccionados de la comanda (división por platos).
+     * Emite la pre-cuenta térmica de 80 mm para platos seleccionados de la comanda (división por platos).
      */
     public function printPartialPreBill(Request $request, RestaurantOrder $order): View
     {

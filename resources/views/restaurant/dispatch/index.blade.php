@@ -555,7 +555,7 @@ async function submitDispatchOrder() {
 
         const data = await res.json();
         if (res.ok && data.success) {
-            window.open(data.print_url || `/prints/orders/${data.order_id}/kitchen`, '_blank', 'width=340,height=620');
+            window.open(data.print_url || `/prints/orders/${data.order_id}/kitchen`, '_blank', 'width=450,height=680');
             location.reload();
         } else {
             califitNotify('Error: ' + (data.message || JSON.stringify(data.errors || data)), 'danger', 'Error al Guardar');
@@ -569,14 +569,22 @@ async function submitDispatchOrder() {
     }
 }
 
-async function updateOrderStatus(orderId, newStatus) {
+async function advanceOrderStatus(orderId, newStatus, btn) {
+    if (btn) {
+        if (btn.disabled) return;
+        btn.disabled = true;
+        btn.dataset.originalHtml = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Procesando...';
+    }
+
     try {
         const res = await fetch(`/restaurant/orders/${orderId}/status`, {
             method: 'PATCH',
             headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
-                'X-CSRF-TOKEN': "{{ csrf_token() }}"
+                'X-CSRF-TOKEN': "{{ csrf_token() }}",
+                'X-Requested-With': 'XMLHttpRequest'
             },
             body: JSON.stringify({ status: newStatus })
         });
@@ -586,12 +594,21 @@ async function updateOrderStatus(orderId, newStatus) {
             location.reload();
         } else {
             califitNotify('Error al actualizar estado: ' + (data.message || ''), 'danger', 'Error');
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = btn.dataset.originalHtml;
+            }
         }
     } catch (e) {
         console.error(e);
         califitNotify('Error al comunicar cambio de estado con el servidor.', 'danger', 'Error de Red');
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = btn.dataset.originalHtml;
+        }
     }
 }
+window.updateOrderStatus = advanceOrderStatus;
 
 function filterDispatchCustomerSelect(query) {
     const sel = document.getElementById('dispatchCustomerSelect');
