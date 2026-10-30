@@ -1009,6 +1009,37 @@
                 }
             });
         }, true);
+
+        // =========================================================================
+        // HELPER GLOBAL PARA ENVIAR TICKETS A LA COLA DE IMPRESIÓN CENTRALIZADA
+        // =========================================================================
+        window.sendPrintToQueue = function(tipo, id, extra = {}) {
+            const payload = Object.assign({ tipo: tipo, id: id }, extra);
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+            return fetch('{{ route("print-jobs.enqueue") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken || '',
+                },
+                body: JSON.stringify(payload),
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.ok && typeof window.califitNotify === 'function') {
+                    window.califitNotify(data.message || 'Ticket enviado a la cola de impresión', 'success', 'Impresora Local POS');
+                }
+                return data;
+            })
+            .catch(err => {
+                console.error('Error enviando a la cola de impresión:', err);
+                if (typeof window.califitNotify === 'function') {
+                    window.califitNotify('No se pudo comunicar con la cola de impresión', 'danger');
+                }
+            });
+        };
     </script>
 
     {{-- MODAL GLOBAL DE CONFIRMACIÓN DE ACCIONES DESTRUCTIVAS (CALIFIT POS) --}}

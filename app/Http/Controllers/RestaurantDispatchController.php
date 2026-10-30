@@ -125,6 +125,8 @@ class RestaurantDispatchController extends Controller
         $kitchenPrintUrl = route('prints.orders.kitchen', ['order' => $order->id, 'batch' => 1]);
         session()->flash('print_url', $kitchenPrintUrl);
 
+        app(\App\Services\Printing\PrintQueueService::class)->enqueueKitchenTicket($order, 1, false);
+
         return response()->json([
             'success' => true,
             'order_id' => $order->id,

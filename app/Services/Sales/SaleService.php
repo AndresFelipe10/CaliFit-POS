@@ -38,7 +38,7 @@ class SaleService
      */
     public function processSale(array $saleData, User $seller): Sale
     {
-        return DB::transaction(function () use ($saleData, $seller) {
+        $sale = DB::transaction(function () use ($saleData, $seller) {
             $items = $saleData['items'] ?? [];
 
             if (empty($items)) {
@@ -295,6 +295,11 @@ class SaleService
 
             return $sale->load(['details.additions.adicion', 'details.product', 'payments']);
         });
+
+        // Encolado automático de comprobante / factura de venta para impresión física en PC
+        app(\App\Services\Printing\PrintQueueService::class)->enqueueSaleReceipt($sale);
+
+        return $sale;
     }
 
     /**

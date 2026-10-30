@@ -232,6 +232,7 @@ class RestaurantOrderController extends Controller
 
         if ($hasInitialItems) {
             session()->flash('auto_print_kitchen_url', route('prints.orders.kitchen', ['order' => $order->id, 'batch' => 1]));
+            app(\App\Services\Printing\PrintQueueService::class)->enqueueKitchenTicket($order, 1, false);
         }
 
         if ($request->wantsJson() || $request->ajax()) {
@@ -384,6 +385,8 @@ class RestaurantOrderController extends Controller
             }
 
             $lockedOrder->recalculateTotals();
+
+            app(\App\Services\Printing\PrintQueueService::class)->enqueueKitchenTicket($lockedOrder, $batchNumber, false);
 
             return response()->json([
                 'success' => true,

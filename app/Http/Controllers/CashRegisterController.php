@@ -21,11 +21,26 @@ class CashRegisterController extends Controller
     }
 
     /**
-     * Renderiza la tirilla térmica de 80 mm para el cierre de caja diario.
+     * Renderiza o encola la tirilla térmica de 80 mm para el cierre de caja diario.
      */
-    public function printReceipt(Request $request): View
+    public function printReceipt(Request $request): View|\Illuminate\Http\JsonResponse
     {
         $metrics = $this->calculateDailyMetrics($request->input('date'));
+
+        if ($request->boolean('enqueue')) {
+            app(\App\Services\Printing\PrintQueueService::class)->enqueueCashRegister($metrics);
+        }
+
+        if ($request->wantsJson() || $request->ajax()) {
+            if (! $request->boolean('enqueue')) {
+                app(\App\Services\Printing\PrintQueueService::class)->enqueueCashRegister($metrics);
+            }
+
+            return response()->json([
+                'ok'      => true,
+                'message' => 'Cuadre de caja enviado a la cola de impresión exitosamente',
+            ]);
+        }
 
         return view('prints.cash-register', $metrics);
     }
@@ -33,7 +48,7 @@ class CashRegisterController extends Controller
     /**
      * Calcula todas las métricas financieras, por canales y arqueo de caja para una fecha dada.
      */
-    protected function calculateDailyMetrics(?string $dateInput): array
+    public function calculateDailyMetrics(?string $dateInput): array
     {
         $date = $dateInput ?: now()->timezone('America/Bogota')->format('Y-m-d');
 

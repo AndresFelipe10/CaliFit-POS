@@ -15,6 +15,7 @@ use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\InventoryAlertController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\PosController;
+use App\Http\Controllers\PrintJobController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\RecipeController;
 use App\Http\Controllers\ReportController;
@@ -98,6 +99,9 @@ Route::middleware('auth')->group(function () {
             Route::get('/orders/{order}/dispatch', [SalePrintController::class, 'dispatchTicket'])->name('orders.dispatch');
             Route::get('/cash-register', [CashRegisterController::class, 'printReceipt'])->name('cash-register');
         });
+
+        // Cola de Impresión Centralizada ESC/POS
+        Route::post('/print-jobs/enqueue', [PrintJobController::class, 'enqueue'])->name('print-jobs.enqueue');
 
         // Cuadre de Caja Diario y Arqueo (SaborCaliFit)
         Route::get('/cash-register', [CashRegisterController::class, 'index'])->name('cash-register.index');

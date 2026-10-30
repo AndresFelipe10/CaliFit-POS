@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    'print' => [
+        'enabled' => env('PRINT_QUEUE_ENABLED', true),
+        'token'   => env('PRINT_AGENT_TOKEN'),
+    ],
+
 ];
