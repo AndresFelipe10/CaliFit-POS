@@ -255,11 +255,11 @@ class DatabaseSeeder extends Seeder
         );
 
         // 5. Los 4 Platos Principales Fit
-        // 5.1 Ejercicio 200g con frijoles
-        $plato1 = Product::firstOrCreate(
+        // 5.1 Ejecutivo 200g con frijoles
+        $plato1 = Product::updateOrCreate(
             ['sku' => 'PLA-001'],
             [
-                'nombre' => 'Ejercicio 200g con frijoles',
+                'nombre' => 'Ejecutivo 200g con frijoles',
                 'descripcion' => 'Almuerzo fit alto en proteína: 200g carne, 62.5g arroz, 23.81g frijoles, verduras y papa',
                 'tipo_producto' => 'PLATO',
                 'unidad_base' => 'UNIDAD',
@@ -272,10 +272,10 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
-        $receta1 = Recipe::firstOrCreate(
+        $receta1 = Recipe::updateOrCreate(
             ['producto_plato_id' => $plato1->id],
             [
-                'nombre' => 'Fórmula Ejercicio 200g con frijoles',
+                'nombre' => 'Fórmula Ejecutivo 200g con frijoles',
                 'activa' => true,
             ]
         );
@@ -288,11 +288,11 @@ class DatabaseSeeder extends Seeder
             $insumoPapa->id => 100.000,
         ]);
 
-        // 5.2 Ejercicio 120g con frijoles
-        $plato2 = Product::firstOrCreate(
+        // 5.2 Ejecutivo 120g con frijoles
+        $plato2 = Product::updateOrCreate(
             ['sku' => 'PLA-002'],
             [
-                'nombre' => 'Ejercicio 120g con frijoles',
+                'nombre' => 'Ejecutivo 120g con frijoles',
                 'descripcion' => 'Almuerzo fit porción estándar: 120g carne, 62.5g arroz, 23.81g frijoles, verduras y papa',
                 'tipo_producto' => 'PLATO',
                 'unidad_base' => 'UNIDAD',
@@ -305,10 +305,10 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
-        $receta2 = Recipe::firstOrCreate(
+        $receta2 = Recipe::updateOrCreate(
             ['producto_plato_id' => $plato2->id],
             [
-                'nombre' => 'Fórmula Ejercicio 120g con frijoles',
+                'nombre' => 'Fórmula Ejecutivo 120g con frijoles',
                 'activa' => true,
             ]
         );
@@ -321,11 +321,11 @@ class DatabaseSeeder extends Seeder
             $insumoPapa->id => 100.000,
         ]);
 
-        // 5.3 Ejercicio 200g con lentejas
-        $plato3 = Product::firstOrCreate(
+        // 5.3 Ejecutivo 200g con lentejas
+        $plato3 = Product::updateOrCreate(
             ['sku' => 'PLA-003'],
             [
-                'nombre' => 'Ejercicio 200g con lentejas',
+                'nombre' => 'Ejecutivo 200g con lentejas',
                 'descripcion' => 'Almuerzo fit alto en proteína: 200g carne, 62.5g arroz, 14.29g lentejas, verduras y papa',
                 'tipo_producto' => 'PLATO',
                 'unidad_base' => 'UNIDAD',
@@ -338,10 +338,10 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
-        $receta3 = Recipe::firstOrCreate(
+        $receta3 = Recipe::updateOrCreate(
             ['producto_plato_id' => $plato3->id],
             [
-                'nombre' => 'Fórmula Ejercicio 200g con lentejas',
+                'nombre' => 'Fórmula Ejecutivo 200g con lentejas',
                 'activa' => true,
             ]
         );
@@ -354,11 +354,11 @@ class DatabaseSeeder extends Seeder
             $insumoPapa->id => 100.000,
         ]);
 
-        // 5.4 Ejercicio 120g con lentejas
-        $plato4 = Product::firstOrCreate(
+        // 5.4 Ejecutivo 120g con lentejas
+        $plato4 = Product::updateOrCreate(
             ['sku' => 'PLA-004'],
             [
-                'nombre' => 'Ejercicio 120g con lentejas',
+                'nombre' => 'Ejecutivo 120g con lentejas',
                 'descripcion' => 'Almuerzo fit porción estándar: 120g carne, 62.5g arroz, 14.29g lentejas, verduras y papa',
                 'tipo_producto' => 'PLATO',
                 'unidad_base' => 'UNIDAD',
@@ -371,10 +371,10 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
-        $receta4 = Recipe::firstOrCreate(
+        $receta4 = Recipe::updateOrCreate(
             ['producto_plato_id' => $plato4->id],
             [
-                'nombre' => 'Fórmula Ejercicio 120g con lentejas',
+                'nombre' => 'Fórmula Ejecutivo 120g con lentejas',
                 'activa' => true,
             ]
         );

@@ -26,7 +26,7 @@ class RecipeServiceTest extends TestCase
     protected Product $lentejas;
     protected Product $verduras;
     protected Product $papa;
-    protected Product $platoEjercicio200gFrijoles;
+    protected Product $platoEjecutivo200gFrijoles;
     protected Addition $adicionCarne120g;
     protected Addition $adicionPapa100g;
 
@@ -107,10 +107,10 @@ class RecipeServiceTest extends TestCase
             'activo' => true,
         ]);
 
-        // Plato Fit: Ejercicio 200g con frijoles
-        $this->platoEjercicio200gFrijoles = Product::create([
+        // Plato Fit: Ejecutivo 200g con frijoles
+        $this->platoEjecutivo200gFrijoles = Product::create([
             'sku' => 'PLA-001',
-            'nombre' => 'Ejercicio 200g con frijoles',
+            'nombre' => 'Ejecutivo 200g con frijoles',
             'tipo_producto' => 'PLATO',
             'unidad_base' => 'UNIDAD',
             'category_id' => $catPlatos->id,
@@ -120,8 +120,8 @@ class RecipeServiceTest extends TestCase
         ]);
 
         $receta = Recipe::create([
-            'producto_plato_id' => $this->platoEjercicio200gFrijoles->id,
-            'nombre' => 'Fórmula Ejercicio 200g con frijoles',
+            'producto_plato_id' => $this->platoEjecutivo200gFrijoles->id,
+            'nombre' => 'Fórmula Ejecutivo 200g con frijoles',
             'activa' => true,
         ]);
 
@@ -184,7 +184,7 @@ class RecipeServiceTest extends TestCase
     public function test_calculate_consumption_for_single_base_dish(): void
     {
         $consumption = $this->recipeService->calculateItemConsumption(
-            $this->platoEjercicio200gFrijoles,
+            $this->platoEjecutivo200gFrijoles,
             1.0
         );
 
@@ -200,9 +200,9 @@ class RecipeServiceTest extends TestCase
 
     public function test_calculate_consumption_for_multiple_portions_of_base_dish(): void
     {
-        // 3 platos de Ejercicio 200g con frijoles
+        // 3 platos de Ejecutivo 200g con frijoles
         $consumption = $this->recipeService->calculateItemConsumption(
-            $this->platoEjercicio200gFrijoles,
+            $this->platoEjecutivo200gFrijoles,
             3.0
         );
 
@@ -220,7 +220,7 @@ class RecipeServiceTest extends TestCase
     {
         // 1 plato + Carne adicional 120g + Papa adicional 100g
         $consumption = $this->recipeService->calculateItemConsumption(
-            $this->platoEjercicio200gFrijoles,
+            $this->platoEjecutivo200gFrijoles,
             1.0,
             [
                 $this->adicionCarne120g->id => 1,

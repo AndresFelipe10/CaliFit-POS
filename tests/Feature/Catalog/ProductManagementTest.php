@@ -214,5 +214,25 @@ class ProductManagementTest extends TestCase
             'precio_venta' => 140000.00,
         ]);
     }
+
+    public function test_product_name_allows_numbers_grammages_and_special_characters(): void
+    {
+        $response = $this->actingAs($this->admin)->post(route('products.store'), [
+            'nombre' => 'Ejecutivo 120g con frijoles (Especial #1)',
+            'sku' => 'PLA-EJEC-120',
+            'tipo_producto' => 'PLATO',
+            'unidad_base' => 'UNIDAD',
+            'category_id' => $this->category->id,
+            'stock_minimo' => 5,
+            'precio_compra' => 8500,
+            'precio_venta' => 20000,
+        ]);
+
+        $response->assertRedirect(route('products.index'));
+        $this->assertDatabaseHas('products', [
+            'sku' => 'PLA-EJEC-120',
+            'nombre' => 'Ejecutivo 120g con frijoles (Especial #1)',
+        ]);
+    }
 }
 

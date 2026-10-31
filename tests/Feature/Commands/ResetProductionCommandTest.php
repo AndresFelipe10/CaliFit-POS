@@ -100,3 +100,4 @@ class ResetProductionCommandTest extends TestCase
         $this->assertDatabaseCount('products', 0);
     }
 }
+

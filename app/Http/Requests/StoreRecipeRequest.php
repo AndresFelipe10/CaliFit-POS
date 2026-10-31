@@ -119,3 +119,4 @@ class StoreRecipeRequest extends FormRequest
         ];
     }
 }
+

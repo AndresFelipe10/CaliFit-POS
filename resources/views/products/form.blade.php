@@ -115,6 +115,8 @@
                                class="form-control @error('nombre') is-invalid @enderror" 
                                placeholder="Ej: Bowl Proteico de Pollo 150g o Creatina Monohidratada 300g"
                                value="{{ old('nombre', $product->nombre ?? '') }}" 
+                               data-sanitize="none"
+                               autocomplete="off"
                                required 
                                maxlength="150">
                         @error('nombre')

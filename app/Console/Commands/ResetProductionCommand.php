@@ -154,3 +154,4 @@ class ResetProductionCommand extends Command
         return self::SUCCESS;
     }
 }
+

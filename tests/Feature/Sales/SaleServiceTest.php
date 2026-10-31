@@ -36,7 +36,7 @@ class SaleServiceTest extends TestCase
     protected Product $arroz;
     protected Product $frijoles;
     protected Product $papa;
-    protected Product $platoEjercicio;
+    protected Product $platoEjecutivo;
     protected Product $suplementoCreatina;
     protected Addition $adicionCarne120g;
 
@@ -119,9 +119,9 @@ class SaleServiceTest extends TestCase
         ]);
 
         // Plato compuesto
-        $this->platoEjercicio = Product::create([
+        $this->platoEjecutivo = Product::create([
             'sku' => 'PLA-001',
-            'nombre' => 'Ejercicio 200g con frijoles',
+            'nombre' => 'Ejecutivo 200g con frijoles',
             'tipo_producto' => 'PLATO',
             'unidad_base' => 'UNIDAD',
             'category_id' => $catPlatos->id,
@@ -131,8 +131,8 @@ class SaleServiceTest extends TestCase
         ]);
 
         $receta = Recipe::create([
-            'producto_plato_id' => $this->platoEjercicio->id,
-            'nombre' => 'Fórmula Ejercicio 200g con frijoles',
+            'producto_plato_id' => $this->platoEjecutivo->id,
+            'nombre' => 'Fórmula Ejecutivo 200g con frijoles',
             'activa' => true,
         ]);
 
@@ -193,7 +193,7 @@ class SaleServiceTest extends TestCase
             'order_type' => 'retail',
             'items' => [
                 [
-                    'product_id' => $this->platoEjercicio->id,
+                    'product_id' => $this->platoEjecutivo->id,
                     'quantity' => 2.0, // 2 platos: 400g carne, 125g arroz, 47.62g frijoles, 200g papa
                 ],
             ],
@@ -278,7 +278,7 @@ class SaleServiceTest extends TestCase
             'customer_id' => $this->cliente->id,
             'items' => [
                 [
-                    'product_id' => $this->platoEjercicio->id,
+                    'product_id' => $this->platoEjecutivo->id,
                     'quantity' => 1.0, // Requiere 200g carne
                 ],
             ],
@@ -314,7 +314,7 @@ class SaleServiceTest extends TestCase
             'customer_id' => $this->cliente->id,
             'items' => [
                 [
-                    'product_id' => $this->platoEjercicio->id,
+                    'product_id' => $this->platoEjecutivo->id,
                     'quantity' => 1.0,
                     'additions' => [
                         $this->adicionCarne120g->id => 1,
@@ -366,7 +366,7 @@ class SaleServiceTest extends TestCase
         // Caso 1: Pagos no coinciden con el total
         $saleData = [
             'items' => [
-                ['product_id' => $this->platoEjercicio->id, 'quantity' => 1.0],
+                ['product_id' => $this->platoEjecutivo->id, 'quantity' => 1.0],
             ],
             'payments' => [
                 ['method' => 'cash', 'amount' => 20000.00], // Total es 25,000
@@ -385,7 +385,7 @@ class SaleServiceTest extends TestCase
         $saleData = [
             'items' => [
                 [
-                    'product_id' => $this->platoEjercicio->id,
+                    'product_id' => $this->platoEjecutivo->id,
                     'quantity' => 1.0,
                     'additions' => [
                         $this->adicionCarne120g->id => 1,

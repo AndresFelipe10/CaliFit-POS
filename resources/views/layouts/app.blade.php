@@ -905,13 +905,26 @@
             const id = (target.id || '').toLowerCase();
             const role = (target.dataset.sanitize || '').toLowerCase();
 
-            // 1. Nombres de Personas (name, waiter_name, contact_name, recipient_name, customClientName, etc.)
-            // Solo permitir letras (incluyendo tildes, diéresis y ñ/Ñ) y espacios
-            const isNameField = role === 'person-name' || 
-                                ['name', 'nombre', 'waiter_name', 'contact_name', 'recipient_name', 'customer_name'].includes(name) ||
-                                id.includes('customername') || id.includes('custname') || id === 'opentablewaitername' || id === 'customclientname';
+            // 0. Exclusión estricta de productos, insumos, recetas, adiciones, categorías y proveedores
+            if (
+                role === 'none' ||
+                role === 'product' ||
+                role === 'product-name' ||
+                target.dataset.sanitize === 'none' ||
+                target.closest('#productForm, #recipeCreateForm, #recipeForm, #additionForm, form[action*="products"], form[action*="recipes"], form[action*="additions"], form[action*="categories"], form[action*="suppliers"]') !== null ||
+                ['product', 'producto', 'recipe', 'receta', 'addition', 'adicion', 'item', 'category', 'supplier'].some(term => id.includes(term) || name.includes(term))
+            ) {
+                return;
+            }
 
-            if (isNameField) {
+            // 1. Nombres de Personas (waiter_name, contact_name, recipient_name, customer_name, o usuarios/clientes)
+            // Solo permitir letras (incluyendo tildes, diéresis y ñ/Ñ) y espacios
+            const isPersonField = role === 'person-name' || 
+                                ['waiter_name', 'contact_name', 'recipient_name', 'customer_name'].includes(name) ||
+                                id.includes('customername') || id.includes('custname') || id === 'opentablewaitername' || id === 'customclientname' ||
+                                (target.closest('#userModal, #newUserModal, #customerModal, #newCustomerModal, #dispatchQuickCustomerModal, form[action*="customers"], form[action*="users"]') !== null && ['name', 'nombre'].includes(name));
+
+            if (isPersonField) {
                 const cleaned = target.value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]/g, '').slice(0, 100);
                 if (target.value !== cleaned) {
                     target.value = cleaned;

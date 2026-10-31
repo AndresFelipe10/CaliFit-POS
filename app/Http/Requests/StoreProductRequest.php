@@ -18,6 +18,9 @@ class StoreProductRequest extends FormRequest
     protected function prepareForValidation(): void
     {
         $merge = [];
+        if (! $this->has('nombre') && $this->has('name')) {
+            $merge['nombre'] = $this->input('name');
+        }
         if ($this->has('precio_compra')) {
             $merge['precio_compra'] = $this->normalizeCurrency($this->input('precio_compra'));
         }
