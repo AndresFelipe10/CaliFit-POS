@@ -54,7 +54,7 @@ Route::middleware('auth')->group(function () {
 
     // Cambio obligatorio de contraseña
     Route::get('/change-password', [ChangePasswordController::class, 'show'])->name('password.change');
-    Route::post('/change-password', [ChangePasswordController::class, 'update'])->name('password.update');
+    Route::post('/change-password', [ChangePasswordController::class, 'update']);
     Route::get('/password/change', [ChangePasswordController::class, 'show']);
     Route::post('/password/change', [ChangePasswordController::class, 'update'])->name('password.change.update');
 
