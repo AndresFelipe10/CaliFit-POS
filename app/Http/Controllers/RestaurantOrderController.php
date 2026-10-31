@@ -408,10 +408,13 @@ class RestaurantOrderController extends Controller
             }
         }
 
+        // Encolar automáticamente la pre-cuenta informativa para el agente térmico ESC/POS
+        app(\App\Services\Printing\PrintQueueService::class)->enqueuePreBill($order);
+
         if (request()->wantsJson() || request()->ajax()) {
             return response()->json([
                 'success' => true,
-                'message' => 'Pre-cuenta generada correctamente',
+                'message' => 'Pre-cuenta enviada a la impresora exitosamente',
                 'redirect' => route('prints.orders.pre-bill', $order),
             ]);
         }
@@ -513,6 +516,16 @@ class RestaurantOrderController extends Controller
         $subtotal = 0.0;
         foreach ($items as $item) {
             $subtotal += (float) $item->subtotal;
+        }
+
+        // Encolar trabajo de pre-cuenta parcial para el agente térmico ESC/POS
+        app(\App\Services\Printing\PrintQueueService::class)->enqueuePreBill($order, $items);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Pre-cuenta parcial enviada a la impresora exitosamente',
+            ]);
         }
 
         return view('prints.pre-bill-partial', [

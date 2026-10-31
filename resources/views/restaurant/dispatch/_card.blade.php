@@ -39,7 +39,7 @@
     </div>
 
     <div class="d-flex gap-1">
-        <button type="button" onclick="window.open('{{ route('prints.orders.dispatch', $order) }}', '_blank', 'width=450,height=680')" class="btn btn-outline-secondary btn-sm p-1 flex-grow-1" style="font-size: 0.72rem;" title="Imprimir Tirilla de Despacho">
+        <button type="button" onclick="printDispatchTicket({{ $order->id }}, '{{ route('prints.orders.dispatch', $order) }}')" class="btn btn-outline-secondary btn-sm p-1 flex-grow-1" style="font-size: 0.72rem;" title="Imprimir Tirilla de Despacho">
             <i class="bi bi-printer"></i> Tirilla
         </button>
 

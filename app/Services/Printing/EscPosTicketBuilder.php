@@ -5,6 +5,8 @@ namespace App\Services\Printing;
 use App\Models\RestaurantOrder;
 use App\Models\Sale;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
+use Mike42\Escpos\EscposImage;
 use Mike42\Escpos\PrintConnectors\DummyPrintConnector;
 use Mike42\Escpos\Printer;
 
@@ -75,10 +77,67 @@ class EscPosTicketBuilder
     }
 
     /**
+     * Imprime el logotipo corporativo centrado en mapa de bits ESC/POS (GS v 0).
+     * Si la imagen tiene transparencia, se procesa sobre fondo blanco puro (#FFFFFF)
+     * y escala de grises de alto contraste para evitar recuadros negros en POS800.
+     */
+    protected function printLogo(Printer $printer): void
+    {
+        try {
+            $logoPath = public_path('images/brand/logo-califit.png');
+            if (!file_exists($logoPath)) {
+                return;
+            }
+
+            $cacheDir = storage_path('app/escpos');
+            if (!is_dir($cacheDir)) {
+                @mkdir($cacheDir, 0775, true);
+            }
+            $cachedLogo = $cacheDir . '/logo_80mm_bw.png';
+
+            if (!file_exists($cachedLogo) || filemtime($cachedLogo) < filemtime($logoPath)) {
+                if (extension_loaded('gd') && function_exists('imagecreatefrompng')) {
+                    $src = @imagecreatefrompng($logoPath);
+                    if ($src) {
+                        $origW = imagesx($src);
+                        $origH = imagesy($src);
+                        $targetW = 260; // 240px - 280px seguro para 80mm
+                        $targetH = (int) round(($origH / max(1, $origW)) * $targetW);
+
+                        $dest = imagecreatetruecolor($targetW, $targetH);
+                        $white = imagecolorallocate($dest, 255, 255, 255);
+                        imagefilledrectangle($dest, 0, 0, $targetW, $targetH, $white);
+
+                        imagecopyresampled($dest, $src, 0, 0, 0, 0, $targetW, $targetH, $origW, $origH);
+
+                        imagefilter($dest, IMG_FILTER_GRAYSCALE);
+                        imagefilter($dest, IMG_FILTER_CONTRAST, -25);
+
+                        imagepng($dest, $cachedLogo);
+                        imagedestroy($src);
+                        imagedestroy($dest);
+                    }
+                }
+            }
+
+            $pathToLoad = file_exists($cachedLogo) ? $cachedLogo : $logoPath;
+            $escposImg = EscposImage::load($pathToLoad, false);
+
+            $printer->setJustification(Printer::JUSTIFY_CENTER);
+            $printer->bitImage($escposImg);
+            $printer->feed(1);
+        } catch (\Throwable $e) {
+            Log::warning('No se pudo renderizar el logo en ticket ESC/POS: ' . $e->getMessage());
+        }
+    }
+
+    /**
      * Imprime la cabecera oficial de SaborCaliFit Bochalema.
      */
     protected function printOfficialHeader(Printer $printer, ?string $documentTitle = null): void
     {
+        $this->printLogo($printer);
+
         $printer->setJustification(Printer::JUSTIFY_CENTER);
         $printer->setEmphasis(true);
         $printer->text("SABORCALIFIT | BOCHALEMA\n");
@@ -106,7 +165,9 @@ class EscPosTicketBuilder
         $connector = new DummyPrintConnector();
         $printer = new Printer($connector);
 
-        // 1. Cabecera Comanda
+        // 1. Cabecera Comanda con Logo
+        $this->printLogo($printer);
+
         $printer->setJustification(Printer::JUSTIFY_CENTER);
         $printer->setEmphasis(true);
         $printer->setTextSize(1, 2); // Doble alto
@@ -507,6 +568,25 @@ class EscPosTicketBuilder
         $printer->setTextSize(1, 1);
         $printer->setEmphasis(false);
         $printer->text($this->divider('='));
+
+        // Método de Pago (si ya fue registrado o indicado)
+        if ($order->sale && $order->sale->payments && $order->sale->payments->isNotEmpty()) {
+            $printer->setEmphasis(true);
+            $printer->text("FORMA DE PAGO:\n");
+            $printer->setEmphasis(false);
+            foreach ($order->sale->payments as $p) {
+                $mName = match ($p->payment_method) {
+                    'cash'      => 'Efectivo',
+                    'nequi'     => 'Nequi',
+                    'daviplata' => 'Daviplata',
+                    'transfer'  => 'Transferencia',
+                    'card'      => 'Datafono / Tarjeta',
+                    default     => ucfirst($p->payment_method),
+                };
+                $printer->text($this->twoColumns("  " . $mName . ":", $this->formatMoney($p->amount)));
+            }
+            $printer->text($this->divider('-'));
+        }
 
         // 5. Pie
         $printer->setJustification(Printer::JUSTIFY_CENTER);

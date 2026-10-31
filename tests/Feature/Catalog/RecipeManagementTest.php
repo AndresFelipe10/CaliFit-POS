@@ -198,5 +198,66 @@ class RecipeManagementTest extends TestCase
         $response = $this->actingAs($this->admin)->get(route('recipes.index'));
         $response->assertOk();
         $response->assertDontSee('RecipeService');
+        $response->assertSee('Crear Receta');
+    }
+
+    public function test_admin_can_view_create_recipe_page(): void
+    {
+        $response = $this->actingAs($this->admin)->get(route('recipes.create'));
+        $response->assertOk();
+        $response->assertSee('Nueva Fórmula de Receta por Porción');
+        $response->assertSee('Almuerzo Fitness Estándar');
+    }
+
+    public function test_admin_can_create_recipe_for_existing_dish(): void
+    {
+        $response = $this->actingAs($this->admin)->post(route('recipes.store'), [
+            'dish_mode' => 'existing',
+            'product_id' => $this->dish->id,
+            'items' => [
+                [
+                    'ingrediente_id' => $this->pechuga->id,
+                    'cantidad_por_porcion' => 180,
+                ],
+                [
+                    'ingrediente_id' => $this->arroz->id,
+                    'cantidad_por_porcion' => 120,
+                ],
+            ],
+        ]);
+
+        $response->assertRedirect(route('recipes.index'));
+        $this->assertDatabaseHas('recetas', ['producto_plato_id' => $this->dish->id]);
+        $recipe = Recipe::where('producto_plato_id', $this->dish->id)->first();
+        $this->assertCount(2, $recipe->items);
+    }
+
+    public function test_admin_can_create_recipe_with_new_dish(): void
+    {
+        $category = \App\Models\Category::create([
+            'name' => 'Platos Proteicos',
+            'slug' => 'platos-proteicos',
+            'is_active' => true,
+        ]);
+
+        $response = $this->actingAs($this->admin)->post(route('recipes.store'), [
+            'dish_mode' => 'new',
+            'nombre' => 'Bowl Fit Teriyaki',
+            'sku' => 'PLATO-TERI01',
+            'precio_venta' => 25000,
+            'category_id' => $category->id,
+            'items' => [
+                [
+                    'ingrediente_id' => $this->pechuga->id,
+                    'cantidad_por_porcion' => 200,
+                ],
+            ],
+        ]);
+
+        $response->assertRedirect(route('recipes.index'));
+        $newDish = Product::where('sku', 'PLATO-TERI01')->first();
+        $this->assertNotNull($newDish);
+        $this->assertEquals('Bowl Fit Teriyaki', $newDish->nombre);
+        $this->assertDatabaseHas('recetas', ['producto_plato_id' => $newDish->id]);
     }
 }

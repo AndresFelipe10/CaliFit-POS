@@ -170,6 +170,8 @@ Route::middleware('auth')->group(function () {
 
             // Fórmulas de Recetas por Porción
             Route::get('/recipes', [RecipeController::class, 'index'])->name('recipes.index');
+            Route::get('/recipes/create', [RecipeController::class, 'create'])->name('recipes.create');
+            Route::post('/recipes', [RecipeController::class, 'store'])->name('recipes.store');
             Route::get('/recipes/{product}/edit', [RecipeController::class, 'edit'])->name('recipes.edit');
             Route::put('/recipes/{product}', [RecipeController::class, 'update'])->name('recipes.update');
 

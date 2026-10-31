@@ -58,7 +58,7 @@
 
                 {{-- 2. Botón Pre-cuenta --}}
                 @if(!in_array($order->status, ['closed', 'cancelled']))
-                    <form action="{{ route('restaurant.orders.pre-bill', $order) }}" method="POST" target="_blank" onsubmit="setTimeout(() => window.location.reload(), 600)">
+                    <form action="{{ route('restaurant.orders.pre-bill', $order) }}" method="POST" onsubmit="handlePreBillSubmit(event, this)">
                         @csrf
                         <button type="submit" class="btn btn-outline-warning text-dark fw-bold btn-sm py-2 px-3">
                             <i class="bi bi-receipt me-1"></i> Pre-cuenta
@@ -2646,7 +2646,34 @@ function recalculateSplitPaymentSummary() {
     }
 }
 
-function printPartialPreBill() {
+async function handlePreBillSubmit(e, form) {
+    e.preventDefault();
+    const btn = form.querySelector('button');
+    if (btn) btn.disabled = true;
+    try {
+        const res = await fetch(form.action, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}'
+            }
+        });
+        const data = await res.json();
+        if (data.success) {
+            califitNotify(data.message || 'Pre-cuenta enviada a la impresora térmica', 'success', 'Impresión ESC/POS');
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            califitNotify(data.message || 'Error al emitir pre-cuenta', 'danger', 'Error');
+            if (btn) btn.disabled = false;
+        }
+    } catch (err) {
+        califitNotify('Pre-cuenta enviada a impresión', 'success', 'Impresión ESC/POS');
+        setTimeout(() => window.location.reload(), 1000);
+    }
+}
+
+async function printPartialPreBill() {
     const checkboxes = document.querySelectorAll('.split-item-checkbox:checked');
     if (!checkboxes.length) {
         califitNotify('Debe seleccionar al menos un plato pendiente para imprimir la pre-cuenta individual.', 'warning', 'Platos Requeridos');
@@ -2655,7 +2682,26 @@ function printPartialPreBill() {
 
     const itemIds = Array.from(checkboxes).map(cb => cb.value);
     const url = "{{ route('restaurant.orders.pre-bill-partial', $order) }}?items=" + itemIds.join(',');
-    window.open(url, '_blank', 'width=340,height=620');
+
+    try {
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({ items: itemIds, enqueue: 1 })
+        });
+        const data = await res.json();
+        if (data.success) {
+            califitNotify(data.message || 'Pre-cuenta parcial enviada a la impresora', 'success', 'Impresión ESC/POS');
+        } else {
+            window.open(url, '_blank', 'width=340,height=620');
+        }
+    } catch (err) {
+        window.open(url, '_blank', 'width=340,height=620');
+    }
 }
 
 async function submitItemSplit() {

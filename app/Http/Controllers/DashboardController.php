@@ -78,7 +78,8 @@ class DashboardController extends Controller
             ->get();
         $monthSalesTotal = (float) $monthSales->sum('total');
         $monthSalesCount = $monthSales->count();
-        $monthExpensesTotal = (float) Expense::whereBetween('issue_date', [$startOfMonth->toDateString(), $endOfMonth->toDateString()])
+        $monthExpensesTotal = (float) Expense::whereDate('issue_date', '>=', $startOfMonth->toDateString())
+            ->whereDate('issue_date', '<=', $endOfMonth->toDateString())
             ->sum('amount');
 
         // Métricas fijas de hoy
@@ -130,7 +131,8 @@ class DashboardController extends Controller
             $periodSalesCount = $periodSales->count();
             $periodAverageTicket = $periodSalesCount > 0 ? round($periodSalesTotal / $periodSalesCount, 2) : 0.0;
 
-            $periodExpensesTotal = (float) Expense::whereBetween('issue_date', [$periodStart->toDateString(), $periodEnd->toDateString()])
+            $periodExpensesTotal = (float) Expense::whereDate('issue_date', '>=', $periodStart->toDateString())
+                ->whereDate('issue_date', '<=', $periodEnd->toDateString())
                 ->sum('amount');
             $periodNetProfit = round($periodSalesTotal - $periodExpensesTotal, 2);
         }

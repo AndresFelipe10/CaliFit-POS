@@ -12,7 +12,10 @@
             Control de despiece e ingeniería de menú: define los gramos (g) y mililitros (ml) consumidos al vender cada plato fitness.
         </p>
     </div>
-    <div class="d-flex gap-2">
+    <div class="d-flex gap-2 flex-wrap">
+        <a href="{{ route('recipes.create') }}" class="btn text-white rounded-pill px-3 fw-semibold shadow-sm" style="background-color: #10B981; border-color: #10B981;">
+            <i class="bi bi-plus-circle-fill me-1"></i> + Crear Receta
+        </a>
         <a href="{{ route('products.index', ['tipo' => 'PLATO']) }}" class="btn btn-outline-secondary rounded-pill px-3 fw-semibold">
             <i class="bi bi-egg-fried me-1"></i> Ver Platos en Carta
         </a>

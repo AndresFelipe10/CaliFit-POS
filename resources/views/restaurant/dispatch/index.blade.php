@@ -712,6 +712,28 @@ async function submitDispatchQuickCustomer(e) {
         btn.innerHTML = 'Guardar y Asignar';
     }
 }
+
+async function printDispatchTicket(orderId, fallbackUrl) {
+    try {
+        const res = await fetch('/print-jobs/enqueue', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({ tipo: 'despacho', id: orderId })
+        });
+        const data = await res.json();
+        if (data.success) {
+            califitNotify('Tirilla de despacho enviada a la impresora térmica POS', 'success', 'Impresora 80mm');
+        } else {
+            window.open(fallbackUrl, '_blank', 'width=450,height=680');
+        }
+    } catch (err) {
+        window.open(fallbackUrl, '_blank', 'width=450,height=680');
+    }
+}
 </script>
 
 {{-- Modal Rápido de Cliente para Despachos --}}
