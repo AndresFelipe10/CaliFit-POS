@@ -69,3 +69,6 @@ desktop.ini
 # Repomix artifacts
 califit-core.xml
 repomix-output.*
+
+# Cloudflare Tunnel logs
+cloudflared.log

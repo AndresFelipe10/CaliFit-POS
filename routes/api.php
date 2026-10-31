@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::middleware('print.agent')->prefix('print')->group(function () {
     Route::post('/siguiente', [PrintAgentController::class, 'siguiente']);
-    Route::post('/listo/{job}', [PrintAgentController::class, 'listo']);
-    Route::post('/error/{job}', [PrintAgentController::class, 'error']);
+    Route::post('/listo/{job?}', [PrintAgentController::class, 'listo']);
+    Route::post('/error/{job?}', [PrintAgentController::class, 'error']);
 });
 

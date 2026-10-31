@@ -1483,8 +1483,8 @@ async function submitBatch() {
 
         const data = await res.json();
         if (res.ok && data.success) {
-            // Abrir ticket de cocina automáticamente para la nueva tanda
-            window.open(`/prints/orders/{{ $order->id }}/kitchen/${data.batch_number}`, '_blank', 'width=340,height=620');
+            // Impresión automática gestionada en segundo plano por PrintQueueService (ESC/POS Pull-Queue)
+            // window.open(`/prints/orders/{{ $order->id }}/kitchen/${data.batch_number}`, '_blank', 'width=340,height=620');
             location.reload();
         } else {
             califitNotify('Error al agregar tanda: ' + (data.message || JSON.stringify(data.errors || data)), 'danger', 'Error al Guardar');

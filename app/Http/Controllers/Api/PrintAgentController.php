@@ -17,28 +17,28 @@ class PrintAgentController extends Controller
     public function siguiente(Request $request): JsonResponse
     {
         // 1. Recuperar trabajos colgados (> 60s en imprimiendo)
-        $hungJobs = PrintJob::where('estado', PrintJob::ESTADO_IMPRIMIENDO)
+        $hungJobs = PrintJob::where('estado', 'imprimiendo')
             ->where('tomado_at', '<', now()->subSeconds(60))
             ->get();
 
         foreach ($hungJobs as $hung) {
             if ($hung->intentos >= 5) {
-                $hung->update(['estado' => PrintJob::ESTADO_ERROR]);
+                $hung->update(['estado' => 'error']);
             } else {
-                $hung->update(['estado' => PrintJob::ESTADO_PENDIENTE]);
+                $hung->update(['estado' => 'pendiente']);
             }
         }
 
         // 2. Tomar el siguiente trabajo pendiente de forma atómica
         $job = DB::transaction(function () {
-            $pending = PrintJob::where('estado', PrintJob::ESTADO_PENDIENTE)
+            $pending = PrintJob::where('estado', 'pendiente')
                 ->orderBy('id', 'asc')
                 ->lockForUpdate()
                 ->first();
 
             if ($pending) {
                 $pending->update([
-                    'estado'    => PrintJob::ESTADO_IMPRIMIENDO,
+                    'estado'    => 'imprimiendo',
                     'tomado_at' => now(),
                     'intentos'  => $pending->intentos + 1,
                 ]);
@@ -61,12 +61,16 @@ class PrintAgentController extends Controller
     /**
      * Marca un trabajo como exitosamente impreso.
      */
-    public function listo(PrintJob $job): JsonResponse
+    public function listo($job = null): JsonResponse
     {
-        $job->update([
-            'estado'     => PrintJob::ESTADO_IMPRESO,
-            'impreso_at' => now(),
-        ]);
+        $id = $job instanceof PrintJob ? $job->id : $job;
+
+        if ($id) {
+            PrintJob::where('id', $id)->update([
+                'estado'     => 'impreso',
+                'impreso_at' => now(),
+            ]);
+        }
 
         return response()->json(['ok' => true]);
     }
@@ -74,15 +78,19 @@ class PrintAgentController extends Controller
     /**
      * Registra un fallo en la impresión del trabajo, reintentando hasta 5 veces.
      */
-    public function error(PrintJob $job): JsonResponse
+    public function error($job = null): JsonResponse
     {
-        if ($job->intentos >= 5) {
-            $job->update(['estado' => PrintJob::ESTADO_ERROR]);
-        } else {
-            $job->update(['estado' => PrintJob::ESTADO_PENDIENTE]);
+        $id = $job instanceof PrintJob ? $job->id : $job;
+
+        if ($id) {
+            $record = PrintJob::find($id);
+            if ($record) {
+                $record->update([
+                    'estado' => $record->intentos >= 5 ? 'error' : 'pendiente',
+                ]);
+            }
         }
 
         return response()->json(['ok' => true]);
     }
 }
-
