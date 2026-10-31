@@ -8,12 +8,15 @@ services:
     container_name: califit_app_prod
     restart: always
     working_dir: /var/www/html
+    env_file:
+      - .env
     environment:
       APP_ENV: production
       APP_DEBUG: "false"
       DB_HOST: db
       DB_PORT: 3306
     volumes:
+      - ./.env:/var/www/html/.env
       - califit_app_storage:/var/www/html/storage
     logging:
       driver: "json-file"
@@ -53,6 +56,8 @@ services:
     image: mysql:8.4
     container_name: califit_db_prod
     restart: always
+    env_file:
+      - .env
     environment:
       MYSQL_DATABASE: ${DB_DATABASE:-califit_pos_prod}
       MYSQL_USER: ${DB_USERNAME:-califit_prod_user}
