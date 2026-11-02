@@ -21,6 +21,9 @@ class StoreProductRequest extends FormRequest
         if (! $this->has('nombre') && $this->has('name')) {
             $merge['nombre'] = $this->input('name');
         }
+        if (! $this->has('stock') && $this->has('stock_inicial')) {
+            $merge['stock'] = $this->input('stock_inicial');
+        }
         if ($this->has('precio_compra')) {
             $merge['precio_compra'] = $this->normalizeCurrency($this->input('precio_compra'));
         }
@@ -39,6 +42,7 @@ class StoreProductRequest extends FormRequest
             'sku' => ['required', 'string', 'max:50', 'unique:products,sku'],
             'tipo_producto' => ['required', 'in:INSUMO,PREPARACION,PLATO,SUPLEMENTO'],
             'unidad_base' => ['required', 'in:UNIDAD,GRAMO,MILILITRO'],
+            'stock' => ['nullable', 'numeric', 'min:0'],
             'stock_minimo' => ['required', 'numeric', 'min:0'],
             'precio_compra' => ['nullable', 'numeric', 'min:0'],
             'precio_venta' => ['required', 'numeric', 'min:0'],
@@ -57,6 +61,8 @@ class StoreProductRequest extends FormRequest
             'tipo_producto.in' => 'El tipo de producto no es válido.',
             'unidad_base.required' => 'Debe seleccionar una unidad base.',
             'unidad_base.in' => 'La unidad base debe ser UNIDAD, GRAMO o MILILITRO.',
+            'stock.numeric' => 'El stock inicial debe ser un número válido.',
+            'stock.min' => 'El stock inicial no puede ser negativo.',
             'precio_venta.required' => 'El precio de venta es obligatorio.',
         ];
     }

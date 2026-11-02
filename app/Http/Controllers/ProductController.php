@@ -5,10 +5,13 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreProductRequest;
 use App\Http\Requests\UpdateProductRequest;
 use App\Models\Category;
+use App\Models\InventoryMovement;
 use App\Models\Product;
 use App\Models\Recipe;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class ProductController extends Controller
@@ -89,30 +92,51 @@ class ProductController extends Controller
      */
     public function store(StoreProductRequest $request): RedirectResponse
     {
-        $product = Product::create([
-            'sku' => strtoupper(trim($request->sku)),
-            'nombre' => trim($request->nombre),
-            'descripcion' => $request->descripcion,
-            'tipo_producto' => $request->tipo_producto,
-            'unidad_base' => $request->unidad_base,
-            'category_id' => $request->category_id,
-            'stock' => 0.000,
-            'stock_minimo' => $request->stock_minimo,
-            'precio_compra' => $request->precio_compra ?: 0.00,
-            'precio_venta' => $request->precio_venta,
-            'activo' => true,
-        ]);
+        $initialStock = round((float) $request->input('stock', 0), 3);
 
-        // Si es de tipo PLATO, crear automáticamente cabecera de receta
-        if ($product->tipo_producto === 'PLATO') {
-            Recipe::firstOrCreate(
-                ['producto_plato_id' => $product->id],
-                [
-                    'nombre' => 'Receta ' . $product->nombre,
-                    'activa' => true,
-                ]
-            );
-        }
+        $product = DB::transaction(function () use ($request, $initialStock) {
+            $product = Product::create([
+                'sku' => strtoupper(trim($request->sku)),
+                'nombre' => trim($request->nombre),
+                'descripcion' => $request->descripcion,
+                'tipo_producto' => $request->tipo_producto,
+                'unidad_base' => $request->unidad_base,
+                'category_id' => $request->category_id,
+                'stock' => $initialStock,
+                'stock_minimo' => $request->stock_minimo,
+                'precio_compra' => $request->precio_compra ?: 0.00,
+                'precio_venta' => $request->precio_venta,
+                'activo' => true,
+            ]);
+
+            // Registrar trazabilidad inmutable en inventory_movements si el stock inicial es > 0
+            if ($initialStock > 0) {
+                InventoryMovement::create([
+                    'product_id' => $product->id,
+                    'user_id' => auth()->id() ?? User::first()?->id ?? 1,
+                    'type' => InventoryMovement::TYPE_AJUSTE,
+                    'quantity' => $initialStock,
+                    'previous_stock' => 0.000,
+                    'new_stock' => $initialStock,
+                    'reason' => 'Stock inicial registrado al dar de alta el producto en catálogo',
+                    'reference_type' => Product::class,
+                    'reference_id' => $product->id,
+                ]);
+            }
+
+            // Si es de tipo PLATO, crear automáticamente cabecera de receta
+            if ($product->tipo_producto === 'PLATO') {
+                Recipe::firstOrCreate(
+                    ['producto_plato_id' => $product->id],
+                    [
+                        'nombre' => 'Receta ' . $product->nombre,
+                        'activa' => true,
+                    ]
+                );
+            }
+
+            return $product;
+        });
 
         return redirect()->route('products.index')
             ->with('success', "Producto '{$product->nombre}' creado exitosamente.");

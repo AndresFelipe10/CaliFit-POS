@@ -124,8 +124,8 @@
                         @enderror
                     </div>
 
-                    {{-- Precios y Stock Mínimo --}}
-                    <div class="col-md-4">
+                    {{-- Precios y Control de Stock --}}
+                    <div class="col-md-3">
                         <label class="form-label fw-semibold text-dark small">Precio de Compra (Costo COP)</label>
                         <div class="input-group">
                             <span class="input-group-text bg-light text-muted">$</span>
@@ -137,9 +137,12 @@
                                    placeholder="0" 
                                    value="{{ old('precio_compra', ($product->precio_compra ?? 0) ? number_format((float)$product->precio_compra, 0, ',', '.') : '0') }}">
                         </div>
+                        @error('precio_compra')
+                            <div class="text-danger small mt-1">{{ $message }}</div>
+                        @enderror
                     </div>
 
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <label class="form-label fw-semibold text-dark small">Precio de Venta (PVP COP) <span class="text-danger">*</span></label>
                         <div class="input-group">
                             <span class="input-group-text bg-light text-muted">$</span>
@@ -152,18 +155,56 @@
                                    value="{{ old('precio_venta', ($product->precio_venta ?? 0) ? number_format((float)$product->precio_venta, 0, ',', '.') : '0') }}" 
                                    required>
                         </div>
+                        @error('precio_venta')
+                            <div class="text-danger small mt-1">{{ $message }}</div>
+                        @enderror
                     </div>
 
-                    <div class="col-md-4">
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold text-dark small">
+                            {{ $isEdit ? 'Stock Físico Actual' : 'Stock Inicial' }}
+                            @if(!$isEdit)
+                                <span class="text-muted fw-normal">(Opcional)</span>
+                            @endif
+                        </label>
+                        <div class="input-group">
+                            <input type="number" 
+                                   name="stock" 
+                                   id="stock" 
+                                   step="0.001" 
+                                   min="0" 
+                                   class="form-control @error('stock') is-invalid @enderror" 
+                                   placeholder="0" 
+                                   value="{{ old('stock', (float)($product->stock ?? 0)) }}"
+                                   {{ $isEdit ? 'readonly' : '' }}>
+                            <span class="input-group-text bg-light text-muted font-monospace stock-unit-addon">{{ ($product->unidad_base ?? 'UNIDAD') === 'GRAMO' ? 'g' : (($product->unidad_base ?? 'UNIDAD') === 'MILILITRO' ? 'ml' : 'Und') }}</span>
+                        </div>
+                        @if($isEdit)
+                            <div class="form-text text-muted small" style="font-size: 0.72rem;">
+                                <i class="bi bi-info-circle me-1"></i>Para modificar existencias, use <a href="{{ route('inventory.index') }}" class="text-success text-decoration-none fw-semibold">Inventario</a>.
+                            </div>
+                        @endif
+                        @error('stock')
+                            <div class="text-danger small mt-1">{{ $message }}</div>
+                        @enderror
+                    </div>
+
+                    <div class="col-md-3">
                         <label class="form-label fw-semibold text-dark small">Stock Mínimo de Alerta <span class="text-danger">*</span></label>
-                        <input type="number" 
-                               name="stock_minimo" 
-                               id="stock_minimo" 
-                               step="0.001" 
-                               min="0" 
-                               class="form-control @error('stock_minimo') is-invalid @enderror" 
-                               value="{{ old('stock_minimo', (float)($product->stock_minimo ?? 5)) }}" 
-                               required>
+                        <div class="input-group">
+                            <input type="number" 
+                                   name="stock_minimo" 
+                                   id="stock_minimo" 
+                                   step="0.001" 
+                                   min="0" 
+                                   class="form-control @error('stock_minimo') is-invalid @enderror" 
+                                   value="{{ old('stock_minimo', (float)($product->stock_minimo ?? 5)) }}" 
+                                   required>
+                            <span class="input-group-text bg-light text-muted font-monospace stock-unit-addon">{{ ($product->unidad_base ?? 'UNIDAD') === 'GRAMO' ? 'g' : (($product->unidad_base ?? 'UNIDAD') === 'MILILITRO' ? 'ml' : 'Und') }}</span>
+                        </div>
+                        @error('stock_minimo')
+                            <div class="text-danger small mt-1">{{ $message }}</div>
+                        @enderror
                     </div>
 
                     {{-- Indicador de Margen en Vivo --}}
@@ -235,6 +276,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 opt.disabled = false;
             });
         }
+
+        const unit = unidadSelect.value;
+        const unitLabel = unit === 'GRAMO' ? 'g' : (unit === 'MILILITRO' ? 'ml' : 'Und');
+        document.querySelectorAll('.stock-unit-addon').forEach(addon => {
+            addon.textContent = unitLabel;
+        });
     }
 
     function calculateMargin() {
@@ -253,6 +300,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     tipoSelect.addEventListener('change', syncUnidades);
+    unidadSelect.addEventListener('change', syncUnidades);
     precioCompra.addEventListener('input', calculateMargin);
     precioVenta.addEventListener('input', calculateMargin);
 

@@ -234,5 +234,88 @@ class ProductManagementTest extends TestCase
             'nombre' => 'Ejecutivo 120g con frijoles (Especial #1)',
         ]);
     }
+
+    public function test_admin_can_create_product_with_initial_stock_and_creates_inventory_movement(): void
+    {
+        $response = $this->actingAs($this->admin)->post(route('products.store'), [
+            'nombre' => 'Proteína NitroWhey 2lb',
+            'sku' => 'SUP-NITRO-2LB',
+            'tipo_producto' => 'SUPLEMENTO',
+            'unidad_base' => 'UNIDAD',
+            'category_id' => $this->category->id,
+            'stock' => 18,
+            'stock_minimo' => 4,
+            'precio_compra' => 120000,
+            'precio_venta' => 175000,
+        ]);
+
+        $response->assertRedirect(route('products.index'));
+
+        $product = \App\Models\Product::where('sku', 'SUP-NITRO-2LB')->firstOrFail();
+        $this->assertEquals(18.000, (float) $product->stock);
+
+        // Validar trazabilidad generada en inventory_movements
+        $this->assertDatabaseHas('inventory_movements', [
+            'product_id' => $product->id,
+            'type' => 'AJUSTE',
+            'quantity' => 18.000,
+            'previous_stock' => 0.000,
+            'new_stock' => 18.000,
+            'reference_type' => \App\Models\Product::class,
+            'reference_id' => $product->id,
+        ]);
+    }
+
+    public function test_admin_can_create_product_without_initial_stock_defaults_to_zero(): void
+    {
+        $response = $this->actingAs($this->admin)->post(route('products.store'), [
+            'nombre' => 'Glutamina Micronizada 300g',
+            'sku' => 'SUP-GLUTA-300',
+            'tipo_producto' => 'SUPLEMENTO',
+            'unidad_base' => 'UNIDAD',
+            'category_id' => $this->category->id,
+            'stock_minimo' => 2,
+            'precio_compra' => 60000,
+            'precio_venta' => 95000,
+        ]);
+
+        $response->assertRedirect(route('products.index'));
+
+        $product = \App\Models\Product::where('sku', 'SUP-GLUTA-300')->firstOrFail();
+        $this->assertEquals(0.000, (float) $product->stock);
+
+        // Sin movimientos de inventario si no hubo stock inicial
+        $this->assertDatabaseMissing('inventory_movements', [
+            'product_id' => $product->id,
+        ]);
+    }
+
+    public function test_create_and_edit_product_form_renders_stock_fields(): void
+    {
+        // 1. Vista de creación
+        $createResponse = $this->actingAs($this->admin)->get(route('products.create'));
+        $createResponse->assertOk();
+        $createResponse->assertSee('Stock Inicial');
+        $createResponse->assertSee('name="stock"', false);
+
+        // 2. Vista de edición (debe ser readonly para stock físico)
+        $product = \App\Models\Product::create([
+            'nombre' => 'Insumo Pechuga Fileteada',
+            'sku' => 'INS-PECH-FIL',
+            'tipo_producto' => 'INSUMO',
+            'unidad_base' => 'GRAMO',
+            'category_id' => $this->category->id,
+            'stock' => 1500.000,
+            'stock_minimo' => 500.000,
+            'precio_compra' => 12.00,
+            'precio_venta' => 0.00,
+            'activo' => true,
+        ]);
+
+        $editResponse = $this->actingAs($this->admin)->get(route('products.edit', $product));
+        $editResponse->assertOk();
+        $editResponse->assertSee('Stock Físico Actual');
+        $editResponse->assertSee('readonly', false);
+    }
 }
 
