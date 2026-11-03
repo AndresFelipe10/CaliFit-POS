@@ -315,6 +315,8 @@ class PrintAgentQueueTest extends TestCase
         $decoded = base64_decode($printJob->contenido);
         $this->assertStringContainsString('COMANDA COCINA', $decoded);
         $this->assertStringContainsString('Almuerzo Proteico Fit', $decoded);
+        $this->assertStringContainsString('OBSERVACIONES GENERALES', $decoded);
+        $this->assertStringContainsString('Sin ensalada', $decoded);
     }
 
     /**
@@ -366,5 +368,61 @@ class PrintAgentQueueTest extends TestCase
         $this->assertNotNull($job);
         $this->assertEquals(PrintJob::TIPO_CUADRE, $job->tipo);
         $this->assertEquals(PrintJob::ESTADO_PENDIENTE, $job->estado);
+    }
+
+    /**
+     * 9. Comanda de cocina incluye bloque de OBSERVACIONES GENERALES cuando la orden tiene notas.
+     */
+    public function test_kitchen_print_job_includes_general_instructions_for_orders(): void
+    {
+        $this->actingAs($this->admin);
+
+        $category = Category::create([
+            'name' => 'Almuerzos Fit 2',
+            'is_active' => true,
+        ]);
+
+        $product = Product::create([
+            'sku' => 'PLATO-ALM-002',
+            'category_id' => $category->id,
+            'nombre' => 'Ejecutivo CH Pollo',
+            'tipo_producto' => 'PLATO',
+            'unidad_base' => 'UNIDAD',
+            'precio_venta' => 19000,
+            'precio_compra' => 10000,
+            'stock' => 15,
+            'stock_minimo' => 1,
+            'activo' => true,
+        ]);
+
+        $payload = [
+            'order_type' => 'delivery',
+            'customer_name' => 'Andrea',
+            'phone' => '3158774842',
+            'address' => 'Cl. 60b #108-41 agave 702-B',
+            'delivery_fee' => 3000,
+            'notes' => 'De principio frijoles',
+            'items' => [
+                [
+                    'product_id' => $product->id,
+                    'quantity' => 1,
+                ],
+            ],
+        ];
+
+        $response = $this->postJson('/restaurant/dispatch', $payload);
+        $response->assertStatus(201);
+
+        $orderId = $response->json('order_id');
+
+        $printJob = PrintJob::where('tipo', PrintJob::TIPO_COMANDA)
+            ->where('referencia_id', $orderId)
+            ->first();
+
+        $this->assertNotNull($printJob);
+        $decoded = base64_decode($printJob->contenido);
+
+        $this->assertStringContainsString('OBSERVACIONES GENERALES', $decoded);
+        $this->assertStringContainsString('De principio frijoles', $decoded);
     }
 }

@@ -260,13 +260,17 @@
         </table>
 
         @php
-            $orderInstructions = $order->clean_notes ?: $order->notes;
+            $orderInstructions = trim((string) ($order->clean_notes ?: ($order->notes ?? '')));
         @endphp
-        @if($orderInstructions)
+        @if(!empty($orderInstructions))
             <div class="ticket-divider"></div>
-            <div style="font-size: 13px; font-weight: 700;">
-                <strong>OBSERVACIONES GENERALES:</strong><br>
-                {{ $orderInstructions }}
+            <div style="font-size: 15px; font-weight: 700; line-height: 1.35; padding: 2px 0;">
+                <div style="font-size: 15px; font-weight: 800; text-transform: uppercase; margin-bottom: 2px;">
+                    <strong>OBSERVACIONES GENERALES:</strong>
+                </div>
+                <div style="font-size: 15px; font-weight: 800; word-break: break-word;">
+                    {{ $orderInstructions }}
+                </div>
             </div>
         @endif
 

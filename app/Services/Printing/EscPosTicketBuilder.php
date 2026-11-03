@@ -268,6 +268,21 @@ class EscPosTicketBuilder
                 $printer->feed(1);
             }
 
+            // 4.1 Observaciones Generales / Instrucciones de la Orden
+            $orderInstructions = trim((string) ($order->clean_notes ?: ($order->notes ?? '')));
+            if (!empty($orderInstructions)) {
+                $printer->text($this->divider());
+                $printer->setFont(Printer::FONT_A);
+                $printer->setEmphasis(true);
+                $printer->text("OBSERVACIONES GENERALES:\n");
+                $printer->setTextSize(1, 2);
+                $sanitizedInstructions = $this->sanitizeText($orderInstructions);
+                $wrappedNotes = wordwrap($sanitizedInstructions, 48, "\n", true);
+                $printer->text($wrappedNotes . "\n");
+                $printer->setTextSize(1, 1);
+                $printer->setEmphasis(false);
+            }
+
             $printer->text($this->doubleDivider());
 
             // 5. Pie
