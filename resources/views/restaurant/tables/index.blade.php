@@ -11,11 +11,16 @@
             </h1>
             <p class="text-muted small mb-0">Gestión en tiempo real de mesas y comandas del salón.</p>
         </div>
-        <div class="d-flex gap-2">
-            <a href="{{ route('pos.index') }}" class="btn btn-outline-success btn-sm">
+        <div class="d-flex align-items-center gap-2">
+            @if(auth()->user()?->isAdmin())
+                <button type="button" class="btn btn-primary rounded-pill px-3 fw-semibold shadow-sm" data-bs-toggle="modal" data-bs-target="#modalNuevaMesa">
+                    <i class="bi bi-plus-circle-fill me-1"></i> Nueva Mesa
+                </button>
+            @endif
+            <a href="{{ route('pos.index') }}" class="btn btn-outline-success btn-sm rounded-pill px-3">
                 <i class="bi bi-calculator me-1"></i> Ir al POS
             </a>
-            <a href="{{ route('restaurant.dispatch.index') }}" class="btn btn-outline-primary btn-sm">
+            <a href="{{ route('restaurant.dispatch.index') }}" class="btn btn-outline-primary btn-sm rounded-pill px-3">
                 <i class="bi bi-bicycle me-1"></i> Despacho / Domicilios
             </a>
         </div>
@@ -285,6 +290,75 @@
         </form>
     </div>
 </div>
+
+{{-- MODAL PARA CREAR NUEVA MESA (SOLO ADMINISTRADOR) --}}
+@if(auth()->user()?->isAdmin())
+<div class="modal fade" id="modalNuevaMesa" tabindex="-1" aria-labelledby="modalNuevaMesaLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form method="POST" action="{{ route('restaurant.tables.store') }}" class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+            @csrf
+            <div class="modal-header text-white py-3 px-4" style="background-color: #111827; border-bottom: 3px solid #10B981;">
+                <h6 class="modal-title fw-bold d-flex align-items-center mb-0" id="modalNuevaMesaLabel">
+                    <i class="bi bi-plus-circle-fill text-success me-2 fs-5"></i>
+                    <span>Registrar Nueva Mesa</span>
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+
+            <div class="modal-body p-4">
+                <div class="mb-3">
+                    <label for="tableNameInput" class="form-label fw-bold text-dark small">
+                        Nombre o Número de Mesa <span class="text-danger">*</span>
+                    </label>
+                    <input type="text" 
+                           class="form-control rounded-3 py-2 px-3 @error('name') is-invalid @enderror" 
+                           id="tableNameInput" 
+                           name="name" 
+                           placeholder="Ej: Mesa 9, Barra 1, Terraza 2" 
+                           required 
+                           maxlength="50"
+                           data-sanitize="none" 
+                           autocomplete="off">
+                    @error('name')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                    <small class="text-muted d-block mt-1" style="font-size: 0.75rem;">
+                        Permite números y letras (ej: "Mesa 9"). Identificador único en el salón.
+                    </small>
+                </div>
+
+                <div class="mb-2">
+                    <label for="tableCapacityInput" class="form-label fw-bold text-dark small">
+                        Capacidad de Personas (Comensales)
+                    </label>
+                    <input type="number" 
+                           class="form-control rounded-3 py-2 px-3 @error('capacity') is-invalid @enderror" 
+                           id="tableCapacityInput" 
+                           name="capacity" 
+                           value="4" 
+                           min="1" 
+                           max="50">
+                    @error('capacity')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                    <small class="text-muted d-block mt-1" style="font-size: 0.75rem;">
+                        Cantidad estimada de puestos o sillas (por defecto 4).
+                    </small>
+                </div>
+            </div>
+
+            <div class="modal-footer bg-light py-2.5 px-4 d-flex justify-content-end gap-2 border-top">
+                <button type="button" class="btn btn-light rounded-pill px-4 fw-semibold text-secondary" data-bs-dismiss="modal">
+                    Cancelar
+                </button>
+                <button type="submit" class="btn btn-success rounded-pill px-4 fw-bold shadow-sm" style="background-color: #10B981; border-color: #10B981;">
+                    <i class="bi bi-check-lg me-1"></i> Guardar Mesa
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+@endif
 
 <script>
 let openTableStagedItems = [];

@@ -431,7 +431,7 @@ class RestaurantOrderController extends Controller
 
         try {
             $sale = $this->orderService->settleOrder($order, $saleData, auth()->user());
-        } catch (\InvalidArgumentException $e) {
+        } catch (\App\Exceptions\InsufficientInventoryException|\DomainException|\InvalidArgumentException|\Illuminate\Validation\ValidationException $e) {
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
@@ -462,7 +462,7 @@ class RestaurantOrderController extends Controller
                 $itemIds = $data['item_ids'] ?? [];
                 $sale = $this->orderService->settlePartialItems($order, $itemIds, $data, $user);
             }
-        } catch (\InvalidArgumentException $e) {
+        } catch (\App\Exceptions\InsufficientInventoryException|\DomainException|\InvalidArgumentException|\Illuminate\Validation\ValidationException $e) {
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),

@@ -2179,7 +2179,7 @@ async function submitSettle() {
             window.open(`/prints/sales/${data.sale_id}/receipt`, '_blank', 'width=340,height=620');
             window.location.href = "{{ route('restaurant.tables.index') }}";
         } else {
-            califitNotify('Error al liquidar comanda: ' + (data.message || JSON.stringify(data.errors || data)), 'danger', 'Error al Liquidar');
+            califitNotify(data.message || 'Error al liquidar comanda', 'danger', 'Inventario o Validación');
         }
     } catch (err) {
         console.error(err);
@@ -2782,7 +2782,7 @@ async function submitItemSplit() {
                 location.reload();
             }
         } else {
-            califitNotify('Error al cobrar platos: ' + (data.message || JSON.stringify(data.errors || data)), 'danger', 'Error de Cobro');
+            califitNotify(data.message || 'Error al cobrar platos', 'danger', 'Inventario o Validación');
             btn.disabled = false;
             btn.innerHTML = '<i class="bi bi-cash-stack fs-5"></i> <span>Cobrar Platos e Imprimir Factura</span>';
         }

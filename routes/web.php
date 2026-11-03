@@ -73,6 +73,7 @@ Route::middleware('auth')->group(function () {
         Route::prefix('restaurant')->name('restaurant.')->group(function () {
             // Salón y Mesas
             Route::get('/tables', [RestaurantTableController::class, 'index'])->name('tables.index');
+            Route::post('/tables', [RestaurantTableController::class, 'store'])->middleware('role:admin')->name('tables.store');
             Route::get('/orders', [RestaurantOrderController::class, 'index'])->name('orders.index');
             Route::post('/tables/{table}/open', [RestaurantOrderController::class, 'open'])->name('orders.open');
             Route::get('/orders/{order}', [RestaurantOrderController::class, 'show'])->name('orders.show');

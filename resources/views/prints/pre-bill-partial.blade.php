@@ -119,7 +119,7 @@
         overflow-wrap: break-word;
     }
     .addition-row {
-        font-size: 12.5px;
+        font-size: 14px;
         padding-left: 8px;
         font-weight: 700;
     }

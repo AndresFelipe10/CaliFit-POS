@@ -297,7 +297,11 @@ class SaleService
         });
 
         // Encolado automático de comprobante / factura de venta para impresión física en PC
-        app(\App\Services\Printing\PrintQueueService::class)->enqueueSaleReceipt($sale);
+        try {
+            app(\App\Services\Printing\PrintQueueService::class)->enqueueSaleReceipt($sale);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('No se pudo encolar la impresión física del comprobante: ' . $e->getMessage());
+        }
 
         return $sale;
     }

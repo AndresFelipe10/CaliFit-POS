@@ -46,13 +46,20 @@ class PosController extends Controller
      */
     public function store(ProcessSaleRequest $request): JsonResponse
     {
-        $sale = $this->saleService->processSale($request->validated(), auth()->user());
+        try {
+            $sale = $this->saleService->processSale($request->validated(), auth()->user());
 
-        return response()->json([
-            'success' => true,
-            'sale_id' => $sale->id,
-            'invoice_number' => $sale->invoice_number,
-            'message' => 'Venta registrada con éxito',
-        ], 201);
+            return response()->json([
+                'success' => true,
+                'sale_id' => $sale->id,
+                'invoice_number' => $sale->invoice_number,
+                'message' => 'Venta registrada con éxito',
+            ], 201);
+        } catch (\App\Exceptions\InsufficientInventoryException|\DomainException|\InvalidArgumentException|\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
     }
 }
