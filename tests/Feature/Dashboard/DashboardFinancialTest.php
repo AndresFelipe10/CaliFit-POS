@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Dashboard;
 
+use App\Models\CustomerCreditPayment;
 use App\Models\Expense;
 use App\Models\Role;
 use App\Models\Sale;
@@ -184,5 +185,88 @@ class DashboardFinancialTest extends TestCase
         $response->assertViewHas('periodTipsCount', 2);
         $response->assertSee('$13.000');
         $response->assertSee('2 ventas con propina');
+    }
+
+    /**
+     * Ventas a crédito quedan aisladas del Dashboard hasta su cobro real en cartera.
+     */
+    public function test_dashboard_isolates_pending_credit_sales_and_includes_cartera_collections(): void
+    {
+        $now = Carbon::now('America/Bogota');
+
+        // Venta directa completada: $60.000 (debe sumar)
+        Sale::create([
+            'user_id' => $this->admin->id,
+            'customer_name' => 'Cliente Directo',
+            'customer_document' => '222222222222',
+            'order_type' => 'retail',
+            'invoice_number' => 'FAC-DIR-01',
+            'subtotal' => 60000,
+            'total' => 60000,
+            'payment_method' => 'cash',
+            'is_credit' => false,
+            'status' => 'completed',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        $customer = \App\Models\Customer::create([
+            'document' => '1005112233',
+            'name' => 'Cliente Fiado',
+            'email' => 'fiado@test.com',
+            'phone' => '3151234567',
+            'address' => 'Bochalema',
+            'city' => 'Cali',
+            'credit_limit' => 200000,
+            'is_active' => true,
+        ]);
+
+        // Venta a crédito completada pero pendiente de pago: $50.000 (NO debe sumar)
+        $creditSale = Sale::create([
+            'user_id' => $this->admin->id,
+            'customer_id' => $customer->id,
+            'customer_name' => 'Cliente Fiado',
+            'customer_document' => '1005112233',
+            'order_type' => 'table',
+            'invoice_number' => 'FAC-CRD-01',
+            'subtotal' => 50000,
+            'total' => 50000,
+            'payment_method' => 'credit',
+            'is_credit' => true,
+            'status' => 'completed',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        // Abono de cartera cobrado hoy: $25.000 (SÍ debe sumar)
+        CustomerCreditPayment::create([
+            'sale_id' => $creditSale->id,
+            'customer_id' => $customer->id,
+            'user_id' => $this->admin->id,
+            'amount' => 25000,
+            'method' => 'transfer',
+            'reference' => 'NEQUI-ABONO-01',
+            'paid_at' => $now,
+        ]);
+
+        // Gasto de hoy: $15.000
+        Expense::create([
+            'created_by' => $this->admin->id,
+            'category' => 'utilities',
+            'amount' => 15000,
+            'issue_date' => $now->toDateString(),
+            'status' => 'paid',
+        ]);
+
+        $response = $this->actingAs($this->admin)->get(route('dashboard', ['period' => 'day', 'date' => $now->toDateString()]));
+
+        $response->assertOk();
+        // Ingresos esperados: 60.000 directa + 25.000 abono = 85.000
+        $response->assertViewHas('todaySalesTotal', 85000.0);
+        $response->assertViewHas('todaySalesCount', 2);
+        $response->assertViewHas('periodSalesTotal', 85000.0);
+        $response->assertViewHas('periodSalesCount', 2);
+        $response->assertViewHas('averageTicket', 42500.0);
+        $response->assertViewHas('netProfit', 70000.0);
     }
 }

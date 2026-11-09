@@ -184,6 +184,12 @@
             <span>Total Fletes Domicilio:</span>
             <span style="white-space: nowrap;">${{ number_format($deliveryFees, 0, ',', '.') }}</span>
         </div>
+        @if(($creditCollectionsTotal ?? 0) > 0)
+        <div class="row-flex">
+            <span>(+) Recaudos Cartera:</span>
+            <span style="white-space: nowrap;">+${{ number_format($creditCollectionsTotal, 0, ',', '.') }}</span>
+        </div>
+        @endif
         <div class="ticket-divider"></div>
         <div class="row-flex fw-bold fs-lg">
             <span>TOTAL FACTURADO:</span>

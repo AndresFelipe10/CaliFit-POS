@@ -305,8 +305,8 @@ class CustomerCreditManagementTest extends TestCase
         $responseCash = $this->actingAs($this->admin)->get(route('cash-register.index'));
         $responseCash->assertStatus(200);
 
-        // El total facturado incluye ambas ($25.000 + $120.000 = $145.000)
-        $responseCash->assertViewHas('netTotalBilled', 145000.00);
+        // El total facturado neto solo contempla ventas cobradas ($25.000), aislando los $120.000 fiados
+        $responseCash->assertViewHas('netTotalBilled', 25000.00);
 
         // Pero el total recaudado y efectivo en gaveta SOLO contempla la venta de contado ($25.000), aislando los $120.000 fiados
         $responseCash->assertViewHas('totalCollected', 25000.00);

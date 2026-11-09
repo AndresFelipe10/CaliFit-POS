@@ -82,6 +82,12 @@
                         <span class="text-muted">Fletes Totales Domicilio:</span>
                         <span class="font-monospace fw-semibold text-warning-emphasis">${{ number_format($deliveryFees, 0, ',', '.') }}</span>
                     </div>
+                    @if($creditCollectionsTotal > 0)
+                    <div class="d-flex justify-content-between py-1 border-bottom small text-success">
+                        <span class="fw-semibold"><i class="bi bi-wallet2 me-1"></i>(+) Recaudos Cartera:</span>
+                        <span class="font-monospace fw-bold">+${{ number_format($creditCollectionsTotal, 0, ',', '.') }}</span>
+                    </div>
+                    @endif
 
                     {{-- Fila Informativa de Créditos Otorgados Hoy --}}
                     <div class="p-2 rounded bg-warning bg-opacity-10 border border-warning border-opacity-25 mt-2">

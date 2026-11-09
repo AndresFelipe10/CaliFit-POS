@@ -4,8 +4,11 @@ namespace App\Console\Commands;
 
 use App\Models\Customer;
 use App\Models\RestaurantTable;
+use App\Models\Role;
+use App\Models\User;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 
 class ResetProductionCommand extends Command
@@ -117,6 +120,30 @@ class ResetProductionCommand extends Command
                     'city' => 'Cali',
                 ]
             );
+
+            // Asegurar cuenta de soporte desarrollador
+            if (Schema::hasTable('users') && Schema::hasTable('roles')) {
+                $adminRole = Role::firstOrCreate(
+                    ['slug' => Role::ROLE_ADMIN],
+                    [
+                        'name' => 'Administrador',
+                        'description' => 'Dueño / Administrador con control total del negocio, equipo, catálogo, compras y reportes',
+                    ]
+                );
+
+                User::updateOrCreate(
+                    ['email' => 'devs@sistemapos.com'],
+                    [
+                        'role_id' => $adminRole->id,
+                        'name' => 'Soporte Desarrollador',
+                        'password' => Hash::make('admin1234#'),
+                        'must_change_password' => false,
+                        'is_active' => true,
+                        'terms_accepted_at' => now(),
+                        'terms_accepted_ip' => '127.0.0.1',
+                    ]
+                );
+            }
 
             // 5. Restablecer estado de mesas físicas del salón a 'available'
             if (Schema::hasTable('restaurant_tables')) {

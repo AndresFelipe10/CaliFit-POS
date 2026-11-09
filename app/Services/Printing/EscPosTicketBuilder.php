@@ -811,6 +811,10 @@ class EscPosTicketBuilder
             }
             $printer->text($this->twoColumns("Imp. Consumo (INC 8%):", $this->formatMoney($taxInc)));
             $printer->text($this->twoColumns("Total Fletes Domicilio:", $this->formatMoney($deliveryFees)));
+            $creditCollectionsTotal = $summaryData['creditCollectionsTotal'] ?? $summaryData['credit_collections_total'] ?? 0;
+            if ($creditCollectionsTotal > 0) {
+                $printer->text($this->twoColumns("(+) Recaudos Cartera:", "+" . $this->formatMoney($creditCollectionsTotal)));
+            }
             $printer->text($this->divider('-'));
             $printer->setEmphasis(true);
             $printer->setTextSize(1, 2);

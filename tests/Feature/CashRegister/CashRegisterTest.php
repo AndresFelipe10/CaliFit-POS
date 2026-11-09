@@ -4,6 +4,7 @@ namespace Tests\Feature\CashRegister;
 
 use App\Enums\PaymentMethod;
 use App\Models\Customer;
+use App\Models\CustomerCreditPayment;
 use App\Models\Expense;
 use App\Models\Role;
 use App\Models\Sale;
@@ -466,5 +467,99 @@ class CashRegisterTest extends TestCase
 
         $response->assertOk();
         $response->assertDontSee('Zona: America/Bogota');
+    }
+
+    /**
+     * Cuadre de Caja aísla las ventas fiadas en facturación y canales hasta su recaudo real en cartera.
+     */
+    public function test_cash_register_isolates_pending_credit_sales_and_includes_cartera_collections(): void
+    {
+        $now = Carbon::createFromFormat('Y-m-d H:i:s', "{$this->today} 15:00:00", 'America/Bogota');
+
+        $customer = Customer::create([
+            'document' => '1005112233',
+            'name' => 'Cliente Fiado Cartera',
+            'email' => 'cartera@test.com',
+            'phone' => '3151234567',
+            'address' => 'Bochalema',
+            'city' => 'Cali',
+            'credit_limit' => 200000,
+            'is_active' => true,
+        ]);
+
+        // Venta directa completada: $50.000 en efectivo (order_type = table)
+        $saleDirect = Sale::create([
+            'user_id' => $this->admin->id,
+            'customer_name' => 'Comensal Directo',
+            'customer_document' => '222222222222',
+            'order_type' => 'table',
+            'invoice_number' => 'FAC-CD-01',
+            'subtotal' => 50000,
+            'total' => 50000,
+            'payment_method' => 'cash',
+            'is_credit' => false,
+            'status' => 'completed',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        SalePayment::create([
+            'sale_id' => $saleDirect->id,
+            'method' => 'cash',
+            'amount' => 50000,
+            'cash_received' => 50000,
+            'change_given' => 0,
+        ]);
+
+        // Venta a crédito completada pero pendiente: $40.000 (order_type = table)
+        $saleCredit = Sale::create([
+            'user_id' => $this->admin->id,
+            'customer_id' => $customer->id,
+            'customer_name' => 'Cliente Fiado Cartera',
+            'customer_document' => '1005112233',
+            'order_type' => 'table',
+            'invoice_number' => 'FAC-CRD-02',
+            'subtotal' => 40000,
+            'total' => 40000,
+            'payment_method' => 'credit',
+            'is_credit' => true,
+            'status' => 'completed',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        // Recaudo de cartera cobrado hoy en transferencia: $20.000
+        CustomerCreditPayment::create([
+            'sale_id' => $saleCredit->id,
+            'customer_id' => $customer->id,
+            'user_id' => $this->admin->id,
+            'amount' => 20000,
+            'method' => 'transfer',
+            'reference' => 'TRANSF-001',
+            'paid_at' => $now,
+        ]);
+
+        $response = $this->actingAs($this->admin)->get(route('cash-register.index', ['date' => $this->today]));
+
+        $response->assertOk();
+        // Facturación Neta: 50.000 directa + 20.000 recaudo = 70.000
+        $response->assertViewHas('netTotalBilled', 70000.0);
+        $response->assertViewHas('grossSales', 70000.0);
+        $response->assertViewHas('salesCount', 2);
+
+        // El canal salón solo debe registrar la venta directa (50.000), no los 40.000 fiados
+        $response->assertViewHas('tableTotal', 50000.0);
+
+        // Crédito otorgado hoy discriminado en recuadro informativo
+        $response->assertViewHas('creditSalesTotal', 40000.0);
+        $response->assertViewHas('creditSalesCount', 1);
+
+        // Arqueo de medios de pago: Efectivo 50.000 + Transferencia 20.000 = 70.000
+        $response->assertViewHas('cashAmount', 50000.0);
+        $response->assertViewHas('transferAmount', 20000.0);
+        $response->assertViewHas('totalCollected', 70000.0);
+
+        // Vista muestra línea informativa de abonos y créditos
+        $response->assertSee('(+) Recaudos Cartera:');
+        $response->assertSee('Créditos Otorgados Hoy:');
     }
 }

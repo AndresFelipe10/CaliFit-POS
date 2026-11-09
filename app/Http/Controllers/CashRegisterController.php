@@ -113,27 +113,32 @@ class CashRegisterController extends Controller
         $totalExpensesPendingToday = (float) $pendingExpenses->sum('amount');
         $expensesToday = $paidExpenses->concat($pendingExpenses);
 
-        // 4. Métricas Consolidadas de Facturación
-        $grossSales = (float) $sales->sum('subtotal');
-        $discounts = (float) $sales->sum('discount');
-        $tipsTotal = (float) $sales->sum('tip');
-        $serviceTips = (float) $sales->sum(fn ($s) => (float) $s->tip + (float) $s->service_fee);
-        $taxInc = (float) $sales->sum('tax_inc');
-        $deliveryFees = (float) $sales->sum('delivery_fee');
-        $netTotalBilled = (float) $sales->sum('total');
-        $salesCount = $sales->count();
+        // 4. Métricas Consolidadas de Facturación (Ventas Directas Cobradas + Recaudos de Cartera del Día)
+        $directNetTotal = (float) $nonCreditSales->sum('total');
+        $netTotalBilled = $directNetTotal + $creditCollectionsTotal;
+        $grossSales = (float) $nonCreditSales->sum('subtotal') + $creditCollectionsTotal;
+        $discounts = (float) $nonCreditSales->sum('discount');
+        $tipsTotal = (float) $nonCreditSales->sum('tip');
+        $serviceTips = (float) $nonCreditSales->sum(fn ($s) => (float) $s->tip + (float) $s->service_fee);
+        $taxInc = (float) $nonCreditSales->sum('tax_inc');
+        $deliveryFees = (float) $nonCreditSales->sum('delivery_fee');
+        $salesCount = $nonCreditSales->count() + $creditCollectionsCount;
 
-        // 5. Canales de Venta
-        $tableSales = $sales->where('order_type', 'table');
-        $deliverySales = $sales->where('order_type', 'delivery');
-        $takeoutSales = $sales->where('order_type', 'takeout');
-        $retailSales = $sales->filter(fn ($s) => empty($s->order_type) || $s->order_type === 'retail');
+        // 5. Canales de Venta (Exclusivamente ventas directas del día)
+        $tableSales = $nonCreditSales->where('order_type', 'table');
+        $deliverySales = $nonCreditSales->where('order_type', 'delivery');
+        $takeoutSales = $nonCreditSales->where('order_type', 'takeout');
+        $retailSales = $nonCreditSales->filter(fn ($s) => empty($s->order_type) || $s->order_type === 'retail');
 
         $tableTotal = (float) $tableSales->sum('total');
+        $tableCount = $tableSales->count();
         $deliveryTotal = (float) $deliverySales->sum('total');
+        $deliveryCount = $deliverySales->count();
         $deliveryFeesTotal = (float) $deliverySales->sum('delivery_fee');
         $takeoutTotal = (float) $takeoutSales->sum('total');
+        $takeoutCount = $takeoutSales->count();
         $retailTotal = (float) $retailSales->sum('total');
+        $retailCount = $retailSales->count();
 
         // 6. Arqueo y Medios de Pago (Ventas Directas + Recaudos de Cartera)
         $directPayments = $nonCreditSales->flatMap->payments;
@@ -202,13 +207,17 @@ class CashRegisterController extends Controller
             'netTotalBilled',
             'tableSales',
             'tableTotal',
+            'tableCount',
             'deliverySales',
             'deliveryTotal',
+            'deliveryCount',
             'deliveryFeesTotal',
             'takeoutSales',
             'takeoutTotal',
+            'takeoutCount',
             'retailSales',
             'retailTotal',
+            'retailCount',
             'cashAmount',
             'cashReceived',
             'changeGiven',

@@ -4,6 +4,7 @@ namespace App\Services\Reports;
 
 use App\Models\Category;
 use App\Models\Customer;
+use App\Models\CustomerCreditPayment;
 use App\Models\Expense;
 use App\Models\Product;
 use App\Models\Sale;
@@ -23,9 +24,16 @@ class ReportService
         $startOfMonth = $now->copy()->startOfMonth();
         $endOfMonth = $now->copy()->endOfMonth();
 
-        $monthRevenue = (float) Sale::where('status', 'completed')
+        $directMonthRevenue = (float) Sale::where('status', 'completed')
+            ->where('is_credit', false)
             ->whereBetween('created_at', [$startOfMonth, $endOfMonth])
             ->sum('total');
+
+        $creditPaymentsRevenue = (float) CustomerCreditPayment::whereBetween('paid_at', [$startOfMonth, $endOfMonth])
+            ->whereHas('sale', fn ($q) => $q->where('status', 'completed'))
+            ->sum('amount');
+
+        $monthRevenue = $directMonthRevenue + $creditPaymentsRevenue;
 
         $inventoryCost = (float) Product::where('activo', true)
             ->whereIn('tipo_producto', ['INSUMO', 'SUPLEMENTO'])

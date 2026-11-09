@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CustomerCreditPayment;
 use App\Models\Expense;
 use App\Models\Product;
 use App\Models\RestaurantOrder;
@@ -29,10 +30,20 @@ class DashboardController extends Controller
         $startOfMonth = $nowBogota->copy()->startOfMonth();
         $endOfMonth = $nowBogota->copy()->endOfMonth();
 
-        // 1. Métricas operativas comunes (sin montos para empleados)
-        $todayCompletedSalesCount = Sale::where('status', 'completed')
-            ->whereBetween('created_at', [$startOfDay, $endOfDay])
-            ->count();
+        // 1. Métricas operativas comunes (Aislamiento de ventas fiadas / crédito hasta su cobro real)
+        $todayDirectSalesQuery = Sale::where('status', 'completed')
+            ->where('is_credit', false)
+            ->whereBetween('created_at', [$startOfDay, $endOfDay]);
+        $todayDirectSalesCount = (int) $todayDirectSalesQuery->count();
+        $todayDirectSalesTotal = (float) $todayDirectSalesQuery->sum('total');
+
+        $todayCreditPaymentsQuery = CustomerCreditPayment::whereBetween('paid_at', [$startOfDay, $endOfDay])
+            ->whereHas('sale', fn ($q) => $q->where('status', 'completed'));
+        $todayCreditPaymentsCount = (int) $todayCreditPaymentsQuery->count();
+        $todayCreditPaymentsTotal = (float) $todayCreditPaymentsQuery->sum('amount');
+
+        $todayCompletedSalesCount = $todayDirectSalesCount + $todayCreditPaymentsCount;
+        $todaySalesTotal = $todayDirectSalesTotal + $todayCreditPaymentsTotal;
 
         $occupiedTablesCount = RestaurantTable::where('status', 'occupied')->count();
 
@@ -72,20 +83,20 @@ class DashboardController extends Controller
         $selectedDate = $request->query('date', $nowBogota->toDateString());
         $selectedMonth = $request->query('month', $nowBogota->format('Y-m'));
 
-        // Métricas fijas del mes actual (compatibilidad y pruebas existentes)
-        $monthSales = Sale::where('status', 'completed')
+        // Métricas fijas del mes actual (ventas directas completadas + recaudos de cartera cobrados)
+        $monthDirectSales = Sale::where('status', 'completed')
+            ->where('is_credit', false)
             ->whereBetween('created_at', [$startOfMonth, $endOfMonth])
             ->get();
-        $monthSalesTotal = (float) $monthSales->sum('total');
-        $monthSalesCount = $monthSales->count();
+        $monthCreditPayments = CustomerCreditPayment::whereBetween('paid_at', [$startOfMonth, $endOfMonth])
+            ->whereHas('sale', fn ($q) => $q->where('status', 'completed'))
+            ->get();
+
+        $monthSalesTotal = (float) $monthDirectSales->sum('total') + (float) $monthCreditPayments->sum('amount');
+        $monthSalesCount = $monthDirectSales->count() + $monthCreditPayments->count();
         $monthExpensesTotal = (float) Expense::whereDate('issue_date', '>=', $startOfMonth->toDateString())
             ->whereDate('issue_date', '<=', $endOfMonth->toDateString())
             ->sum('amount');
-
-        // Métricas fijas de hoy
-        $todaySalesTotal = (float) Sale::where('status', 'completed')
-            ->whereBetween('created_at', [$startOfDay, $endOfDay])
-            ->sum('total');
 
         // Métricas del Período Seleccionado
         if ($period === 'day') {
@@ -102,14 +113,19 @@ class DashboardController extends Controller
                 ? 'Hoy (' . $parsedDate->format('d/m/Y') . ')'
                 : $parsedDate->format('d/m/Y');
 
-            $periodSales = Sale::where('status', 'completed')
+            $periodDirectSales = Sale::where('status', 'completed')
+                ->where('is_credit', false)
                 ->whereBetween('created_at', [$periodStart, $periodEnd])
                 ->get();
-            $periodSalesTotal = (float) $periodSales->sum('total');
-            $periodSalesCount = $periodSales->count();
+            $periodCreditPayments = CustomerCreditPayment::whereBetween('paid_at', [$periodStart, $periodEnd])
+                ->whereHas('sale', fn ($q) => $q->where('status', 'completed'))
+                ->get();
+
+            $periodSalesTotal = (float) $periodDirectSales->sum('total') + (float) $periodCreditPayments->sum('amount');
+            $periodSalesCount = $periodDirectSales->count() + $periodCreditPayments->count();
             $periodAverageTicket = $periodSalesCount > 0 ? round($periodSalesTotal / $periodSalesCount, 2) : 0.0;
 
-            $periodExpensesTotal = (float) Expense::where('issue_date', $parsedDate->toDateString())
+            $periodExpensesTotal = (float) Expense::whereDate('issue_date', $parsedDate->toDateString())
                 ->sum('amount');
             $periodNetProfit = round($periodSalesTotal - $periodExpensesTotal, 2);
         } else {
@@ -124,11 +140,16 @@ class DashboardController extends Controller
             $periodEnd = $parsedMonth->copy()->endOfMonth();
             $periodLabel = 'Mes de ' . $parsedMonth->translatedFormat('F Y');
 
-            $periodSales = Sale::where('status', 'completed')
+            $periodDirectSales = Sale::where('status', 'completed')
+                ->where('is_credit', false)
                 ->whereBetween('created_at', [$periodStart, $periodEnd])
                 ->get();
-            $periodSalesTotal = (float) $periodSales->sum('total');
-            $periodSalesCount = $periodSales->count();
+            $periodCreditPayments = CustomerCreditPayment::whereBetween('paid_at', [$periodStart, $periodEnd])
+                ->whereHas('sale', fn ($q) => $q->where('status', 'completed'))
+                ->get();
+
+            $periodSalesTotal = (float) $periodDirectSales->sum('total') + (float) $periodCreditPayments->sum('amount');
+            $periodSalesCount = $periodDirectSales->count() + $periodCreditPayments->count();
             $periodAverageTicket = $periodSalesCount > 0 ? round($periodSalesTotal / $periodSalesCount, 2) : 0.0;
 
             $periodExpensesTotal = (float) Expense::whereDate('issue_date', '>=', $periodStart->toDateString())
@@ -137,8 +158,8 @@ class DashboardController extends Controller
             $periodNetProfit = round($periodSalesTotal - $periodExpensesTotal, 2);
         }
 
-        $periodTipsTotal = (float) $periodSales->sum(fn ($s) => (float) $s->tip + (float) $s->service_fee);
-        $periodTipsCount = $periodSales->filter(fn ($s) => (float) $s->tip > 0 || (float) $s->service_fee > 0)->count();
+        $periodTipsTotal = (float) $periodDirectSales->sum(fn ($s) => (float) $s->tip + (float) $s->service_fee);
+        $periodTipsCount = $periodDirectSales->filter(fn ($s) => (float) $s->tip > 0 || (float) $s->service_fee > 0)->count();
 
         $pendingExpensesTotal = (float) Expense::where('status', 'pending')->sum('amount');
 
