@@ -78,7 +78,7 @@
                             <tr class="small text-uppercase text-muted">
                                 <th style="width: 50%;">Insumo / Materia Prima</th>
                                 <th style="width: 20%;">Unidad Base</th>
-                                <th style="width: 20%;">Gramos / Mililitros</th>
+                                <th style="width: 20%;">Cantidad (G / ML / Und)</th>
                                 <th style="width: 10%;" class="text-end">Acción</th>
                             </tr>
                         </thead>
@@ -93,6 +93,14 @@
                             @endphp
 
                             @forelse ($existingItems as $index => $item)
+                                @php
+                                    $selectedIng = $insumos->firstWhere('id', $item['ingrediente_id'] ?? null);
+                                    $unit = $selectedIng ? $selectedIng->unidad_base : 'GRAMO';
+                                    $isUnit = ($unit === 'UNIDAD');
+                                    $minAttr = $isUnit ? '1' : '0.01';
+                                    $stepAttr = $isUnit ? '1' : '0.01';
+                                    $placeholder = $isUnit ? 'Ej. 1' : 'Ej. 150';
+                                @endphp
                                 <tr class="ingredient-row">
                                     <td>
                                         <select name="items[{{ $index }}][ingrediente_id]" class="form-select ingredient-select" required>
@@ -109,7 +117,7 @@
                                     </td>
                                     <td>
                                         <span class="badge bg-light text-secondary border font-monospace unit-badge py-2 px-3">
-                                            GRAMO
+                                            {{ $selectedIng ? $unit : '--' }}
                                         </span>
                                     </td>
                                     <td>
@@ -117,9 +125,9 @@
                                             <input type="number" 
                                                    name="items[{{ $index }}][cantidad_por_porcion]" 
                                                    class="form-control quantity-input font-monospace" 
-                                                   step="0.001" 
-                                                   min="0.001" 
-                                                   placeholder="0.000"
+                                                   step="{{ $stepAttr }}" 
+                                                   min="{{ $minAttr }}" 
+                                                   placeholder="{{ $placeholder }}"
                                                    value="{{ $item['cantidad_por_porcion'] ?? '' }}" 
                                                    required>
                                         </div>
@@ -147,16 +155,16 @@
                                     </td>
                                     <td>
                                         <span class="badge bg-light text-secondary border font-monospace unit-badge py-2 px-3">
-                                            GRAMO
+                                            --
                                         </span>
                                     </td>
                                     <td>
                                         <input type="number" 
                                                name="items[0][cantidad_por_porcion]" 
                                                class="form-control quantity-input font-monospace" 
-                                               step="0.001" 
-                                               min="0.001" 
-                                               placeholder="0.000" 
+                                               step="0.01" 
+                                               min="0.01" 
+                                               placeholder="Ej. 150" 
                                                required>
                                     </td>
                                     <td class="text-end">
@@ -172,7 +180,7 @@
 
                 <div class="p-3 bg-light rounded-3 mb-4 d-flex align-items-center justify-content-between">
                     <span class="small text-muted">
-                        <i class="bi bi-info-circle me-1"></i> Cada gramo configurado será deducido automáticamente del inventario al vender este plato.
+                        <i class="bi bi-info-circle me-1"></i> Cada gramo, mililitro o unidad configurada se deduce automáticamente del inventario al vender el plato.
                     </span>
                     <span class="small fw-semibold text-dark">
                         Total Insumos en la fórmula: <strong id="totalIngredientsCount">0</strong>
@@ -209,16 +217,16 @@
         </td>
         <td>
             <span class="badge bg-light text-secondary border font-monospace unit-badge py-2 px-3">
-                GRAMO
+                --
             </span>
         </td>
         <td>
             <input type="number" 
                    name="items[INDEX][cantidad_por_porcion]" 
                    class="form-control quantity-input font-monospace" 
-                   step="0.001" 
-                   min="0.001" 
-                   placeholder="0.000" 
+                   step="0.01" 
+                   min="0.01" 
+                   placeholder="Ej. 150" 
                    required>
         </td>
         <td class="text-end">
@@ -244,11 +252,32 @@ document.addEventListener('DOMContentLoaded', function () {
     function updateRowUnits(row) {
         const select = row.querySelector('.ingredient-select');
         const badge = row.querySelector('.unit-badge');
+        const qtyInput = row.querySelector('.quantity-input');
         const selectedOpt = select.options[select.selectedIndex];
-        if (selectedOpt && selectedOpt.dataset.unit) {
-            badge.textContent = selectedOpt.dataset.unit;
-        } else {
-            badge.textContent = 'GRAMO';
+        const unit = (selectedOpt && selectedOpt.dataset.unit) ? selectedOpt.dataset.unit.toUpperCase() : '';
+
+        if (badge) {
+            badge.textContent = unit || '--';
+        }
+
+        if (qtyInput) {
+            if (unit === 'UNIDAD') {
+                qtyInput.min = '1';
+                qtyInput.step = '1';
+                qtyInput.placeholder = 'Ej. 1';
+                if (qtyInput.value !== '') {
+                    const val = parseFloat(qtyInput.value);
+                    if (isNaN(val) || val < 1) {
+                        qtyInput.value = '1';
+                    } else if (!Number.isInteger(val)) {
+                        qtyInput.value = Math.round(val).toString();
+                    }
+                }
+            } else {
+                qtyInput.min = '0.01';
+                qtyInput.step = '0.01';
+                qtyInput.placeholder = 'Ej. 150';
+            }
         }
     }
 

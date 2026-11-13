@@ -260,4 +260,226 @@ class RecipeManagementTest extends TestCase
         $this->assertEquals('Bowl Fit Teriyaki', $newDish->nombre);
         $this->assertDatabaseHas('recetas', ['producto_plato_id' => $newDish->id]);
     }
+
+    /**
+     * 1. Crear receta con ingrediente en UNIDAD + insumos en GRAMO.
+     */
+    public function test_admin_can_create_recipe_with_unit_ingredient_and_gram_supplies(): void
+    {
+        $banano = Product::create([
+            'sku' => 'SUP-BANANO-01',
+            'nombre' => 'Banano',
+            'tipo_producto' => 'SUPLEMENTO',
+            'unidad_base' => 'UNIDAD',
+            'stock' => 50,
+            'stock_minimo' => 10,
+            'precio_venta' => 1500,
+            'activo' => true,
+        ]);
+
+        $proteina = Product::create([
+            'sku' => 'INS-WHEY-01',
+            'nombre' => 'Proteína Whey Vainilla',
+            'tipo_producto' => 'INSUMO',
+            'unidad_base' => 'GRAMO',
+            'stock' => 5000,
+            'stock_minimo' => 1000,
+            'precio_venta' => 0,
+            'activo' => true,
+        ]);
+
+        $category = \App\Models\Category::create([
+            'name' => 'Batidos y Bebidas',
+            'slug' => 'batidos-bebidas',
+            'is_active' => true,
+        ]);
+
+        $response = $this->actingAs($this->admin)->post(route('recipes.store'), [
+            'dish_mode' => 'new',
+            'nombre' => 'Batido de Banano Proteico',
+            'sku' => 'PLA-BAT-BAN01',
+            'precio_venta' => 12000,
+            'category_id' => $category->id,
+            'items' => [
+                [
+                    'ingrediente_id' => $banano->id,
+                    'cantidad_por_porcion' => 1,
+                ],
+                [
+                    'ingrediente_id' => $proteina->id,
+                    'cantidad_por_porcion' => 30.5,
+                ],
+            ],
+        ]);
+
+        $response->assertRedirect(route('recipes.index'));
+        $response->assertSessionHas('success');
+
+        $batido = Product::where('sku', 'PLA-BAT-BAN01')->firstOrFail();
+        $recipe = Recipe::where('producto_plato_id', $batido->id)->firstOrFail();
+
+        $this->assertDatabaseHas('receta_detalle', [
+            'receta_id' => $recipe->id,
+            'ingrediente_id' => $banano->id,
+            'cantidad_por_porcion' => 1,
+            'unidad' => 'UNIDAD',
+        ]);
+
+        $this->assertDatabaseHas('receta_detalle', [
+            'receta_id' => $recipe->id,
+            'ingrediente_id' => $proteina->id,
+            'cantidad_por_porcion' => 30.5,
+            'unidad' => 'GRAMO',
+        ]);
+    }
+
+    /**
+     * 2. Editar receta existente agregando ingrediente en UNIDAD.
+     */
+    public function test_admin_can_update_recipe_adding_unit_ingredient(): void
+    {
+        $huevo = Product::create([
+            'sku' => 'INS-HUEVO-01',
+            'nombre' => 'Huevo Cocido',
+            'tipo_producto' => 'INSUMO',
+            'unidad_base' => 'UNIDAD',
+            'stock' => 100,
+            'stock_minimo' => 20,
+            'precio_venta' => 0,
+            'activo' => true,
+        ]);
+
+        $response = $this->actingAs($this->admin)->put(route('recipes.update', $this->dish), [
+            'items' => [
+                [
+                    'ingrediente_id' => $this->pechuga->id,
+                    'cantidad_por_porcion' => 150,
+                ],
+                [
+                    'ingrediente_id' => $huevo->id,
+                    'cantidad_por_porcion' => 2,
+                ],
+            ],
+        ]);
+
+        $response->assertRedirect(route('recipes.index'));
+        $response->assertSessionHas('success');
+
+        $recipe = Recipe::where('producto_plato_id', $this->dish->id)->firstOrFail();
+
+        $this->assertDatabaseHas('receta_detalle', [
+            'receta_id' => $recipe->id,
+            'ingrediente_id' => $huevo->id,
+            'cantidad_por_porcion' => 2,
+            'unidad' => 'UNIDAD',
+        ]);
+    }
+
+    /**
+     * 3. Rechazo de UNIDAD con decimales o menor a 1.
+     */
+    public function test_recipe_rejects_unit_ingredient_with_decimals_or_less_than_one(): void
+    {
+        $manzana = Product::create([
+            'sku' => 'INS-MANZANA-01',
+            'nombre' => 'Manzana Verde',
+            'tipo_producto' => 'INSUMO',
+            'unidad_base' => 'UNIDAD',
+            'stock' => 40,
+            'stock_minimo' => 5,
+            'precio_venta' => 0,
+            'activo' => true,
+        ]);
+
+        // Intento con 0.5 unidades
+        $responseDecimal = $this->actingAs($this->admin)->put(route('recipes.update', $this->dish), [
+            'items' => [
+                [
+                    'ingrediente_id' => $manzana->id,
+                    'cantidad_por_porcion' => 0.5,
+                ],
+            ],
+        ]);
+
+        $responseDecimal->assertSessionHasErrors(['items.0.cantidad_por_porcion']);
+        $this->assertStringContainsString(
+            "se maneja por UNIDAD y requiere una cantidad entera mínima de 1",
+            session('errors')->first('items.0.cantidad_por_porcion')
+        );
+
+        // Intento con 1.5 unidades
+        $responseDecimal2 = $this->actingAs($this->admin)->put(route('recipes.update', $this->dish), [
+            'items' => [
+                [
+                    'ingrediente_id' => $manzana->id,
+                    'cantidad_por_porcion' => 1.5,
+                ],
+            ],
+        ]);
+
+        $responseDecimal2->assertSessionHasErrors(['items.0.cantidad_por_porcion']);
+
+        // Intento con 0 unidades
+        $responseZero = $this->actingAs($this->admin)->put(route('recipes.update', $this->dish), [
+            'items' => [
+                [
+                    'ingrediente_id' => $manzana->id,
+                    'cantidad_por_porcion' => 0,
+                ],
+            ],
+        ]);
+
+        $responseZero->assertSessionHasErrors(['items.0.cantidad_por_porcion']);
+    }
+
+    /**
+     * 4. Rechazo estricto de un PLATO como ingrediente (en store y en update).
+     */
+    public function test_recipe_rejects_dish_as_ingredient_in_store_and_update(): void
+    {
+        $platoIngrediente = Product::create([
+            'sku' => 'PLA-ENSALADA-01',
+            'nombre' => 'Ensalada César',
+            'tipo_producto' => 'PLATO',
+            'unidad_base' => 'UNIDAD',
+            'stock' => 0,
+            'stock_minimo' => 0,
+            'precio_venta' => 18000,
+            'activo' => true,
+        ]);
+
+        // Rechazo en StoreRecipeRequest
+        $responseStore = $this->actingAs($this->admin)->post(route('recipes.store'), [
+            'dish_mode' => 'existing',
+            'product_id' => $this->dish->id,
+            'items' => [
+                [
+                    'ingrediente_id' => $platoIngrediente->id,
+                    'cantidad_por_porcion' => 1,
+                ],
+            ],
+        ]);
+
+        $responseStore->assertSessionHasErrors(['items.0.ingrediente_id']);
+        $this->assertStringContainsString(
+            "es un plato de carta y no puede ser utilizado como ingrediente de una receta",
+            session('errors')->first('items.0.ingrediente_id')
+        );
+
+        // Rechazo en UpdateRecipeRequest
+        $responseUpdate = $this->actingAs($this->admin)->put(route('recipes.update', $this->dish), [
+            'items' => [
+                [
+                    'ingrediente_id' => $platoIngrediente->id,
+                    'cantidad_por_porcion' => 1,
+                ],
+            ],
+        ]);
+
+        $responseUpdate->assertSessionHasErrors(['items.0.ingrediente_id']);
+        $this->assertStringContainsString(
+            "es un plato de carta y no puede ser utilizado como ingrediente de una receta",
+            session('errors')->first('items.0.ingrediente_id')
+        );
+    }
 }

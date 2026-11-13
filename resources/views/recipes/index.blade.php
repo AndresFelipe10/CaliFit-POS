@@ -9,7 +9,7 @@
             <i class="bi bi-journal-text me-2" style="color: #10B981;"></i>Fórmulas de Recetas por Porción
         </h3>
         <p class="text-muted small mb-0">
-            Control de despiece e ingeniería de menú: define los gramos (g) y mililitros (ml) consumidos al vender cada plato fitness.
+            Control de despiece e ingeniería de menú: define los gramos (g), mililitros (ml) y unidades (und) consumidos al vender cada plato fitness.
         </p>
     </div>
     <div class="d-flex gap-2 flex-wrap">
@@ -34,7 +34,7 @@
         <div>
             <h6 class="fw-bold mb-1 text-dark">Política de Descuento Atómico y Cero Stock Negativo</h6>
             <p class="text-muted small mb-0">
-                Al cobrar un plato en el punto de venta, el sistema descuenta automáticamente del inventario los gramos y mililitros exactos configurados en esta receta. Si algún insumo no cuenta con existencias suficientes, la venta no se procesa para evitar saldos negativos.
+                Al cobrar un plato en el punto de venta, el sistema descuenta automáticamente del inventario los gramos, mililitros o unidades exactas configuradas en esta receta. Si algún insumo no cuenta con existencias suficientes, la venta no se procesa para evitar saldos negativos.
             </p>
         </div>
     </div>
@@ -94,7 +94,7 @@
                                 <div class="d-flex flex-wrap gap-1" style="max-width: 320px;">
                                     @foreach ($dish->receta->items->take(4) as $item)
                                         <span class="badge bg-light text-secondary border small">
-                                            {{ $item->ingredient->nombre ?? 'Insumo' }}: {{ (float)$item->cantidad_por_porcion }}{{ strtolower($item->unidad) == 'mililitro' ? 'ml' : 'g' }}
+                                            {{ $item->ingredient->nombre ?? 'Insumo' }}: {{ (float)$item->cantidad_por_porcion }}{{ strtolower($item->unidad) == 'mililitro' ? 'ml' : (strtolower($item->unidad) == 'unidad' ? ' und' : 'g') }}
                                         </span>
                                     @endforeach
                                     @if($dish->receta->items->count() > 4)

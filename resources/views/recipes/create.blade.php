@@ -129,7 +129,7 @@
                             <tr class="small text-uppercase text-muted">
                                 <th style="width: 50%;">Insumo / Materia Prima</th>
                                 <th style="width: 20%;">Unidad Base</th>
-                                <th style="width: 20%;">Gramos / Mililitros</th>
+                                <th style="width: 20%;">Cantidad (G / ML / Und)</th>
                                 <th style="width: 10%;" class="text-end">Acción</th>
                             </tr>
                         </thead>
@@ -141,6 +141,14 @@
                             @endphp
 
                             @foreach ($oldItems as $index => $item)
+                                @php
+                                    $selectedIng = $insumos->firstWhere('id', $item['ingrediente_id'] ?? null);
+                                    $unit = $selectedIng ? $selectedIng->unidad_base : '';
+                                    $isUnit = ($unit === 'UNIDAD');
+                                    $minAttr = $isUnit ? '1' : '0.01';
+                                    $stepAttr = $isUnit ? '1' : '0.01';
+                                    $placeholder = $isUnit ? 'Ej. 1' : 'Ej. 150';
+                                @endphp
                                 <tr class="ingredient-row">
                                     <td>
                                         <select name="items[{{ $index }}][ingrediente_id]" class="form-select ingredient-select" required>
@@ -156,19 +164,19 @@
                                         </select>
                                     </td>
                                     <td>
-                                        <span class="badge bg-light text-dark border unit-badge px-2 py-1 font-monospace">--</span>
+                                        <span class="badge bg-light text-dark border unit-badge px-2 py-1 font-monospace">{{ $unit ?: '--' }}</span>
                                     </td>
                                     <td>
                                         <div class="input-group">
                                             <input type="number"
-                                                   step="0.01"
-                                                   min="0.01"
+                                                   step="{{ $stepAttr }}"
+                                                   min="{{ $minAttr }}"
                                                    name="items[{{ $index }}][cantidad_por_porcion]"
-                                                   class="form-control quantity-input"
+                                                   class="form-control quantity-input font-monospace"
                                                    value="{{ $item['cantidad_por_porcion'] ?? '' }}"
-                                                   placeholder="Ej. 150"
+                                                   placeholder="{{ $placeholder }}"
                                                    required>
-                                            <span class="input-group-text bg-light text-muted unit-addon">--</span>
+                                            <span class="input-group-text bg-light text-muted unit-addon">{{ $unit ?: '--' }}</span>
                                         </div>
                                     </td>
                                     <td class="text-end">
@@ -180,6 +188,12 @@
                             @endforeach
                         </tbody>
                     </table>
+                </div>
+
+                <div class="p-3 bg-light rounded-3 mb-4 d-flex align-items-center justify-content-between">
+                    <span class="small text-muted">
+                        <i class="bi bi-info-circle me-1"></i> Cada gramo, mililitro o unidad configurada se deduce automáticamente del inventario al vender el plato.
+                    </span>
                 </div>
 
                 <div class="d-flex justify-content-between align-items-center mt-4 pt-3 border-top">
@@ -274,12 +288,33 @@ document.addEventListener('DOMContentLoaded', () => {
         const select = row.querySelector('.ingredient-select');
         const unitBadge = row.querySelector('.unit-badge');
         const unitAddon = row.querySelector('.unit-addon');
+        const qtyInput = row.querySelector('.quantity-input');
 
         const selectedOption = select.options[select.selectedIndex];
-        const unit = selectedOption ? selectedOption.getAttribute('data-unit') : '--';
+        const unit = (selectedOption && selectedOption.getAttribute('data-unit')) ? selectedOption.getAttribute('data-unit').toUpperCase() : '';
 
         if (unitBadge) unitBadge.textContent = unit || '--';
         if (unitAddon) unitAddon.textContent = unit || '--';
+
+        if (qtyInput) {
+            if (unit === 'UNIDAD') {
+                qtyInput.min = '1';
+                qtyInput.step = '1';
+                qtyInput.placeholder = 'Ej. 1';
+                if (qtyInput.value !== '') {
+                    const val = parseFloat(qtyInput.value);
+                    if (isNaN(val) || val < 1) {
+                        qtyInput.value = '1';
+                    } else if (!Number.isInteger(val)) {
+                        qtyInput.value = Math.round(val).toString();
+                    }
+                }
+            } else {
+                qtyInput.min = '0.01';
+                qtyInput.step = '0.01';
+                qtyInput.placeholder = 'Ej. 150';
+            }
+        }
     }
 
     function checkMutualExclusion() {

@@ -39,7 +39,7 @@ class RecipeController extends Controller
 
         $categories = Category::where('is_active', true)->orderBy('name')->get();
 
-        $insumos = Product::where('tipo_producto', 'INSUMO')
+        $insumos = Product::where('tipo_producto', '!=', 'PLATO')
             ->where('activo', true)
             ->orderBy('nombre')
             ->get();
@@ -122,7 +122,7 @@ class RecipeController extends Controller
 
         $recipe->load('items.ingredient');
 
-        $insumos = Product::where('tipo_producto', 'INSUMO')
+        $insumos = Product::where('tipo_producto', '!=', 'PLATO')
             ->where('activo', true)
             ->orderBy('nombre')
             ->get();
