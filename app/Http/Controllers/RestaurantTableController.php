@@ -4,9 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\Addition;
 use App\Models\Product;
+use App\Models\RestaurantOrder;
 use App\Models\RestaurantTable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
 
 class RestaurantTableController extends Controller
@@ -21,6 +23,26 @@ class RestaurantTableController extends Controller
                 $query->with(['items.product', 'items.additions.addition', 'user']);
             }])
             ->get();
+
+        foreach ($tables as $table) {
+            if (in_array($table->status, ['occupied', 'billed'], true) && $table->activeOrder === null) {
+                $hasActiveOrder = RestaurantOrder::where('table_id', $table->id)
+                    ->whereIn('status', RestaurantOrder::ACTIVE_STATUSES)
+                    ->exists();
+
+                if (! $hasActiveOrder) {
+                    $previousStatus = $table->status;
+                    $table->update(['status' => 'available']);
+
+                    Log::warning('Auto-reconciliación de mesa sin orden activa en Salón.', [
+                        'table_id' => $table->id,
+                        'table_name' => $table->name,
+                        'previous_status' => $previousStatus,
+                        'reconciled_status' => 'available',
+                    ]);
+                }
+            }
+        }
 
         $products = Product::where('activo', true)
             ->with(['adiciones' => function ($q) {

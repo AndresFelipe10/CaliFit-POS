@@ -14,6 +14,14 @@ class RestaurantOrder extends Model
 
     protected $table = 'restaurant_orders';
 
+    public const ACTIVE_STATUSES = [
+        'open',
+        'in_kitchen',
+        'dispatched',
+        'delivered',
+        'billed',
+    ];
+
     protected $fillable = [
         'table_id',
         'user_id',

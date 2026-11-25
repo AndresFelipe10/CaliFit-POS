@@ -90,16 +90,37 @@ class RestaurantOrderService
                 ]);
             }
 
+            // Verificar explícitamente que la mesa destino no tenga otra comanda activa real
+            $newTableHasActiveOrder = RestaurantOrder::where('table_id', $lockedNewTable->id)
+                ->where('id', '!=', $lockedOrder->id)
+                ->whereIn('status', RestaurantOrder::ACTIVE_STATUSES)
+                ->lockForUpdate()
+                ->exists();
+
+            if ($newTableHasActiveOrder) {
+                throw ValidationException::withMessages([
+                    'table_id' => 'La mesa seleccionada ya tiene una comanda activa en curso.',
+                ]);
+            }
+
             $lockedOldTable = $oldTableId ? $lockedTables->get($oldTableId) : null;
             $oldTableName = $lockedOldTable ? $lockedOldTable->name : ('Mesa #' . ($oldTableId ?? 'N/A'));
 
-            // Actualizar mesa previa a libre
+            // Actualizar mesa previa a libre solo si no le quedan otras órdenes activas
             if ($lockedOldTable) {
-                $lockedOldTable->update(['status' => 'available']);
+                $oldTableHasOtherActiveOrder = RestaurantOrder::where('table_id', $lockedOldTable->id)
+                    ->where('id', '!=', $lockedOrder->id)
+                    ->whereIn('status', RestaurantOrder::ACTIVE_STATUSES)
+                    ->exists();
+
+                if (! $oldTableHasOtherActiveOrder) {
+                    $lockedOldTable->update(['status' => 'available']);
+                }
             }
 
-            // Actualizar nueva mesa a ocupada
-            $lockedNewTable->update(['status' => 'occupied']);
+            // Actualizar nueva mesa al estado correspondiente según el estado de la orden
+            $targetTableStatus = $lockedOrder->status === 'billed' ? 'billed' : 'occupied';
+            $lockedNewTable->update(['status' => $targetTableStatus]);
 
             // Auditoría y trazabilidad
             $timestamp = now()->format('Y-m-d H:i');

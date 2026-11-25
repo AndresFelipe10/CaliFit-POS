@@ -435,5 +435,98 @@ class RestaurantFlowTest extends TestCase
         $receiptPrintResponse->assertStatus(200);
         $receiptPrintResponse->assertSee('Felipe Mesero');
     }
+
+    public function test_moving_older_open_order_to_table_with_newer_closed_order_resolves_active_order_correctly(): void
+    {
+        $this->actingAs($this->mesero);
+
+        $mesa4 = RestaurantTable::create([
+            'name' => 'Mesa 4',
+            'capacity' => 4,
+            'status' => 'available',
+            'is_active' => true,
+        ]);
+
+        // 1. Crear orden A (id menor, estado 'open') en Mesa 1
+        $ordenA = RestaurantOrder::create([
+            'table_id' => $this->mesa->id,
+            'user_id' => $this->mesero->id,
+            'order_number' => 'ORD-001005',
+            'order_type' => 'table',
+            'status' => 'open',
+            'guest_count' => 2,
+            'subtotal' => 39000.00,
+            'total' => 39000.00,
+        ]);
+        $this->mesa->update(['status' => 'occupied']);
+
+        // 2. Crear orden B (id mayor) en Mesa 4 y cerrarla ('closed')
+        $ordenB = RestaurantOrder::create([
+            'table_id' => $mesa4->id,
+            'user_id' => $this->mesero->id,
+            'order_number' => 'ORD-001008',
+            'order_type' => 'table',
+            'status' => 'closed',
+            'guest_count' => 2,
+            'subtotal' => 41000.00,
+            'total' => 41000.00,
+            'closed_at' => now(),
+        ]);
+        $mesa4->update(['status' => 'available']);
+
+        $this->assertGreaterThan($ordenA->id, $ordenB->id);
+
+        // 3. Trasladar orden A (id menor, aún 'open') hacia Mesa 4
+        $transferResponse = $this->post(route('restaurant.orders.change-table', $ordenA), [
+            'table_id' => $mesa4->id,
+        ]);
+        $transferResponse->assertRedirect(route('restaurant.orders.show', $ordenA));
+
+        $this->mesa->refresh();
+        $mesa4->refresh();
+        $this->assertEquals('available', $this->mesa->status);
+        $this->assertEquals('occupied', $mesa4->status);
+
+        // Verificar acceso directo a la relación activeOrder
+        $this->assertNotNull($mesa4->activeOrder);
+        $this->assertEquals($ordenA->id, $mesa4->activeOrder->id);
+
+        // 4. Consultar GET del tablero Salón y Mesas
+        $indexResponse = $this->get(route('restaurant.tables.index'));
+        $indexResponse->assertOk();
+
+        // Verificar que la colección pasada a la vista tiene $mesa4->activeOrder === orden A
+        $tables = $indexResponse->viewData('tables');
+        $loadedMesa4 = $tables->firstWhere('id', $mesa4->id);
+        $this->assertNotNull($loadedMesa4);
+        $this->assertNotNull($loadedMesa4->activeOrder);
+        $this->assertEquals($ordenA->id, $loadedMesa4->activeOrder->id);
+
+        // Verificar contenido renderizado en la vista para Mesa 4
+        $indexResponse->assertSee('ORD-001005');
+        $indexResponse->assertSee('$39.000');
+        $indexResponse->assertSee('Ver / Tandas');
+        $indexResponse->assertSee('Pre-cuenta');
+        $indexResponse->assertSee('Cobrar');
+    }
+
+    public function test_tables_index_auto_reconciles_orphan_occupied_table_without_active_order(): void
+    {
+        $this->actingAs($this->mesero);
+
+        $mesaHuerfana = RestaurantTable::create([
+            'name' => 'Mesa 9',
+            'capacity' => 4,
+            'status' => 'occupied',
+            'is_active' => true,
+        ]);
+
+        // Sin ninguna orden activa asociada
+        $response = $this->get(route('restaurant.tables.index'));
+        $response->assertOk();
+
+        $mesaHuerfana->refresh();
+        $this->assertEquals('available', $mesaHuerfana->status);
+    }
 }
 
