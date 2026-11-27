@@ -106,7 +106,7 @@ class AuditCorrectionsSecondReviewTest extends TestCase
     }
 
     /**
-     * 1.2: Registro de cliente sin documento autogenera código único sin error de clase Customer
+     * 1.2: Registro de cliente sin documento normaliza "" a null y permite múltiples clientes sin colisión UNIQUE
      */
     public function test_store_customer_without_document_autogenerates_unique_code_safely(): void
     {
@@ -124,12 +124,12 @@ class AuditCorrectionsSecondReviewTest extends TestCase
 
         $customer1 = Customer::where('email', 'sindoc1@test.com')->first();
         $this->assertNotNull($customer1);
-        $this->assertNotEmpty($customer1->document);
+        $this->assertNull($customer1->document);
 
-        // Crear un segundo cliente consecutivo sin documento
+        // Crear un segundo cliente consecutivo sin documento (espacios en blanco normalizados a null)
         $payload2 = [
             'name' => 'Cliente Sin Documento Dos',
-            'document' => '',
+            'document' => '   ',
             'phone' => '3004445566',
             'email' => 'sindoc2@test.com',
         ];
@@ -141,8 +141,8 @@ class AuditCorrectionsSecondReviewTest extends TestCase
 
         $customer2 = Customer::where('email', 'sindoc2@test.com')->first();
         $this->assertNotNull($customer2);
-        $this->assertNotEmpty($customer2->document);
-        $this->assertNotEquals($customer1->document, $customer2->document);
+        $this->assertNull($customer2->document);
+        $this->assertNotEquals($customer1->id, $customer2->id);
     }
 
     /**

@@ -234,9 +234,9 @@
                                         @if($c->document !== '222222222222')
                                             <option value="{{ $c->id }}"
                                                     data-name="{{ $c->name }}"
-                                                    data-doc="{{ $c->document ?: '222222222222' }}"
+                                                    data-doc="{{ $c->document ?? '' }}"
                                                     data-phone="{{ $c->phone ?? '' }}">
-                                                {{ $c->name }} ({{ $c->document ?: 'Sin doc' }})
+                                                {{ $c->display_label }}
                                             </option>
                                         @endif
                                     @endforeach
@@ -370,9 +370,10 @@
                             @foreach($customers as $c)
                                 <option value="{{ $c->id }}"
                                         data-name="{{ $c->name }}"
-                                        data-doc="{{ $c->document ?? '222222222222' }}"
+                                        data-doc="{{ $c->document ?? '' }}"
+                                        data-phone="{{ $c->phone ?? '' }}"
                                         data-search="{{ strtolower($c->name . ' ' . ($c->document ?? '') . ' ' . ($c->phone ?? '')) }}">
-                                    {{ $c->name }} {{ $c->document ? '('.$c->document.')' : '' }} {{ $c->phone ? '| Tel: '.$c->phone : '' }}
+                                    {{ $c->display_label }}
                                 </option>
                             @endforeach
                         </select>
@@ -454,9 +455,9 @@
                                         @if($c->document !== '222222222222')
                                             <option value="{{ $c->id }}"
                                                     data-name="{{ $c->name }}"
-                                                    data-doc="{{ $c->document ?: '222222222222' }}"
+                                                    data-doc="{{ $c->document ?? '' }}"
                                                     data-phone="{{ $c->phone ?? '' }}">
-                                                {{ $c->name }} ({{ $c->document ?: 'Sin doc' }}) {{ $c->phone ? '| Tel: ' . $c->phone : '' }}
+                                                {{ $c->display_label }}
                                             </option>
                                         @endif
                                     @endforeach
@@ -483,7 +484,13 @@
                                     </div>
                                 </div>
                                 <div id="posCreditCustomerAlert" class="alert alert-danger py-2 px-3 rounded-3 small mb-2 d-none">
-                                    <i class="bi bi-x-circle me-1 fw-bold"></i> Para otorgar crédito debe seleccionar un cliente registrado con teléfono. No permitido para Consumidor Final.
+                                    <i class="bi bi-x-circle me-1 fw-bold"></i> Para otorgar crédito debe seleccionar un cliente registrado. No permitido para Consumidor Final.
+                                </div>
+                                <div id="posCreditPhoneHint" class="d-none mb-2">
+                                    <span class="badge rounded-pill fw-normal px-2.5 py-1.5 d-inline-flex align-items-center gap-1 text-wrap text-start" style="background-color: #FEF3C7; color: #92400E; border: 1px solid #FDE68A; font-size: 0.75rem;">
+                                        <i class="bi bi-info-circle flex-shrink-0"></i>
+                                        <span>Recomendado: agregar teléfono para seguimiento de cobro</span>
+                                    </span>
                                 </div>
                                 <div class="row g-2">
                                     <div class="col-6">
@@ -735,7 +742,7 @@ function renderPosCustomerResults(customers, query) {
         item.innerHTML = `
             <div class="overflow-hidden me-2">
                 <span class="fw-bold d-block text-truncate text-dark small">${escapeHtml(c.name)}</span>
-                <span class="text-muted font-monospace" style="font-size: 0.72rem;">CC/NIT: ${escapeHtml(c.document || '222222222222')}</span>
+                ${c.document ? `<span class="text-muted font-monospace" style="font-size: 0.72rem;">CC/NIT: ${escapeHtml(c.document)}</span>` : '<span class="text-muted" style="font-size: 0.72rem;">Cliente registrado</span>'}
                 ${c.phone ? `<span class="text-secondary ms-2" style="font-size: 0.72rem;"><i class="bi bi-telephone me-1"></i>${escapeHtml(c.phone)}</span>` : ''}
             </div>
             <span class="badge bg-success-subtle text-success rounded-pill px-2 py-1 flex-shrink-0" style="font-size: 0.7rem;">
@@ -743,7 +750,7 @@ function renderPosCustomerResults(customers, query) {
             </span>
         `;
         item.addEventListener('click', () => {
-            selectCustomer(c.id, c.name, c.document);
+            selectCustomer(c.id, c.name, c.document || '', c.phone || '');
             const searchInput = document.getElementById('posCustomerSearch');
             if (searchInput) searchInput.value = '';
             resultsBox.classList.add('d-none');
@@ -1162,13 +1169,38 @@ function clearCustomerSearch() {
     }
 }
 
+function formatPosCustomerOptionLabel(name, doc, phone) {
+    const parts = [name];
+    if (doc && doc !== '222222222222') parts.push(doc);
+    if (phone) parts.push('Tel: ' + phone);
+    return parts.join(' · ');
+}
+
+function updatePosCreditValidationFeedback() {
+    const creditSw = document.getElementById('posCreditSwitch');
+    const alertCustomer = document.getElementById('posCreditCustomerAlert');
+    const phoneHint = document.getElementById('posCreditPhoneHint');
+    if (!creditSw || !creditSw.checked) {
+        if (alertCustomer) alertCustomer.classList.add('d-none');
+        if (phoneHint) phoneHint.classList.add('d-none');
+        return;
+    }
+
+    const isInvalidClient = !selectedCustomer.id || selectedCustomer.document === '222222222222';
+    if (alertCustomer) alertCustomer.classList.toggle('d-none', !isInvalidClient);
+
+    const missingPhone = !isInvalidClient && (!selectedCustomer.phone || String(selectedCustomer.phone).trim() === '');
+    if (phoneHint) phoneHint.classList.toggle('d-none', !missingPhone);
+}
+
 function onCustomerDropdownSelect(selectEl) {
     const opt = selectEl.options[selectEl.selectedIndex];
     if (selectEl.value && opt) {
         const id = parseInt(selectEl.value, 10);
         const name = opt.getAttribute('data-name');
-        const doc = opt.getAttribute('data-doc');
-        selectCustomer(id, name, doc);
+        const doc = opt.getAttribute('data-doc') || '';
+        const phone = opt.getAttribute('data-phone') || '';
+        selectCustomer(id, name, doc, phone);
         selectEl.value = '';
     }
 }
@@ -1179,7 +1211,7 @@ function selectCustomer(id, name, doc, phone = '') {
     selectedCustomer = {
         id: id || null,
         name: name || 'CONSUMIDOR FINAL',
-        document: doc || '222222222222',
+        document: id ? (doc || '') : (doc || '222222222222'),
         phone: phone || ''
     };
 
@@ -1187,7 +1219,11 @@ function selectCustomer(id, name, doc, phone = '') {
     const nameEl = document.getElementById('displayCustomerName');
     if (nameEl) nameEl.textContent = selectedCustomer.name;
     const docEl = document.getElementById('displayCustomerDoc');
-    if (docEl) docEl.textContent = 'CC/NIT: ' + selectedCustomer.document;
+    if (docEl) {
+        docEl.textContent = selectedCustomer.document
+            ? ('CC/NIT: ' + selectedCustomer.document)
+            : (selectedCustomer.phone ? ('Tel: ' + selectedCustomer.phone) : 'Cliente registrado');
+    }
 
     const iconEl = document.getElementById('posCustomerIcon');
     if (iconEl) {
@@ -1209,9 +1245,9 @@ function selectCustomer(id, name, doc, phone = '') {
         if (id) {
             let optExists = Array.from(payCustSel.options).some(o => o.value == id);
             if (!optExists) {
-                const newOpt = new Option(`${name} (${doc || 'Sin doc'})${phone ? ' | Tel: ' + phone : ''}`, id, true, true);
+                const newOpt = new Option(formatPosCustomerOptionLabel(name, doc, phone), id, true, true);
                 newOpt.dataset.name = name;
-                newOpt.dataset.doc = doc || '222222222222';
+                newOpt.dataset.doc = doc || '';
                 newOpt.dataset.phone = phone || '';
                 payCustSel.add(newOpt);
             }
@@ -1227,9 +1263,9 @@ function selectCustomer(id, name, doc, phone = '') {
         if (id) {
             let optExists = Array.from(lateralSel.options).some(o => o.value == id);
             if (!optExists) {
-                const newOpt = new Option(`${name} (${doc || 'Sin doc'})`, id, true, true);
+                const newOpt = new Option(formatPosCustomerOptionLabel(name, doc, phone), id, true, true);
                 newOpt.dataset.name = name;
-                newOpt.dataset.doc = doc || '222222222222';
+                newOpt.dataset.doc = doc || '';
                 newOpt.dataset.phone = phone || '';
                 lateralSel.add(newOpt);
             }
@@ -1240,15 +1276,7 @@ function selectCustomer(id, name, doc, phone = '') {
     }
 
     // Si crédito está activo, verificar validación
-    const creditSw = document.getElementById('posCreditSwitch');
-    if (creditSw && creditSw.checked) {
-        const alertCustomer = document.getElementById('posCreditCustomerAlert');
-        if (!selectedCustomer.id || selectedCustomer.document === '222222222222') {
-            if (alertCustomer) alertCustomer.classList.remove('d-none');
-        } else {
-            if (alertCustomer) alertCustomer.classList.add('d-none');
-        }
-    }
+    updatePosCreditValidationFeedback();
 
     const modalEl = document.getElementById('customerModal');
     if (modalEl) {
@@ -1263,7 +1291,7 @@ function onPosLateralCustomerSelect(sel) {
     if (!opt) return;
     const id = sel.value ? parseInt(sel.value, 10) : null;
     const name = opt.dataset.name || 'CONSUMIDOR FINAL';
-    const doc = opt.dataset.doc || '222222222222';
+    const doc = id ? (opt.dataset.doc || '') : (opt.dataset.doc || '222222222222');
     const phone = opt.dataset.phone || '';
     selectCustomer(id, name, doc, phone);
 }
@@ -1330,7 +1358,7 @@ function onPayModalCustomerSelectChange(sel) {
     if (!opt) return;
     const id = sel.value ? parseInt(sel.value, 10) : null;
     const name = opt.dataset.name || 'CONSUMIDOR FINAL';
-    const doc = opt.dataset.doc || '222222222222';
+    const doc = id ? (opt.dataset.doc || '') : (opt.dataset.doc || '222222222222');
     const phone = opt.dataset.phone || '';
 
     selectedCustomer = { id, name, document: doc, phone };
@@ -1339,7 +1367,11 @@ function onPayModalCustomerSelectChange(sel) {
     const dispName = document.getElementById('displayCustomerName');
     if (dispName) dispName.textContent = name;
     const dispDoc = document.getElementById('displayCustomerDoc');
-    if (dispDoc) dispDoc.textContent = 'CC/NIT: ' + doc;
+    if (dispDoc) {
+        dispDoc.textContent = doc
+            ? ('CC/NIT: ' + doc)
+            : (phone ? ('Tel: ' + phone) : 'Cliente registrado');
+    }
     const resetBtn = document.getElementById('btnPosResetCustomer');
     if (resetBtn) {
         if (id || (doc && doc !== '222222222222')) {
@@ -1350,15 +1382,7 @@ function onPayModalCustomerSelectChange(sel) {
     }
 
     // Si crédito está activado, verificar validación de inmediato
-    const creditSw = document.getElementById('posCreditSwitch');
-    if (creditSw && creditSw.checked) {
-        const alertCustomer = document.getElementById('posCreditCustomerAlert');
-        if (!selectedCustomer.id || selectedCustomer.document === '222222222222') {
-            if (alertCustomer) alertCustomer.classList.remove('d-none');
-        } else {
-            if (alertCustomer) alertCustomer.classList.add('d-none');
-        }
-    }
+    updatePosCreditValidationFeedback();
 }
 
 function saveCustomCustomer() {
@@ -1747,24 +1771,17 @@ function togglePosCreditMode(isCredit) {
     const creditFields = document.getElementById('posCreditFields');
     const stdPayments = document.getElementById('posStandardPaymentSection');
     const btn = document.getElementById('btnSubmitSale');
-    const alertCustomer = document.getElementById('posCreditCustomerAlert');
 
     if (isCredit) {
         if (creditFields) creditFields.classList.remove('d-none');
         if (stdPayments) stdPayments.classList.add('d-none');
         if (btn) btn.innerHTML = '<i class="bi bi-wallet2 fs-5"></i> <span class="fs-6">Registrar Venta a Crédito</span>';
-
-        // Validar si el cliente actual es consumidor final
-        if (!selectedCustomer.id || selectedCustomer.document === '222222222222') {
-            if (alertCustomer) alertCustomer.classList.remove('d-none');
-        } else {
-            if (alertCustomer) alertCustomer.classList.add('d-none');
-        }
+        updatePosCreditValidationFeedback();
     } else {
         if (creditFields) creditFields.classList.add('d-none');
         if (stdPayments) stdPayments.classList.remove('d-none');
         if (btn) btn.innerHTML = '<i class="bi bi-check2-circle fs-5"></i> <span class="fs-6">Registrar Venta</span>';
-        if (alertCustomer) alertCustomer.classList.add('d-none');
+        updatePosCreditValidationFeedback();
         if (typeof recalculatePaymentSummary === 'function') {
             recalculatePaymentSummary();
         }
@@ -1778,7 +1795,7 @@ async function submitSale() {
 
     if (isCredit) {
         if (!selectedCustomer.id || selectedCustomer.document === '222222222222') {
-            califitNotify('Para otorgar crédito debe seleccionar un cliente registrado con nombre y teléfono. No permitido para Consumidor Final.', 'danger', 'Cliente Obligatorio');
+            califitNotify('Para otorgar crédito debe seleccionar un cliente registrado. No permitido para Consumidor Final.', 'danger', 'Cliente Obligatorio');
             // Abrir modal de selección de cliente
             const custModal = new bootstrap.Modal(document.getElementById('customerModal'));
             custModal.show();

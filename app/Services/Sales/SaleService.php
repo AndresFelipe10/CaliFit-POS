@@ -167,12 +167,8 @@ class SaleService
                     throw new InvalidArgumentException('Está terminantemente prohibido otorgar crédito al Consumidor Final genérico (documento 222222222222).');
                 }
 
-                if (empty(trim((string) $creditCustomer->phone))) {
-                    throw new InvalidArgumentException('El cliente debe contar con un número de teléfono de contacto verificable para acceder a ventas a crédito.');
-                }
-
                 $customerName = $creditCustomer->name;
-                $customerDoc = $creditCustomer->document;
+                $customerDoc = $creditCustomer->document ?: null;
                 $primaryPaymentMethod = 'credit';
                 $processedPayments = [];
             } else {

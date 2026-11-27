@@ -58,6 +58,21 @@ class Customer extends Model
         $this->attributes['address'] = $value;
     }
 
+    public function getDisplayLabelAttribute(): string
+    {
+        $parts = [$this->name];
+
+        if (! empty($this->document) && $this->document !== '222222222222') {
+            $parts[] = $this->document;
+        }
+
+        if (! empty($this->phone)) {
+            $parts[] = 'Tel: ' . $this->phone;
+        }
+
+        return implode(' · ', $parts);
+    }
+
     public function sales(): HasMany
     {
         return $this->hasMany(Sale::class);

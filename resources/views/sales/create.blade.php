@@ -260,9 +260,9 @@
                 <div id="quickCustomerErrors" class="alert alert-danger d-none small mb-3"></div>
 
                 <div class="mb-3">
-                    <label for="quick_customer_document" class="form-label small fw-semibold text-muted">Cédula o NIT <span class="text-danger">*</span></label>
-                    <input type="text" id="quick_customer_document" class="form-control font-monospace" placeholder="Ej: 1144001234 o 900123456-1" inputmode="numeric" required>
-                    <div class="form-text small">Solo dígitos (5-15) y guión opcional con dígito de verificación.</div>
+                    <label for="quick_customer_document" class="form-label small fw-semibold text-muted">Cédula o NIT <span class="text-muted fw-normal">(opcional)</span></label>
+                    <input type="text" id="quick_customer_document" class="form-control font-monospace" placeholder="Opcional · Ej: 1144001234" inputmode="numeric">
+                    <div class="form-text small">Opcional (solo dígitos). Recuerda que 222222222222 es solo para Consumidor Final.</div>
                 </div>
 
                 <div class="mb-3">

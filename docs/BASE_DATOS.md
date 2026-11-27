@@ -142,7 +142,7 @@ Este sistema NO utiliza multi-tenancy. No existe columna `business_id` ni tabla 
 |---|---|---|
 | `id` | BIGINT UNSIGNED PK | Identificador único |
 | `nombre` | VARCHAR(150) | Nombre completo |
-| `document` | VARCHAR(30) UNIQUE | Documento de identidad (formato DIAN) |
+| `document` | VARCHAR(30) UNIQUE NULLABLE | Documento de identidad opcional (formato DIAN; múltiples `NULL` permitidos) |
 | `email` | VARCHAR(150) NULLABLE | Correo electrónico |
 | `telefono` | VARCHAR(20) NULLABLE | Teléfono de contacto |
 | `direccion` | VARCHAR(255) NULLABLE | Dirección |
@@ -156,7 +156,7 @@ Este sistema NO utiliza multi-tenancy. No existe columna `business_id` ni tabla 
 | `user_id` | FK users | Cajero/mesero que registró la venta |
 | `customer_id` | FK customers NULLABLE | NULL = Consumidor Final |
 | `customer_name` | VARCHAR(150) | Snapshot inmutable del comprador |
-| `customer_document` | VARCHAR(30) | Snapshot inmutable del documento |
+| `customer_document` | VARCHAR(30) NULLABLE | Snapshot inmutable del documento (opcional cuando el cliente registrado no tiene documento) |
 | `invoice_number` | VARCHAR(30) UNIQUE | Consecutivo (`FAC-000001`) |
 | `restaurant_order_id` | FK restaurant_orders NULLABLE | Comanda asociada |
 | `order_type` | ENUM('retail', 'table', 'delivery', 'takeout') NULLABLE | Canal de venta |

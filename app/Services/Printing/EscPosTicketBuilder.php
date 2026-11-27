@@ -338,7 +338,9 @@ class EscPosTicketBuilder
                 $printer->text("MESERO:      " . $this->sanitizeText($sale->waiter_name) . "\n");
             }
             $printer->text("CLIENTE:     " . $this->sanitizeText($sale->customer_name ?: 'Consumidor Final') . "\n");
-            $printer->text("DOC/NIT:     " . ($sale->customer_document ?: '222222222222') . "\n");
+            if (!empty($sale->customer_document)) {
+                $printer->text("DOC/NIT:     " . $this->sanitizeText($sale->customer_document) . "\n");
+            }
             $printer->text("CANAL:       " . $canalLabel . "\n");
 
             if ($effectiveOrderType === 'delivery' && $ro) {

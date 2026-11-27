@@ -287,9 +287,10 @@ class SplitBillCreditAndUnitsTest extends TestCase
     }
 
     /**
-     * Escenario 2: Validación estricta de cliente con teléfono en crédito parcial (HTTP 422).
+     * Escenario 2: Validación estricta de Consumidor Final en crédito parcial (HTTP 422),
+     * y aceptación oficial de cliente registrado sin teléfono ni documento en División y Cobrar Total.
      */
-    public function test_split_credit_rejects_final_consumer_and_customer_without_phone(): void
+    public function test_split_credit_rejects_final_consumer_and_allows_customer_without_phone_or_document(): void
     {
         [$order, $item] = $this->createOrderWithQuantity(2);
 
@@ -306,20 +307,7 @@ class SplitBillCreditAndUnitsTest extends TestCase
         );
         $resFinal->assertStatus(422)->assertJsonValidationErrors('customer_id');
 
-        // 2. Cliente sin teléfono registrado debe ser rechazado con 422
-        $resNoPhone = $this->actingAs($this->employee)->postJson(
-            route('restaurant.orders.split-settle', $order),
-            [
-                'split_type' => 'items',
-                'items' => [['item_id' => $item->id, 'quantity' => 1]],
-                'is_credit' => true,
-                'customer_id' => $this->customerWithoutPhone->id,
-                'credit_due_date' => now()->addDays(7)->format('Y-m-d'),
-            ]
-        );
-        $resNoPhone->assertStatus(422)->assertJsonValidationErrors('customer_id');
-
-        // 3. Sin customer_id también debe fallar con 422
+        // 2. Sin customer_id también debe fallar con 422
         $resMissing = $this->actingAs($this->employee)->postJson(
             route('restaurant.orders.split-settle', $order),
             [
@@ -330,9 +318,67 @@ class SplitBillCreditAndUnitsTest extends TestCase
         );
         $resMissing->assertStatus(422)->assertJsonValidationErrors('customer_id');
 
-        // Ningún movimiento ni venta creada
-        $this->assertSame(0, Sale::count());
-        $this->assertEquals(1000.000, (float) $this->insumoCarne->fresh()->stock);
+        // 3. Cliente registrado sin documento ni teléfono SÍ puede recibir crédito desde División por Platos
+        $clienteSoloNombre = Customer::create([
+            'name' => 'Mariana Solo Nombre',
+            'document' => null,
+            'phone' => null,
+            'is_active' => true,
+        ]);
+
+        $resPartialCredit = $this->actingAs($this->employee)->postJson(
+            route('restaurant.orders.split-settle', $order),
+            [
+                'split_type' => 'items',
+                'items' => [['item_id' => $item->id, 'quantity' => 1]],
+                'is_credit' => true,
+                'customer_id' => $clienteSoloNombre->id,
+                'credit_due_date' => now()->addDays(7)->format('Y-m-d'),
+            ]
+        );
+        $resPartialCredit->assertOk()
+            ->assertJsonPath('is_credit', true)
+            ->assertJsonPath('is_order_closed', false);
+
+        $creditSale1 = Sale::findOrFail($resPartialCredit->json('sale_id'));
+        $this->assertTrue((bool) $creditSale1->is_credit);
+        $this->assertNull($creditSale1->customer_document);
+        $this->assertEquals(800.000, (float) $this->insumoCarne->fresh()->stock);
+
+        // 4. Cobrar Total a crédito para cliente sin teléfono también está permitido y cierra la comanda
+        $resSettleCredit = $this->actingAs($this->employee)->postJson(
+            route('restaurant.orders.settle', $order),
+            [
+                'customer_id' => $this->customerWithoutPhone->id,
+                'customer_name' => $this->customerWithoutPhone->name,
+                'customer_document' => $this->customerWithoutPhone->document,
+                'is_credit' => true,
+                'credit_due_date' => now()->addDays(7)->format('Y-m-d'),
+                'items' => [
+                    [
+                        'product_id' => $this->platoEjecutivo->id,
+                        'quantity' => 1,
+                        'additions' => [],
+                    ],
+                ],
+                'payments' => [],
+            ]
+        );
+        $resSettleCredit->assertOk()->assertJsonPath('success', true);
+
+        $this->assertEquals('closed', $order->fresh()->status);
+        $this->assertEquals('available', $this->table->fresh()->status);
+        $this->assertEquals(600.000, (float) $this->insumoCarne->fresh()->stock);
+
+        // Cartera muestra los créditos y Cuadre de Caja aísla ambos créditos de caja hoy
+        $this->actingAs($this->admin)->get(route('credit.index'))
+            ->assertOk()
+            ->assertSee('Mariana Solo Nombre');
+
+        $this->actingAs($this->admin)->get(route('cash-register.index'))
+            ->assertOk()
+            ->assertViewHas('creditSalesTotal', 50000.0)
+            ->assertViewHas('totalCollected', 0.0);
     }
 
     /**
@@ -545,5 +591,69 @@ class SplitBillCreditAndUnitsTest extends TestCase
         $overRequest->assertStatus(422);
         $this->assertEquals(1, $item->fresh()->pending_quantity);
         $this->assertEquals(600.000, (float) $this->insumoCarne->fresh()->stock);
+    }
+
+    /**
+     * Escenario 6: UX Mobile-First, selección por fila completa, documento opcional y aviso sutil sin teléfono.
+     */
+    public function test_split_modal_ux_markup_row_selection_optional_document_and_subtle_phone_hint(): void
+    {
+        [$order, $item] = $this->createOrderWithQuantity(2);
+
+        $clienteSinDocNiTel = Customer::create([
+            'name' => 'Camilo Sin Doc',
+            'document' => null,
+            'phone' => null,
+            'is_active' => true,
+        ]);
+
+        $response = $this->actingAs($this->employee)->get(route('restaurant.orders.show', $order));
+        $response->assertOk();
+
+        // Controles UX Mobile-First y selección por fila completa
+        $response->assertSee('modal-fullscreen-md-down', false);
+        $response->assertSee('split-unit-row', false);
+        $response->assertSee('toggleItemRowCheckbox(event,', false);
+        $response->assertSee('handleSplitRowKeydown(event,', false);
+        $response->assertSee('splitCreditCard', false);
+
+        // Aviso sutil no bloqueante de teléfono en ambos modales
+        $response->assertSee('splitCreditPhoneHint', false);
+        $response->assertSee('settleCreditPhoneHint', false);
+        $response->assertSee('Recomendado: agregar teléfono para seguimiento de cobro');
+
+        // Documento opcional en quickCustomerModal y etiqueta limpia sin "Sin doc" ni "Sin tel"
+        $response->assertSee('Cédula / Documento / NIT <span class="text-muted fw-normal">(Opcional)</span>:', false);
+        $response->assertSee('Camilo Sin Doc');
+        $response->assertDontSee('(Sin doc - Tel: Sin tel)');
+
+        // Registrar 2 clientes nuevos sin documento y verificar rechazo de duplicados no-null y 222222222222
+        $res1 = $this->actingAs($this->employee)->postJson(route('customers.store'), [
+            'name' => 'Cliente Uno Opcional',
+            'document' => '',
+            'phone' => '',
+        ]);
+        $res1->assertStatus(201);
+
+        $res2 = $this->actingAs($this->employee)->postJson(route('customers.store'), [
+            'name' => 'Cliente Dos Opcional',
+            'document' => null,
+        ]);
+        $res2->assertStatus(201);
+
+        $this->assertNull(Customer::where('name', 'Cliente Uno Opcional')->firstOrFail()->document);
+        $this->assertNull(Customer::where('name', 'Cliente Dos Opcional')->firstOrFail()->document);
+
+        // Si proporciona 222222222222 sigue rechazándose
+        $this->actingAs($this->employee)->postJson(route('customers.store'), [
+            'name' => 'Intento Consumidor Final',
+            'document' => '222222222222',
+        ])->assertStatus(422)->assertJsonValidationErrors('document');
+
+        // Documentos duplicados no nulos siguen rechazándose
+        $this->actingAs($this->employee)->postJson(route('customers.store'), [
+            'name' => 'Duplicado Doc',
+            'document' => $this->validCustomer->document,
+        ])->assertStatus(422)->assertJsonValidationErrors('document');
     }
 }

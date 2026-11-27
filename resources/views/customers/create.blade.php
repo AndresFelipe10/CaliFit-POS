@@ -44,15 +44,14 @@
                     </div>
 
                     <div class="col-md-5">
-                        <label for="document" class="form-label small fw-semibold text-secondary">Cédula / NIT / Identificación <span class="text-danger">*</span></label>
+                        <label for="document" class="form-label small fw-semibold text-secondary">Cédula / NIT / Identificación <span class="text-muted fw-normal">(Opcional)</span></label>
                         <input type="text" 
                                class="form-control font-monospace @error('document') is-invalid @enderror" 
                                id="document" 
                                name="document" 
                                value="{{ old('document', old('identification_number')) }}" 
-                               placeholder="Ej. 1144123456 o 900123456-1"
-                               inputmode="numeric"
-                               required>
+                               placeholder="Opcional · Ej. 1144123456"
+                               inputmode="numeric">
                         @error('document')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror

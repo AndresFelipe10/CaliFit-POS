@@ -135,8 +135,6 @@ class SplitAndSettleOrderRequest extends FormRequest
                     $cust = Customer::find($customerId);
                     if (! $cust || $cust->document === '222222222222' || str_contains(strtoupper($cust->name), 'CONSUMIDOR FINAL')) {
                         $v->errors()->add('customer_id', 'Está terminantemente prohibido otorgar crédito al Consumidor Final genérico (documento 222222222222). Debe seleccionar un cliente registrado.');
-                    } elseif (empty(trim((string) $cust->phone))) {
-                        $v->errors()->add('customer_id', 'El cliente seleccionado debe contar con un número de teléfono de contacto registrado para otorgar crédito.');
                     }
                 }
 

@@ -177,7 +177,7 @@
                 <div class="modal-body">
                     {{-- Alerta Informativa DIAN --}}
                     <div class="alert alert-info border-0 rounded-3 small py-2 mb-3">
-                        <i class="bi bi-info-circle-fill me-1"></i> Por resolución de la DIAN, el documento <code>222222222222</code> está reservado exclusivamente para Consumidor Final y no se puede registrar individualmente.
+                        <i class="bi bi-info-circle-fill me-1"></i> Opcional. Si ingresas documento, recuerda que <code>222222222222</code> está reservado exclusivamente para Consumidor Final y no se puede registrar individualmente.
                     </div>
 
                     <div class="mb-3">
@@ -188,8 +188,8 @@
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label fw-semibold text-dark small">Cédula / Documento / NIT <span class="text-danger">*</span></label>
-                        <input type="text" name="document" class="form-control font-monospace @error('document') is-invalid @enderror @error('document_number') is-invalid @enderror" placeholder="Ej: 1144123456" value="{{ old('document', old('document_number')) }}" required maxlength="30">
+                        <label class="form-label fw-semibold text-dark small">Cédula / Documento / NIT <span class="text-muted fw-normal">(Opcional)</span></label>
+                        <input type="text" name="document" class="form-control font-monospace @error('document') is-invalid @enderror @error('document_number') is-invalid @enderror" placeholder="Opcional · Ej: 1144123456" value="{{ old('document', old('document_number')) }}" maxlength="30">
                         @error('document') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         @error('document_number') <div class="invalid-feedback">{{ $message }}</div> @enderror
                     </div>
@@ -249,8 +249,8 @@
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label fw-semibold text-dark small">Cédula / Documento / NIT <span class="text-danger">*</span></label>
-                        <input type="text" name="document" id="edit_document" class="form-control font-monospace @error('document') is-invalid @enderror @error('document_number') is-invalid @enderror" required maxlength="30">
+                        <label class="form-label fw-semibold text-dark small">Cédula / Documento / NIT <span class="text-muted fw-normal">(Opcional)</span></label>
+                        <input type="text" name="document" id="edit_document" class="form-control font-monospace @error('document') is-invalid @enderror @error('document_number') is-invalid @enderror" placeholder="Opcional · Ej: 1144123456" maxlength="30">
                         @error('document') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         @error('document_number') <div class="invalid-feedback">{{ $message }}</div> @enderror
                     </div>

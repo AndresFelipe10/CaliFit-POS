@@ -179,16 +179,26 @@ class CustomerCreditManagementTest extends TestCase
     }
 
     /**
-     * Test 2: Rechazo de crédito si el cliente registrado no cuenta con teléfono de contacto.
+     * Test 2: Venta a crédito permitida para cliente registrado sin teléfono ni documento,
+     * manteniendo aislamiento de caja y trazabilidad en Cartera.
      */
-    public function test_credit_sale_is_rejected_if_customer_has_no_phone_number(): void
+    public function test_credit_sale_is_allowed_for_registered_customer_without_phone_or_document(): void
     {
         $this->actingAs($this->cajero);
 
+        $clienteSinDocNiTel = Customer::create([
+            'name' => 'Andrés Sin Doc Ni Tel',
+            'document' => null,
+            'phone' => null,
+            'is_active' => true,
+        ]);
+
+        $initialStock = (float) $this->suplementoProteina->fresh()->stock;
+
         $response = $this->postJson(route('pos.store'), [
-            'customer_id' => $this->clienteSinTelefono->id,
-            'customer_name' => $this->clienteSinTelefono->name,
-            'customer_document' => $this->clienteSinTelefono->document,
+            'customer_id' => $clienteSinDocNiTel->id,
+            'customer_name' => $clienteSinDocNiTel->name,
+            'customer_document' => null,
             'is_credit' => true,
             'credit_due_date' => now()->addDays(15)->format('Y-m-d'),
             'items' => [
@@ -200,8 +210,17 @@ class CustomerCreditManagementTest extends TestCase
             'payments' => []
         ]);
 
-        $response->assertStatus(422);
-        $response->assertJsonValidationErrors(['customer_id']);
+        $response->assertStatus(201);
+        $sale = Sale::findOrFail($response->json('sale_id'));
+        $this->assertTrue((bool) $sale->is_credit);
+        $this->assertEquals('pending', $sale->credit_status);
+        $this->assertNull($sale->customer_document);
+        $this->assertEquals($initialStock - 1, (float) $this->suplementoProteina->fresh()->stock);
+
+        $cartera = $this->actingAs($this->admin)->get(route('credit.index'));
+        $cartera->assertOk();
+        $cartera->assertSee('Andrés Sin Doc Ni Tel');
+        $cartera->assertDontSee('>null<', false);
     }
 
     /**

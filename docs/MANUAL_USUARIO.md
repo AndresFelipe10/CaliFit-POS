@@ -123,8 +123,8 @@ Si tu negocio tiene habilitado el perfil de **Restaurante**, dispondrás de mód
    - Se descuentan automáticamente los insumos e ingredientes del inventario de acuerdo con las recetas de cada plato.
    - La comanda se cierra (`closed`) y la mesa se libera automáticamente a **LIBRE (`available`)**.
 4. **División de Cuenta por Platos (Unitaria y con Venta a Crédito / Fiado)**:
-   - Si en una mesa se pidieron varias unidades de un mismo plato (ej. 3 ejecutivos), el modal **"División de Cuenta por Platos"** desagrega automáticamente cada unidad (`Unidad 1 de 3`, `Unidad 2 de 3`, `Unidad 3 de 3`) para cobrar o emitir **Pre-cuenta Parcial** de solo las unidades deseadas.
-   - También es posible activar **"Despachar bajo Venta a Crédito / Fiado"** sobre los platos o unidades seleccionados, asignando obligatoriamente un cliente registrado con teléfono y fecha límite. La factura parcial queda pendiente en **Cartera / Fiados** sin sumar dinero en caja hasta su abono real, dejando la mesa ocupada/`EN COBRO` por los platos restantes hasta su liquidación final.
+   - Si en una mesa se pidieron varias unidades de un mismo plato (ej. 3 ejecutivos), el modal **"División de Cuenta por Platos"** desagrega automáticamente cada unidad (`Unidad 1 de 3`, `Unidad 2 de 3`, `Unidad 3 de 3`). Basta con **tocar cualquier parte de la fila/tarjeta** (en móvil o escritorio) para seleccionarla y cobrar o emitir **Pre-cuenta Parcial**.
+   - También es posible activar la tarjeta destacada **"Despachar bajo Venta a Crédito / Fiado"** sobre las unidades seleccionadas, eligiendo un cliente registrado (o creándolo al instante solo con su **Nombre Completo**; tanto la Cédula/NIT como el Teléfono son opcionales, aunque si falta teléfono verás un aviso sutil recomendado para cobro). La factura parcial queda pendiente en **Cartera / Fiados** sin sumar dinero en caja hasta su abono real, dejando la mesa ocupada/`EN COBRO` por los platos restantes hasta su liquidación final.
 
 ### 5. Cuadre de Caja Diario Adaptativo para Restaurantes
 1. En el menú **Cuadre de Caja**, los restaurantes disfrutan de un desglose especializado:

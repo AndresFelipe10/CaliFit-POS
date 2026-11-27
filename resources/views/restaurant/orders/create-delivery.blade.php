@@ -634,10 +634,12 @@ document.addEventListener('DOMContentLoaded', function () {
                             nameStrong.textContent = cust.name;
                             headerDiv.appendChild(nameStrong);
 
-                            const docBadge = document.createElement('span');
-                            docBadge.className = 'badge bg-light text-dark border font-monospace';
-                            docBadge.textContent = cust.document || 'Sin doc';
-                            headerDiv.appendChild(docBadge);
+                            if (cust.document) {
+                                const docBadge = document.createElement('span');
+                                docBadge.className = 'badge bg-light text-dark border font-monospace';
+                                docBadge.textContent = cust.document;
+                                headerDiv.appendChild(docBadge);
+                            }
 
                             btn.appendChild(headerDiv);
 

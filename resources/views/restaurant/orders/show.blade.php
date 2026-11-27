@@ -3,6 +3,122 @@
 @section('title', "Comanda {$order->order_number} | SaborCaliFit")
 
 @section('content')
+<style>
+    #splitBillModal .modal-content {
+        overflow-x: hidden;
+    }
+    #splitBillModal .min-w-0 {
+        min-width: 0;
+    }
+    #splitBillModal .split-unit-row {
+        cursor: pointer;
+        user-select: none;
+        min-height: 52px;
+        transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    #splitBillModal .split-unit-row.is-selected {
+        background-color: #ECFDF5 !important;
+        box-shadow: inset 3px 0 0 #10B981;
+    }
+    #splitBillModal .split-unit-row:focus-visible {
+        outline: 2px solid #10B981;
+        outline-offset: -2px;
+    }
+    #splitBillModal .split-credit-card {
+        border: 1.5px solid #E2E8F0;
+        border-radius: 14px;
+        background-color: #FFFFFF;
+        transition: border-color 0.2s ease, background-color 0.2s ease;
+    }
+    #splitBillModal .split-credit-card.is-credit-active {
+        border-color: #F59E0B;
+        background-color: #FFFBEB;
+    }
+    #splitBillModal .split-unit-subtotal,
+    #splitBillModal .split-total-num {
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+    }
+    #splitBillModal .split-touch-btn {
+        min-height: 44px;
+    }
+    @media (max-width: 767.98px) {
+        #splitBillModal .modal-body {
+            padding: 1rem !important;
+        }
+        #splitBillModal .split-items-scroll {
+            max-height: none !important;
+            overflow-x: hidden !important;
+            overflow-y: visible !important;
+        }
+        #splitBillModal .split-items-table,
+        #splitBillModal .split-items-table tbody {
+            display: block;
+            width: 100%;
+        }
+        #splitBillModal .split-items-table thead {
+            display: none;
+        }
+        #splitBillModal .split-items-table tbody tr {
+            display: flex;
+            flex-wrap: nowrap;
+            align-items: flex-start;
+            gap: 0.75rem;
+            width: 100%;
+            padding: 0.85rem 0.75rem;
+            border: 1px solid #E5E7EB;
+            border-radius: 12px;
+            margin-bottom: 0.65rem;
+            background-color: #FFFFFF;
+            box-sizing: border-box;
+        }
+        #splitBillModal .split-items-table tbody tr.is-selected {
+            border-color: #6EE7B7;
+            background-color: #ECFDF5 !important;
+            box-shadow: inset 3px 0 0 #10B981;
+        }
+        #splitBillModal .split-items-table tbody tr td {
+            display: block;
+            border: 0 !important;
+            padding: 0 !important;
+            background: transparent !important;
+        }
+        #splitBillModal .split-items-table tbody tr td.split-cell-check {
+            flex: 0 0 auto;
+            padding-top: 2px !important;
+        }
+        #splitBillModal .split-items-table tbody tr td.split-cell-info {
+            flex: 1 1 auto;
+            min-width: 0;
+        }
+        #splitBillModal .split-items-table tbody tr td.split-cell-qty {
+            display: none;
+        }
+        #splitBillModal .split-items-table tbody tr td.split-cell-subtotal {
+            flex: 0 0 auto;
+            text-align: right;
+            margin-left: auto;
+        }
+        #splitBillModal .split-items-table tbody tr.split-empty-row {
+            display: block;
+            text-align: center;
+            padding: 1.5rem 1rem;
+        }
+        #splitBillModal .split-items-table tbody tr.split-empty-row td {
+            width: 100%;
+        }
+        #splitBillModal .split-col-items {
+            border-right: 0 !important;
+            border-bottom: 1px solid #E5E7EB;
+            padding-bottom: 1rem;
+        }
+        #splitBillModal .split-col-summary-scroll {
+            max-height: none !important;
+            overflow: visible !important;
+            padding-right: 0 !important;
+        }
+    }
+</style>
 <div class="container-fluid px-2 px-md-3 py-3" style="max-width: 1300px;">
 
     {{-- ENCABEZADO DE LA COMANDA --}}
@@ -810,8 +926,8 @@
                                             <option value="">-- Seleccione un cliente registrado --</option>
                                             @foreach($customers as $c)
                                                 @if($c->document !== '222222222222')
-                                                    <option value="{{ $c->id }}" data-doc="{{ $c->document }}" data-phone="{{ $c->phone }}" data-name="{{ $c->name }}" {{ $order->customer_id == $c->id ? 'selected' : '' }}>
-                                                        {{ $c->name }} ({{ $c->document ?: 'Sin doc' }} - Tel: {{ $c->phone ?: 'Sin tel' }})
+                                                    <option value="{{ $c->id }}" data-doc="{{ $c->document ?? '' }}" data-phone="{{ $c->phone ?? '' }}" data-name="{{ $c->name }}" {{ $order->customer_id == $c->id ? 'selected' : '' }}>
+                                                        {{ $c->display_label }}
                                                     </option>
                                                 @endif
                                             @endforeach
@@ -821,7 +937,13 @@
                                         </button>
                                     </div>
                                     <div id="settleCreditCustomerError" class="text-danger small mt-1 d-none fw-semibold">
-                                        <i class="bi bi-x-circle me-1"></i>El cliente debe tener teléfono registrado para otorgar crédito.
+                                        <i class="bi bi-x-circle me-1"></i>Debe seleccionar un cliente registrado distinto a Consumidor Final.
+                                    </div>
+                                    <div id="settleCreditPhoneHint" class="mt-1.5 d-none">
+                                        <span class="badge rounded-pill fw-normal px-2.5 py-1 d-inline-flex align-items-center gap-1 text-wrap text-start" style="background-color: #FEF3C7; color: #92400E; border: 1px solid #FDE68A; font-size: 0.74rem;">
+                                            <i class="bi bi-info-circle flex-shrink-0"></i>
+                                            <span>Recomendado: agregar teléfono para seguimiento de cobro</span>
+                                        </span>
                                     </div>
                                 </div>
 
@@ -910,11 +1032,11 @@
                                         </div>
                                         <div class="input-group input-group-sm">
                                             <select id="settleCustomerSelect" class="form-select form-select-sm">
-                                                <option value="" data-name="Consumidor Final" data-doc="222222222222">Consumidor Final (222222222222)</option>
+                                                <option value="" data-name="Consumidor Final" data-doc="222222222222" data-phone="">Consumidor Final (222222222222)</option>
                                                 @foreach($customers as $c)
                                                     @if($c->document !== '222222222222')
-                                                        <option value="{{ $c->id }}" data-name="{{ $c->name }}" data-doc="{{ $c->document }}" {{ ($order->customer_id == $c->id) ? 'selected' : '' }}>
-                                                            {{ $c->name }} ({{ $c->document ?: 'Sin doc' }})
+                                                        <option value="{{ $c->id }}" data-name="{{ $c->name }}" data-doc="{{ $c->document ?? '' }}" data-phone="{{ $c->phone ?? '' }}" {{ ($order->customer_id == $c->id) ? 'selected' : '' }}>
+                                                            {{ $c->display_label }}
                                                         </option>
                                                     @endif
                                                 @endforeach
@@ -1029,49 +1151,52 @@
 
 {{-- MODAL DE DIVISIÓN DE CUENTA POR PLATOS --}}
 <div class="modal fade" id="splitBillModal" tabindex="-1" aria-labelledby="splitBillModalLabel" aria-hidden="true" data-bs-backdrop="static">
-    <div class="modal-dialog modal-xl modal-dialog-centered">
+    <div class="modal-dialog modal-xl modal-fullscreen-md-down modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
-            <div class="modal-header d-flex align-items-center justify-content-between pb-3 border-bottom bg-white py-3 px-4">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="p-2 rounded-3 bg-success-subtle text-success d-flex align-items-center justify-content-center" style="width: 44px; height: 44px;">
-                        <i class="bi bi-pie-chart-fill fs-4"></i>
+            <div class="modal-header d-flex align-items-start align-items-md-center justify-content-between gap-2 pb-3 border-bottom bg-white py-3 px-3 px-md-4">
+                <div class="d-flex align-items-start align-items-md-center gap-2.5 min-w-0 flex-grow-1">
+                    <div class="p-2 rounded-3 bg-success-subtle text-success d-none d-sm-flex align-items-center justify-content-center flex-shrink-0" style="width: 42px; height: 42px;">
+                        <i class="bi bi-pie-chart-fill fs-5"></i>
                     </div>
-                    <div>
-                        <div class="d-flex align-items-center gap-2">
-                            <h5 class="modal-title fw-bold text-dark mb-0">División de Cuenta por Platos</h5>
-                            <span class="badge bg-light text-secondary border fw-normal" style="font-size: 0.75rem;">{{ $order->table ? (str_starts_with(trim($order->table->name), 'Mesa') ? $order->table->name : 'Mesa ' . $order->table->name) : 'Salón' }}</span>
+                    <div class="min-w-0 flex-grow-1">
+                        <div class="d-flex align-items-center flex-wrap gap-2">
+                            <h5 class="modal-title fw-bold text-dark mb-0 fs-6 fs-md-5" id="splitBillModalLabel">División de Cuenta por Platos</h5>
+                            <span class="badge bg-light text-secondary border fw-normal flex-shrink-0" style="font-size: 0.74rem;">{{ $order->table ? (str_starts_with(trim($order->table->name), 'Mesa') ? $order->table->name : 'Mesa ' . $order->table->name) : 'Salón' }}</span>
                         </div>
-                        <p class="text-muted small mb-0 mt-0.5">
-                            Comanda <strong class="text-dark">{{ $order->order_number }}</strong> &bull; Total comanda: <strong class="text-dark font-monospace">${{ number_format($order->total, 0, ',', '.') }}</strong>
-                            &bull; Saldo pendiente: <strong class="text-success font-monospace" id="splitModalPendingAmount">${{ number_format($order->pending_amount, 0, ',', '.') }}</strong>
-                        </p>
+                        <div class="text-muted small mb-0 mt-1 d-flex flex-wrap align-items-center gap-x-2 gap-y-1" style="column-gap: 0.5rem; row-gap: 0.15rem;">
+                            <span>Comanda <strong class="text-dark">{{ $order->order_number }}</strong></span>
+                            <span class="text-secondary opacity-50">&bull;</span>
+                            <span>Total: <strong class="text-dark font-monospace split-total-num">${{ number_format($order->total, 0, ',', '.') }}</strong></span>
+                            <span class="text-secondary opacity-50">&bull;</span>
+                            <span>Pendiente: <strong class="text-success font-monospace split-total-num" id="splitModalPendingAmount">${{ number_format($order->pending_amount, 0, ',', '.') }}</strong></span>
+                        </div>
                     </div>
                 </div>
-                <button type="button" class="btn-close ms-auto" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                <button type="button" class="btn-close flex-shrink-0 ms-1" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
 
-            <div class="modal-body p-4 bg-white">
-                <div class="row g-4">
+            <div class="modal-body p-3 p-md-4 bg-white">
+                <div class="row g-3 g-lg-4">
                     {{-- COLUMNA IZQUIERDA: SELECCIÓN DE PLATOS --}}
-                    <div class="col-lg-7 border-end">
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <div>
+                    <div class="col-12 col-lg-7 min-w-0 border-lg-end split-col-items" style="border-color: #E5E7EB;">
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                            <div class="min-w-0">
                                 <h6 class="fw-bold text-dark mb-0">Platos y Consumos de la Comanda</h6>
-                                <span class="small text-muted">Seleccione los platos que pagará este comensal:</span>
+                                <span class="small text-muted d-block">Toque cualquier plato para seleccionarlo:</span>
                             </div>
-                            <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-semibold" id="btnToggleSelectAll" onclick="toggleSelectAllUnpaidItems()">
+                            <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-semibold flex-shrink-0" style="min-height: 38px;" id="btnToggleSelectAll" onclick="toggleSelectAllUnpaidItems()">
                                 Marcar todos
                             </button>
                         </div>
 
-                        <div class="table-responsive" style="max-height: 420px; overflow-y: auto;">
-                            <table class="table table-hover align-middle mb-0">
+                        <div class="table-responsive split-items-scroll" style="max-height: 460px; overflow-y: auto;">
+                            <table class="table table-hover align-middle mb-0 split-items-table">
                                 <thead class="table-light small">
                                     <tr>
                                         <th style="width: 44px;" class="text-center">✓</th>
                                         <th>Plato / Consumo</th>
-                                        <th class="text-center" style="width: 70px;">Cant.</th>
-                                        <th class="text-end" style="width: 120px;">Subtotal</th>
+                                        <th class="text-center" style="width: 68px;">Cant.</th>
+                                        <th class="text-end" style="width: 115px;">Subtotal</th>
                                     </tr>
                                 </thead>
                                 <tbody id="splitItemsTbody">
@@ -1079,23 +1204,29 @@
                                         $unpaidCount = count($splitUnitRows ?? []);
                                     @endphp
                                     @forelse(($splitUnitRows ?? []) as $row)
-                                        <tr style="cursor: pointer;" onclick="toggleItemRowCheckbox(event, '{{ $row['row_key'] }}')">
-                                            <td class="text-center" onclick="event.stopPropagation()">
-                                                <input type="checkbox" class="form-check-input split-item-checkbox" 
+                                        <tr class="split-unit-row"
+                                            data-split-row-key="{{ $row['row_key'] }}"
+                                            tabindex="0"
+                                            role="checkbox"
+                                            aria-checked="false"
+                                            onclick="toggleItemRowCheckbox(event, '{{ $row['row_key'] }}')"
+                                            onkeydown="handleSplitRowKeydown(event, '{{ $row['row_key'] }}')">
+                                            <td class="text-center split-cell-check">
+                                                <input type="checkbox" class="form-check-input split-item-checkbox m-0"
                                                        id="split_row_{{ $row['row_key'] }}"
-                                                       value="{{ $row['row_key'] }}" 
+                                                       value="{{ $row['row_key'] }}"
                                                        data-item-id="{{ $row['item_id'] }}"
                                                        data-quantity="{{ $row['quantity'] }}"
-                                                       data-subtotal="{{ $row['subtotal'] }}" 
+                                                       data-subtotal="{{ $row['subtotal'] }}"
                                                        data-additions='@json($row['additions'])'
                                                        onchange="calculateItemSplitTotal()"
-                                                       style="width: 1.25rem; height: 1.25rem; cursor: pointer;">
+                                                       style="width: 1.35rem; height: 1.35rem; cursor: pointer;">
                                             </td>
-                                            <td>
-                                                <label for="split_row_{{ $row['row_key'] }}" class="fw-bold text-dark mb-0 d-flex align-items-center flex-wrap gap-1" style="cursor: pointer;">
-                                                    <span>{{ $row['product_name'] }}</span>
+                                            <td class="split-cell-info">
+                                                <label for="split_row_{{ $row['row_key'] }}" class="fw-bold text-dark mb-0 d-flex align-items-center flex-wrap gap-1.5" style="cursor: pointer;">
+                                                    <span class="text-break">{{ $row['product_name'] }}</span>
                                                     @if(!empty($row['unit_label']))
-                                                        <span class="badge bg-light text-secondary border fw-normal" style="font-size: 0.7rem;">
+                                                        <span class="badge bg-light text-secondary border fw-normal flex-shrink-0" style="font-size: 0.72rem;">
                                                             {{ $row['unit_label'] }}
                                                         </span>
                                                     @endif
@@ -1108,11 +1239,11 @@
                                                     </div>
                                                 @endif
                                             </td>
-                                            <td class="text-center font-monospace">{{ (float)$row['quantity'] }}</td>
-                                            <td class="text-end fw-bold text-dark font-monospace">${{ number_format($row['subtotal'], 0, ',', '.') }}</td>
+                                            <td class="text-center font-monospace split-cell-qty">{{ (float)$row['quantity'] }}</td>
+                                            <td class="text-end fw-bold text-dark font-monospace split-cell-subtotal split-unit-subtotal">${{ number_format($row['subtotal'], 0, ',', '.') }}</td>
                                         </tr>
                                     @empty
-                                        <tr>
+                                        <tr class="split-empty-row">
                                             <td colspan="4" class="text-center py-4 text-muted">
                                                 <i class="bi bi-check-circle text-success fs-2 d-block mb-1"></i>
                                                 ¡Todos los platos de la comanda ya han sido liquidados!
@@ -1132,12 +1263,12 @@
                                             @if(!empty($prevItemsSummary))
                                                 @foreach($prevItemsSummary as $pItem)
                                                     <tr class="table-light opacity-75">
-                                                        <td class="text-center">
-                                                            <input type="checkbox" class="form-check-input" checked disabled style="width: 1.25rem; height: 1.25rem;">
+                                                        <td class="text-center split-cell-check">
+                                                            <input type="checkbox" class="form-check-input m-0" checked disabled style="width: 1.35rem; height: 1.35rem;">
                                                         </td>
-                                                        <td>
-                                                            <div class="text-muted text-decoration-line-through">{{ $pItem['product_name'] ?? 'Plato' }}</div>
-                                                            <div class="d-flex flex-wrap align-items-center gap-1 mt-0.5">
+                                                        <td class="split-cell-info">
+                                                            <div class="text-muted text-decoration-line-through text-break">{{ $pItem['product_name'] ?? 'Plato' }}</div>
+                                                            <div class="d-flex flex-wrap align-items-center gap-1 mt-1">
                                                                 @if($prevIsCredit)
                                                                     <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle rounded-pill px-2 py-0.5" style="font-size: 0.68rem;">
                                                                         <i class="bi bi-wallet2 me-1"></i>A Crédito / Fiado
@@ -1147,11 +1278,11 @@
                                                                         <i class="bi bi-check2-all me-1"></i>Pagado
                                                                     </span>
                                                                 @endif
-                                                                <small class="text-muted" style="font-size: 0.7rem;">{{ $prevCust }}{{ $prevSale ? ' • ' . $prevSale->invoice_number : '' }}</small>
+                                                                <small class="text-muted" style="font-size: 0.72rem;">{{ $prevCust }}{{ $prevSale ? ' · ' . $prevSale->invoice_number : '' }}</small>
                                                             </div>
                                                         </td>
-                                                        <td class="text-center text-muted font-monospace">{{ (float)($pItem['quantity'] ?? 1) }}</td>
-                                                        <td class="text-end text-muted font-monospace">${{ number_format($pItem['subtotal'] ?? 0, 0, ',', '.') }}</td>
+                                                        <td class="text-center text-muted font-monospace split-cell-qty">{{ (float)($pItem['quantity'] ?? 1) }}</td>
+                                                        <td class="text-end text-muted font-monospace split-cell-subtotal split-unit-subtotal">${{ number_format($pItem['subtotal'] ?? 0, 0, ',', '.') }}</td>
                                                     </tr>
                                                 @endforeach
                                             @endif
@@ -1159,17 +1290,17 @@
                                     @else
                                         @foreach($order->items->where('status', '!=', 'cancelled')->where('is_paid', true) as $paidItem)
                                             <tr class="table-light opacity-75">
-                                                <td class="text-center">
-                                                    <input type="checkbox" class="form-check-input" checked disabled style="width: 1.25rem; height: 1.25rem;">
+                                                <td class="text-center split-cell-check">
+                                                    <input type="checkbox" class="form-check-input m-0" checked disabled style="width: 1.35rem; height: 1.35rem;">
                                                 </td>
-                                                <td>
-                                                    <div class="text-muted text-decoration-line-through">{{ $paidItem->product->nombre }}</div>
+                                                <td class="split-cell-info">
+                                                    <div class="text-muted text-decoration-line-through text-break">{{ $paidItem->product->nombre }}</div>
                                                     <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2 py-0.5 mt-1" style="font-size: 0.7rem;">
                                                         <i class="bi bi-check2-all me-1"></i>Pagado
                                                     </span>
                                                 </td>
-                                                <td class="text-center text-muted font-monospace">{{ (float)$paidItem->quantity }}</td>
-                                                <td class="text-end text-muted font-monospace">${{ number_format($paidItem->subtotal, 0, ',', '.') }}</td>
+                                                <td class="text-center text-muted font-monospace split-cell-qty">{{ (float)$paidItem->quantity }}</td>
+                                                <td class="text-end text-muted font-monospace split-cell-subtotal split-unit-subtotal">${{ number_format($paidItem->subtotal, 0, ',', '.') }}</td>
                                             </tr>
                                         @endforeach
                                     @endif
@@ -1179,210 +1310,227 @@
                     </div>
 
                     {{-- COLUMNA DERECHA: LIQUIDACIÓN Y COBRO --}}
-                    <div class="col-lg-5">
-                        <div class="card p-3.5 border-0 rounded-4 bg-light h-100 d-flex flex-column justify-content-between shadow-sm">
-                            <div style="max-height: 560px; overflow-y: auto; padding-right: 4px;">
-                                <div class="border-bottom pb-2 mb-2.5">
+                    <div class="col-12 col-lg-5 min-w-0">
+                        <div class="card p-3 p-md-3.5 border-0 rounded-4 bg-light h-100 d-flex flex-column justify-content-between shadow-sm">
+                            <div class="split-col-summary-scroll" style="max-height: 580px; overflow-y: auto; padding-right: 2px;">
+                                <div class="border-bottom pb-2.5 mb-3">
                                     <h6 class="fw-bold text-dark mb-0.5"><i class="bi bi-receipt-cutoff text-success me-1"></i>Liquidación de Platos Seleccionados</h6>
-                                    <small class="text-muted" id="splitItemsCountDisplay" style="font-size: 0.74rem;">0 plato(s) / ítem(s) seleccionados</small>
+                                    <small class="text-muted" id="splitItemsCountDisplay" style="font-size: 0.78rem;">0 plato(s) / ítem(s) seleccionados</small>
                                 </div>
 
-                                {{-- 0. Opción Venta a Crédito / Fiado --}}
-                                <div class="card p-2.5 border rounded-3 mb-2.5 bg-white">
-                                    <div class="form-check form-switch d-flex align-items-center justify-content-between ps-0 mb-0">
-                                        <label class="form-check-label small fw-bold text-dark cursor-pointer mb-0" for="splitCreditSwitch">
-                                            <i class="bi bi-wallet2 text-danger me-1"></i> Despachar bajo Venta a Crédito / Fiado
+                                {{-- 0. Bloque Destacado: Venta a Crédito / Fiado --}}
+                                <div class="split-credit-card p-3 mb-3" id="splitCreditCard">
+                                    <div class="d-flex align-items-center justify-content-between gap-3">
+                                        <label class="d-flex align-items-center gap-2.5 mb-0 min-w-0 flex-grow-1" for="splitCreditSwitch" style="cursor: pointer;">
+                                            <span class="rounded-3 bg-warning-subtle text-warning-emphasis d-inline-flex align-items-center justify-content-center flex-shrink-0" style="width: 36px; height: 36px;">
+                                                <i class="bi bi-wallet2 fs-6"></i>
+                                            </span>
+                                            <span class="min-w-0">
+                                                <span class="fw-bold text-dark d-block" style="font-size: 0.9rem; line-height: 1.25;">Despachar bajo Venta a Crédito / Fiado</span>
+                                                <small class="text-muted d-block" style="font-size: 0.74rem;">Enviar platos seleccionados a Cartera</small>
+                                            </span>
                                         </label>
-                                        <input class="form-check-input ms-2" type="checkbox" id="splitCreditSwitch" onchange="toggleSplitCreditMode(this.checked)" autocomplete="off" style="width: 2.3em; height: 1.25em; cursor: pointer;">
+                                        <div class="form-check form-switch m-0 p-0 flex-shrink-0">
+                                            <input class="form-check-input m-0" type="checkbox" id="splitCreditSwitch" onchange="toggleSplitCreditMode(this.checked)" autocomplete="off" style="width: 2.75rem; height: 1.45rem; cursor: pointer;">
+                                        </div>
                                     </div>
-                                    <div id="splitCreditFields" class="mt-2.5 pt-2.5 border-top d-none">
-                                        <div class="alert alert-warning py-2 px-2.5 rounded-3 small mb-2 d-flex align-items-center" style="font-size: 0.76rem;">
-                                            <i class="bi bi-exclamation-triangle-fill text-warning me-2 fs-5 flex-shrink-0"></i>
+                                    <div id="splitCreditFields" class="mt-3 pt-3 border-top d-none">
+                                        <div class="alert alert-warning py-2 px-2.5 rounded-3 small mb-2.5 d-flex align-items-start gap-2" style="font-size: 0.76rem;">
+                                            <i class="bi bi-exclamation-triangle-fill text-warning flex-shrink-0 mt-0.5"></i>
                                             <div>
                                                 <strong>Aislamiento de Caja:</strong> El inventario se descontará inmediatamente, pero no sumará dinero en caja hoy.
                                             </div>
                                         </div>
 
-                                        <div class="mb-2">
+                                        <div class="mb-2.5">
                                             <label class="form-label small fw-bold text-dark mb-1">Cliente Registrado Obligatorio: <span class="text-danger">*</span></label>
-                                            <div class="input-group input-group-sm mb-1">
+                                            <div class="input-group input-group-sm mb-1.5">
                                                 <span class="input-group-text bg-light text-muted"><i class="bi bi-search"></i></span>
-                                                <input type="text" class="form-control" placeholder="Filtrar por cédula, nombre o teléfono..." oninput="filterCustomerSelectBox(this.value, 'splitCreditCustomerSelect')" autocomplete="off">
+                                                <input type="text" class="form-control" placeholder="Filtrar por nombre, cédula o teléfono..." oninput="filterCustomerSelectBox(this.value, 'splitCreditCustomerSelect')" autocomplete="off">
                                             </div>
                                             <div class="input-group input-group-sm">
                                                 <select id="splitCreditCustomerSelect" class="form-select form-select-sm" onchange="onSplitCreditCustomerChange()">
                                                     <option value="">-- Seleccione un cliente registrado --</option>
                                                     @foreach($customers as $c)
                                                         @if($c->document !== '222222222222')
-                                                            <option value="{{ $c->id }}" data-doc="{{ $c->document }}" data-phone="{{ $c->phone }}" data-name="{{ $c->name }}" {{ $order->customer_id == $c->id ? 'selected' : '' }}>
-                                                                {{ $c->name }} ({{ $c->document ?: 'Sin doc' }} - Tel: {{ $c->phone ?: 'Sin tel' }})
+                                                            <option value="{{ $c->id }}" data-doc="{{ $c->document ?? '' }}" data-phone="{{ $c->phone ?? '' }}" data-name="{{ $c->name }}" {{ $order->customer_id == $c->id ? 'selected' : '' }}>
+                                                                {{ $c->display_label }}
                                                             </option>
                                                         @endif
                                                     @endforeach
                                                 </select>
-                                                <button type="button" class="btn btn-outline-success" onclick="openQuickCustomerModal('split_credit')" title="Crear Cliente Rápido">
+                                                <button type="button" class="btn btn-outline-success px-2.5" onclick="openQuickCustomerModal('split_credit')" title="Crear Cliente Rápido">
                                                     <i class="bi bi-person-plus-fill"></i>
                                                 </button>
                                             </div>
-                                            <div id="splitCreditCustomerError" class="text-danger small mt-1 d-none fw-semibold" style="font-size: 0.74rem;">
-                                                <i class="bi bi-x-circle me-1"></i>El cliente debe tener teléfono registrado para otorgar crédito.
+                                            <div id="splitCreditCustomerError" class="text-danger small mt-1.5 d-none fw-semibold" style="font-size: 0.75rem;">
+                                                <i class="bi bi-x-circle me-1"></i>Debe seleccionar un cliente registrado distinto a Consumidor Final.
+                                            </div>
+                                            <div id="splitCreditPhoneHint" class="mt-1.5 d-none">
+                                                <span class="badge rounded-pill fw-normal px-2.5 py-1 d-inline-flex align-items-center gap-1 text-wrap text-start" style="background-color: #FEF3C7; color: #92400E; border: 1px solid #FDE68A; font-size: 0.74rem;">
+                                                    <i class="bi bi-info-circle flex-shrink-0"></i>
+                                                    <span>Recomendado: agregar teléfono para seguimiento de cobro</span>
+                                                </span>
                                             </div>
                                         </div>
 
                                         <div class="row g-2">
-                                            <div class="col-6">
+                                            <div class="col-12 col-sm-6">
                                                 <label class="form-label small fw-bold text-dark mb-1" style="font-size: 0.74rem;">Fecha Límite de Pago:</label>
                                                 <input type="date" id="splitCreditDueDate" class="form-control form-control-sm" value="{{ now()->addDays(15)->format('Y-m-d') }}">
                                             </div>
-                                            <div class="col-6">
+                                            <div class="col-12 col-sm-6">
                                                 <label class="form-label small fw-bold text-dark mb-1" style="font-size: 0.74rem;">Estado de Cartera:</label>
-                                                <input type="text" class="form-control form-control-sm bg-light fw-bold text-warning-emphasis" readonly value="PENDIENTE DE COBRO">
+                                                <input type="text" class="form-control form-control-sm bg-white fw-bold text-warning-emphasis" readonly value="PENDIENTE DE COBRO">
                                             </div>
                                         </div>
                                     </div>
                                 </div>
 
-                                {{-- 1. Cliente (Contado) y Descuento (%) --}}
-                                <div class="row g-2 mb-2.5">
-                                    <div class="col-7" id="splitStandardClientWrapper">
+                                {{-- 1. Cliente (Contado) y Descuento (%) en filas amplias --}}
+                                <div class="mb-3">
+                                    <div class="mb-2.5" id="splitStandardClientWrapper">
                                         <label class="form-label small fw-bold text-dark mb-1">
                                             <i class="bi bi-person text-success me-1"></i>Cliente / Comprador:
                                         </label>
-                                        <div class="input-group input-group-sm mb-1">
-                                            <span class="input-group-text bg-light text-muted"><i class="bi bi-search"></i></span>
-                                            <input type="text" class="form-control" placeholder="Filtrar cliente..." oninput="filterCustomerSelectBox(this.value, 'splitItemCustomerSelect')" autocomplete="off">
+                                        <div class="input-group input-group-sm mb-1.5">
+                                            <span class="input-group-text bg-white text-muted"><i class="bi bi-search"></i></span>
+                                            <input type="text" class="form-control" placeholder="Filtrar cliente por nombre, cédula o teléfono..." oninput="filterCustomerSelectBox(this.value, 'splitItemCustomerSelect')" autocomplete="off">
                                         </div>
                                         <div class="input-group input-group-sm">
                                             <select id="splitItemCustomerSelect" class="form-select form-select-sm">
-                                                <option value="" data-name="Consumidor Final" data-doc="222222222222">Consumidor Final (222222222222)</option>
+                                                <option value="" data-name="Consumidor Final" data-doc="222222222222" data-phone="">Consumidor Final (222222222222)</option>
                                                 @foreach($customers as $c)
                                                     @if($c->document !== '222222222222')
-                                                        <option value="{{ $c->id }}" data-name="{{ $c->name }}" data-doc="{{ $c->document }}" data-phone="{{ $c->phone }}">
-                                                            {{ $c->name }} ({{ $c->document ?: 'Sin doc' }})
+                                                        <option value="{{ $c->id }}" data-name="{{ $c->name }}" data-doc="{{ $c->document ?? '' }}" data-phone="{{ $c->phone ?? '' }}">
+                                                            {{ $c->display_label }}
                                                         </option>
                                                     @endif
                                                 @endforeach
                                             </select>
-                                            <button type="button" class="btn btn-outline-success" onclick="openQuickCustomerModal('split')" title="Crear Cliente Rápido">
+                                            <button type="button" class="btn btn-outline-success px-2.5" onclick="openQuickCustomerModal('split')" title="Crear Cliente Rápido">
                                                 <i class="bi bi-person-plus-fill"></i>
                                             </button>
                                         </div>
                                     </div>
-                                    <div class="col-5" id="splitDiscountWrapper">
-                                        <label class="form-label small fw-bold text-dark mb-1">
-                                            <i class="bi bi-tag text-danger me-1"></i>Descuento (%):
-                                        </label>
-                                        <div class="input-group input-group-sm">
-                                            <button type="button" class="btn btn-outline-secondary px-2" onclick="changeSplitDiscount(-5)">-</button>
-                                            <input type="number" id="splitItemDiscountPercent" class="form-control text-center fw-bold" min="0" max="100" step="5" value="0" oninput="onSplitDiscountInput()">
-                                            <button type="button" class="btn btn-outline-secondary px-2" onclick="changeSplitDiscount(5)">+</button>
+
+                                    <div id="splitDiscountWrapper">
+                                        <div class="d-flex justify-content-between align-items-center gap-2 bg-white border rounded-3 px-2.5 py-2">
+                                            <label class="form-label small fw-bold text-dark mb-0 flex-shrink-0">
+                                                <i class="bi bi-tag text-danger me-1"></i>Descuento (%):
+                                            </label>
+                                            <div class="input-group input-group-sm" style="max-width: 148px;">
+                                                <button type="button" class="btn btn-outline-secondary px-2.5 fw-bold" style="min-height: 36px;" onclick="changeSplitDiscount(-5)">-</button>
+                                                <input type="number" id="splitItemDiscountPercent" class="form-control text-center fw-bold" min="0" max="100" step="5" value="0" oninput="onSplitDiscountInput()">
+                                                <button type="button" class="btn btn-outline-secondary px-2.5 fw-bold" style="min-height: 36px;" onclick="changeSplitDiscount(5)">+</button>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
 
                                 {{-- 2. Switches Táctiles de Propina e Impuesto --}}
-                                <div class="card p-2.5 border rounded-3 mb-2.5 bg-white">
+                                <div class="card p-2.5 p-md-3 border rounded-3 mb-3 bg-white">
                                     @if($order->order_type === 'table')
-                                        <div class="d-flex align-items-center justify-content-between mb-1.5">
-                                            <div>
+                                        <div class="d-flex align-items-center justify-content-between gap-3 mb-2">
+                                            <div class="min-w-0">
                                                 <label class="form-check-label small fw-bold text-dark cursor-pointer d-block mb-0" for="splitItemTipSwitch">
                                                     <i class="bi bi-heart-fill text-success me-1"></i>Propina Voluntaria (10%)
                                                 </label>
-                                                <small class="text-muted" style="font-size: 0.72rem;">Sugerido voluntario</small>
+                                                <small class="text-muted d-block" style="font-size: 0.72rem;">Sugerido voluntario</small>
                                             </div>
-                                            <div class="form-check form-switch m-0">
-                                                <input class="form-check-input" type="checkbox" id="splitItemTipSwitch" onchange="toggleSplitTip(this.checked)" style="width: 2.3em; height: 1.25em; cursor: pointer;">
+                                            <div class="form-check form-switch m-0 p-0 flex-shrink-0">
+                                                <input class="form-check-input m-0" type="checkbox" id="splitItemTipSwitch" onchange="toggleSplitTip(this.checked)" style="width: 2.5rem; height: 1.35rem; cursor: pointer;">
                                             </div>
                                         </div>
-                                        <div id="splitItemTipCustomContainer" class="d-none pt-1.5 border-top mb-1">
+                                        <div id="splitItemTipCustomContainer" class="d-none pt-2 border-top mb-2">
                                             <div class="input-group input-group-sm">
                                                 <span class="input-group-text bg-light text-muted small">Monto Propina: $</span>
                                                 <input type="text" inputmode="numeric" id="splitItemTipAmount" class="form-control form-control-sm text-end fw-bold text-success font-monospace cop-currency-input" value="0" oninput="onSplitTipAmountChange()">
                                             </div>
                                         </div>
                                     @endif
-                                    <div class="d-flex align-items-center justify-content-between pt-1.5 {{ $order->order_type === 'table' ? 'border-top' : '' }}">
-                                        <div>
+                                    <div class="d-flex align-items-center justify-content-between gap-3 {{ $order->order_type === 'table' ? 'pt-2 border-top' : '' }}">
+                                        <div class="min-w-0">
                                             <label class="form-check-label small fw-bold text-dark cursor-pointer d-block mb-0" for="splitItemTaxSwitch">
                                                 <i class="bi bi-receipt text-info me-1"></i>Impuesto (INC 8%)
                                             </label>
-                                            <small class="text-muted" style="font-size: 0.72rem;">Consumo gravable nacional</small>
+                                            <small class="text-muted d-block" style="font-size: 0.72rem;">Consumo gravable nacional</small>
                                         </div>
-                                        <div class="form-check form-switch m-0">
-                                            <input class="form-check-input" type="checkbox" id="splitItemTaxSwitch" onchange="toggleSplitTax(this.checked)" style="width: 2.3em; height: 1.25em; cursor: pointer;">
+                                        <div class="form-check form-switch m-0 p-0 flex-shrink-0">
+                                            <input class="form-check-input m-0" type="checkbox" id="splitItemTaxSwitch" onchange="toggleSplitTax(this.checked)" style="width: 2.5rem; height: 1.35rem; cursor: pointer;">
                                         </div>
                                     </div>
                                 </div>
 
                                 {{-- 3. Tarjeta de Desglose Dinámico --}}
-                                <div class="card p-2.5 border-0 rounded-3 mb-2.5" style="background-color: #F9FAFB; border: 1px solid #E5E7EB !important;">
-                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                <div class="card p-3 border rounded-3 mb-3 bg-white" id="splitSummaryCard">
+                                    <div class="d-flex justify-content-between align-items-center gap-2 mb-1.5">
                                         <span class="text-muted small">Subtotal Platos (<span id="splitSummaryCountBadge">0</span> ref):</span>
-                                        <span class="fw-semibold font-monospace text-dark" id="splitSummarySubtotal">$0</span>
+                                        <span class="fw-semibold font-monospace text-dark split-total-num" id="splitSummarySubtotal">$0</span>
                                     </div>
-                                    <div class="d-flex justify-content-between align-items-center mb-1 d-none" id="splitSummaryDiscountRow">
+                                    <div class="d-flex justify-content-between align-items-center gap-2 mb-1.5 d-none" id="splitSummaryDiscountRow">
                                         <span class="text-danger small">Descuento (<span id="splitSummaryDiscountPercent">0</span>%):</span>
-                                        <span class="fw-bold font-monospace text-danger" id="splitSummaryDiscount">-$0</span>
+                                        <span class="fw-bold font-monospace text-danger split-total-num" id="splitSummaryDiscount">-$0</span>
                                     </div>
-                                    <div class="d-flex justify-content-between align-items-center mb-1 d-none" id="splitSummaryTipRow">
+                                    <div class="d-flex justify-content-between align-items-center gap-2 mb-1.5 d-none" id="splitSummaryTipRow">
                                         <span class="text-success small"><i class="bi bi-heart me-1"></i>Propina voluntaria:</span>
-                                        <span class="fw-bold font-monospace text-success" id="splitSummaryTip">+$0</span>
+                                        <span class="fw-bold font-monospace text-success split-total-num" id="splitSummaryTip">+$0</span>
                                     </div>
-                                    <div class="d-flex justify-content-between align-items-center mb-1 d-none" id="splitSummaryTaxRow">
+                                    <div class="d-flex justify-content-between align-items-center gap-2 mb-1.5 d-none" id="splitSummaryTaxRow">
                                         <span class="text-info-emphasis small"><i class="bi bi-receipt me-1"></i>Impuesto (INC 8%):</span>
-                                        <span class="fw-bold font-monospace text-dark" id="splitSummaryTax">+$0</span>
+                                        <span class="fw-bold font-monospace text-dark split-total-num" id="splitSummaryTax">+$0</span>
                                     </div>
-                                    <hr class="my-1.5 border-secondary opacity-25">
-                                    <div class="d-flex justify-content-between align-items-center">
+                                    <hr class="my-2 border-secondary opacity-25">
+                                    <div class="d-flex justify-content-between align-items-center gap-2">
                                         <span class="fw-bold text-dark small text-uppercase">Total a Liquidar:</span>
-                                        <h3 class="fw-black font-monospace mb-0" id="splitItemsSelectedTotal" style="color: #10B981;">$0</h3>
+                                        <h3 class="fw-black font-monospace mb-0 split-total-num" id="splitItemsSelectedTotal" style="color: #10B981;">$0</h3>
                                     </div>
                                 </div>
 
                                 {{-- 4. Métodos de Pago Mixtos y Atajos de Efectivo --}}
-                                <div class="mb-2.5" id="splitStandardPaymentsSection">
-                                    <div class="d-flex justify-content-between align-items-center mb-1.5">
+                                <div class="mb-3" id="splitStandardPaymentsSection">
+                                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
                                         <label class="form-label small fw-bold text-dark mb-0">
                                             <i class="bi bi-wallet2 text-success me-1"></i>Métodos de Pago:
                                         </label>
-                                        <button type="button" class="btn btn-sm btn-outline-success py-0.5 px-2.5 rounded-pill fw-semibold" onclick="addSplitPaymentLine()" id="btnSplitAddPayment" style="font-size: 0.74rem;">
-                                            <i class="bi bi-plus-circle me-1"></i> Agregar otro medio
+                                        <button type="button" class="btn btn-sm btn-outline-success py-1 px-2.5 rounded-pill fw-semibold flex-shrink-0" onclick="addSplitPaymentLine()" id="btnSplitAddPayment" style="font-size: 0.74rem; white-space: nowrap;">
+                                            <i class="bi bi-plus-circle me-1"></i>Agregar otro medio
                                         </button>
                                     </div>
 
                                     {{-- Alerta informativa cuando no hay platos seleccionados --}}
-                                    <div id="splitNoItemsAlert" class="alert alert-info py-2 px-3 rounded-3 small mb-2 d-flex align-items-center">
-                                        <i class="bi bi-info-circle-fill me-2 fs-5 text-info"></i>
-                                        <span>Seleccione al menos un plato en la columna izquierda.</span>
+                                    <div id="splitNoItemsAlert" class="alert alert-info py-2 px-3 rounded-3 small mb-2 d-flex align-items-center gap-2">
+                                        <i class="bi bi-info-circle-fill fs-5 text-info flex-shrink-0"></i>
+                                        <span>Seleccione al menos un plato en la lista.</span>
                                     </div>
 
-                                    <div id="splitPaymentLinesContainer" class="vstack gap-1.5 mb-2"></div>
+                                    <div id="splitPaymentLinesContainer" class="vstack gap-2 mb-2"></div>
 
                                     {{-- Barra de Resumen en Tiempo Real y Atajos Rápidos de Efectivo --}}
                                     <div class="pt-2 border-top" id="splitCashShortcuts">
-                                        <div class="d-flex align-items-center justify-content-between mb-1.5">
-                                            <span class="small text-muted fw-semibold" style="font-size: 0.74rem;">
-                                                <i class="bi bi-shield-check text-success me-1"></i>Total cubierto: <strong class="text-dark font-monospace" id="splitCoveredText">$0</strong>
+                                        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                                            <span class="small text-muted fw-semibold" style="font-size: 0.75rem;">
+                                                <i class="bi bi-shield-check text-success me-1"></i>Total cubierto: <strong class="text-dark font-monospace split-total-num" id="splitCoveredText">$0</strong>
                                             </span>
-                                            <span class="badge bg-light text-muted border font-monospace px-2 py-1" id="splitCoveredBadge" style="font-size: 0.72rem;">$0 (Exacto)</span>
+                                            <span class="badge bg-light text-muted border font-monospace px-2 py-1 text-wrap text-start" id="splitCoveredBadge" style="font-size: 0.72rem;">$0 (Exacto)</span>
                                         </div>
-                                        <div class="d-flex align-items-center justify-content-between mb-1">
+                                        <div class="d-flex align-items-center justify-content-between mb-1.5">
                                             <span class="small text-muted fw-semibold" style="font-size: 0.72rem;"><i class="bi bi-lightning-charge text-warning me-1"></i>Atajos Efectivo:</span>
                                         </div>
-                                        <div class="d-flex flex-wrap gap-1">
-                                            <button type="button" class="btn btn-sm btn-outline-secondary px-2 py-0.5 fw-semibold rounded-2" style="font-size: 0.74rem;" onclick="setSplitCashQuick('exact')">✓ Exacto</button>
-                                            <button type="button" class="btn btn-sm btn-outline-secondary px-2 py-0.5 fw-semibold rounded-2" style="font-size: 0.74rem;" onclick="setSplitCashQuick(10000)">$10.000</button>
-                                            <button type="button" class="btn btn-sm btn-outline-secondary px-2 py-0.5 fw-semibold rounded-2" style="font-size: 0.74rem;" onclick="setSplitCashQuick(20000)">$20.000</button>
-                                            <button type="button" class="btn btn-sm btn-outline-secondary px-2 py-0.5 fw-semibold rounded-2" style="font-size: 0.74rem;" onclick="setSplitCashQuick(50000)">$50.000</button>
-                                            <button type="button" class="btn btn-sm btn-outline-secondary px-2 py-0.5 fw-semibold rounded-2" style="font-size: 0.74rem;" onclick="setSplitCashQuick(100000)">$100.000</button>
+                                        <div class="d-flex flex-wrap gap-1.5">
+                                            <button type="button" class="btn btn-sm btn-outline-secondary px-2.5 py-1 fw-semibold rounded-2" style="font-size: 0.75rem; min-height: 36px;" onclick="setSplitCashQuick('exact')">✓ Exacto</button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary px-2.5 py-1 fw-semibold rounded-2" style="font-size: 0.75rem; min-height: 36px;" onclick="setSplitCashQuick(10000)">$10.000</button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary px-2.5 py-1 fw-semibold rounded-2" style="font-size: 0.75rem; min-height: 36px;" onclick="setSplitCashQuick(20000)">$20.000</button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary px-2.5 py-1 fw-semibold rounded-2" style="font-size: 0.75rem; min-height: 36px;" onclick="setSplitCashQuick(50000)">$50.000</button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary px-2.5 py-1 fw-semibold rounded-2" style="font-size: 0.75rem; min-height: 36px;" onclick="setSplitCashQuick(100000)">$100.000</button>
                                         </div>
                                     </div>
 
                                     {{-- Caja Destacada de Cambio / Vuelto al Cliente --}}
-                                    <div class="p-2.5 rounded-3 mt-2" id="splitChangeBox" style="background-color: #ecfdf5; border: 1px solid #a7f3d0; transition: all 0.2s ease;">
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <span class="small fw-bold text-muted text-uppercase" style="font-size: 0.72rem;">Cambio / Vuelto al cliente:</span>
-                                            <h5 class="fw-black mb-0 text-success font-monospace" id="splitChangeDisplay">$0</h5>
+                                    <div class="p-2.5 rounded-3 mt-2.5" id="splitChangeBox" style="background-color: #ecfdf5; border: 1px solid #a7f3d0; transition: all 0.2s ease;">
+                                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                                            <span class="small fw-bold text-muted text-uppercase" style="font-size: 0.72rem;">Cambio / Vuelto:</span>
+                                            <h5 class="fw-black mb-0 text-success font-monospace split-total-num" id="splitChangeDisplay">$0</h5>
                                         </div>
                                     </div>
                                 </div>
@@ -1395,17 +1543,18 @@
                             </div>
 
                             {{-- 6. Botones de Acción --}}
-                            <div class="mt-3 pt-2 border-top">
-                                <div class="d-flex flex-column gap-2">
-                                    <button type="button" class="btn btn-outline-secondary w-100 py-2 rounded-pill fw-bold" id="btnPartialPreBill" onclick="printPartialPreBill()">
-                                        <i class="bi bi-printer me-1"></i> Imprimir Pre-cuenta (Platos Seleccionados)
+                            <div class="mt-3 pt-3 border-top">
+                                <div class="d-flex flex-column gap-2.5">
+                                    <button type="button" class="btn btn-outline-secondary w-100 py-2.5 rounded-pill fw-bold split-touch-btn d-flex justify-content-center align-items-center gap-2" id="btnPartialPreBill" onclick="printPartialPreBill()">
+                                        <i class="bi bi-printer"></i>
+                                        <span>Imprimir Pre-cuenta (Platos Seleccionados)</span>
                                     </button>
-                                    <button type="button" class="btn btn-success w-100 py-2.5 rounded-pill fw-bold shadow-sm d-flex justify-content-center align-items-center gap-2" id="btnSubmitItemSplit" onclick="submitItemSplit()" style="background-color: #10B981; border-color: #10B981;">
+                                    <button type="button" class="btn btn-success w-100 py-2.5 rounded-pill fw-bold shadow-sm split-touch-btn d-flex justify-content-center align-items-center gap-2" id="btnSubmitItemSplit" onclick="submitItemSplit()" style="background-color: #10B981; border-color: #10B981; min-height: 48px;">
                                         <i class="bi bi-cash-stack fs-5"></i>
                                         <span>Cobrar Platos e Imprimir Factura</span>
                                     </button>
                                 </div>
-                                <small class="text-muted text-center d-block mt-1.5" style="font-size: 0.72rem;">
+                                <small class="text-muted text-center d-block mt-2" style="font-size: 0.72rem;">
                                     Descuenta los platos de la comanda y mantiene pendientes los restantes hasta liberar la mesa.
                                 </small>
                             </div>
@@ -1429,17 +1578,18 @@
                 <button type="button" class="btn-close btn-close-white btn-sm" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
             <div class="modal-body p-3 bg-white">
-                <div class="mb-2">
+                <div class="mb-2.5">
                     <label class="form-label small fw-bold text-dark mb-1">Nombre Completo: <span class="text-danger">*</span></label>
                     <input type="text" id="quickCustomerName" name="name" class="form-control form-control-sm" required minlength="3" maxlength="100" placeholder="Nombre del cliente">
                 </div>
-                <div class="mb-2">
-                    <label class="form-label small fw-bold text-dark mb-1">Documento / Cédula:</label>
-                    <input type="text" id="quickCustomerDoc" name="document_number" inputmode="numeric" minlength="5" maxlength="12" class="form-control form-control-sm" placeholder="Ej. 1144...">
+                <div class="mb-2.5">
+                    <label class="form-label small fw-bold text-dark mb-1">Cédula / Documento / NIT <span class="text-muted fw-normal">(Opcional)</span>:</label>
+                    <input type="text" id="quickCustomerDoc" name="document_number" inputmode="numeric" maxlength="12" class="form-control form-control-sm" placeholder="Opcional · Ej. 1144...">
+                    <small class="text-muted d-block mt-0.5" style="font-size: 0.7rem;">Opcional. 222222222222 está reservado para Consumidor Final.</small>
                 </div>
                 <div class="mb-2">
-                    <label class="form-label small fw-bold text-dark mb-1">Teléfono:</label>
-                    <input type="tel" id="quickCustomerPhone" name="phone" inputmode="numeric" minlength="7" maxlength="10" class="form-control form-control-sm" placeholder="Ej. 315...">
+                    <label class="form-label small fw-bold text-dark mb-1">Teléfono <span class="text-muted fw-normal">(Opcional)</span>:</label>
+                    <input type="tel" id="quickCustomerPhone" name="phone" inputmode="numeric" maxlength="10" class="form-control form-control-sm" placeholder="Opcional · Ej. 315...">
                 </div>
             </div>
             <div class="modal-footer bg-light py-2 px-3 d-flex justify-content-end gap-2">
@@ -1695,6 +1845,13 @@ async function submitBatch() {
 // ==========================================
 let quickCustomerTarget = 'split';
 
+function formatOrderCustomerOptionLabel(name, doc, phone) {
+    const parts = [name];
+    if (doc && doc !== '222222222222') parts.push(doc);
+    if (phone) parts.push('Tel: ' + phone);
+    return parts.join(' · ');
+}
+
 function openQuickCustomerModal(target = 'split') {
     quickCustomerTarget = target;
     const form = document.getElementById('quickCustomerForm');
@@ -1745,21 +1902,20 @@ async function submitQuickCustomer(e) {
 
             const docVal = newCust.document_number || newCust.document || '';
             const phoneVal = newCust.phone || '';
+            const optLabel = formatOrderCustomerOptionLabel(newCust.name, docVal, phoneVal);
 
             // 1. Selector en división de platos (#splitBillModal - contado)
             if (splitSelect) {
-                const optTextSplit = `${newCust.name} (${docVal || 'S/D'}) - Tel: ${phoneVal || 'S/T'}`;
-                const newOptSplit = new Option(optTextSplit, newCust.id, true, true);
+                const newOptSplit = new Option(optLabel, newCust.id, true, true);
                 newOptSplit.dataset.name = newCust.name;
-                newOptSplit.dataset.doc = docVal || '222222222222';
+                newOptSplit.dataset.doc = docVal;
                 newOptSplit.dataset.phone = phoneVal;
                 splitSelect.add(newOptSplit);
             }
 
             // 1b. Selector de crédito obligatorio en división de platos (#splitBillModal)
             if (splitCreditSelect) {
-                const optTextSplitCredit = `${newCust.name} (${docVal || 'Sin doc'} - Tel: ${phoneVal || 'Sin tel'})`;
-                const newOptSplitCredit = new Option(optTextSplitCredit, newCust.id, true, true);
+                const newOptSplitCredit = new Option(optLabel, newCust.id, true, true);
                 newOptSplitCredit.dataset.doc = docVal;
                 newOptSplitCredit.dataset.phone = phoneVal;
                 newOptSplitCredit.dataset.name = newCust.name;
@@ -1768,18 +1924,16 @@ async function submitQuickCustomer(e) {
 
             // 2. Selector de facturación en liquidación (#settlementModal)
             if (settleSelect) {
-                const optTextSettle = `${newCust.name} (${docVal || 'S/D'}) - Tel: ${phoneVal || 'S/T'}`;
-                const newOptSettle = new Option(optTextSettle, newCust.id, true, true);
+                const newOptSettle = new Option(optLabel, newCust.id, true, true);
                 newOptSettle.dataset.name = newCust.name;
-                newOptSettle.dataset.doc = docVal || '222222222222';
+                newOptSettle.dataset.doc = docVal;
                 newOptSettle.dataset.phone = phoneVal;
                 settleSelect.add(newOptSettle);
             }
 
             // 3. Selector de crédito obligatorio (#settlementModal)
             if (settleCreditSelect) {
-                const optTextCredit = `${newCust.name} (${docVal || 'S/D'}) - Tel: ${phoneVal || 'S/T'}`;
-                const newOptCredit = new Option(optTextCredit, newCust.id, true, true);
+                const newOptCredit = new Option(optLabel, newCust.id, true, true);
                 newOptCredit.dataset.doc = docVal;
                 newOptCredit.dataset.phone = phoneVal;
                 newOptCredit.dataset.name = newCust.name;
@@ -2297,13 +2451,19 @@ function toggleSettleCreditMode(isCredit) {
 function onSettleCreditCustomerChange() {
     const sel = document.getElementById('settleCreditCustomerSelect');
     const err = document.getElementById('settleCreditCustomerError');
-    const selectedOpt = sel.options[sel.selectedIndex];
-    const phone = selectedOpt ? selectedOpt.dataset.phone : '';
+    const phoneHint = document.getElementById('settleCreditPhoneHint');
+    if (!sel) return;
 
-    if (!sel.value || !phone || phone.trim() === '') {
-        err.classList.remove('d-none');
-    } else {
-        err.classList.add('d-none');
+    const selectedOpt = sel.options[sel.selectedIndex];
+    const doc = selectedOpt ? (selectedOpt.dataset.doc || '').trim() : '';
+    const phone = selectedOpt ? (selectedOpt.dataset.phone || '').trim() : '';
+    const isValidCustomer = Boolean(sel.value) && doc !== '222222222222';
+
+    if (err) {
+        err.classList.toggle('d-none', isValidCustomer);
+    }
+    if (phoneHint) {
+        phoneHint.classList.toggle('d-none', !isValidCustomer || phone !== '');
     }
 }
 
@@ -2317,10 +2477,11 @@ async function submitSettle() {
     const taxAmount = settleTaxActive ? Math.round(baseAfterDiscount * 0.08) : 0;
     const tipAmount = settleTipActive ? settleTipAmount : 0;
 
+    const custIdVal = custSel && custSel.value ? parseInt(custSel.value) : null;
     let payload = {
-        customer_id: custSel && custSel.value ? parseInt(custSel.value) : null,
+        customer_id: custIdVal,
         customer_name: custOpt ? custOpt.dataset.name : 'Consumidor Final',
-        customer_document: custOpt ? custOpt.dataset.doc : '222222222222',
+        customer_document: custIdVal ? ((custOpt?.dataset.doc || '').trim() || null) : '222222222222',
         delivery_fee: ORDER_DELIVERY_FEE,
         discount_percentage: settleDiscountPercent,
         discount: discountAmount,
@@ -2332,19 +2493,15 @@ async function submitSettle() {
     if (isCredit) {
         const sel = document.getElementById('settleCreditCustomerSelect');
         const selectedOpt = sel.options[sel.selectedIndex];
-        if (!sel.value) {
-            califitNotify('Debe seleccionar un cliente registrado con teléfono para otorgar crédito.', 'warning', 'Cliente Obligatorio');
-            return;
-        }
-        const phone = selectedOpt.dataset.phone;
-        if (!phone || phone.trim() === '') {
-            califitNotify('El cliente seleccionado no cuenta con teléfono registrado. Actualice sus datos antes de otorgar crédito.', 'danger', 'Validación Crédito');
+        const doc = selectedOpt ? (selectedOpt.dataset.doc || '').trim() : '';
+        if (!sel.value || doc === '222222222222') {
+            califitNotify('Debe seleccionar un cliente registrado distinto a Consumidor Final para otorgar crédito.', 'warning', 'Cliente Obligatorio');
             return;
         }
 
         payload.customer_id = parseInt(sel.value);
         payload.customer_name = selectedOpt.dataset.name;
-        payload.customer_document = selectedOpt.dataset.doc;
+        payload.customer_document = doc || null;
         payload.is_credit = true;
         payload.credit_due_date = document.getElementById('settleCreditDueDate').value;
         payload.payments = [];
@@ -2443,39 +2600,66 @@ function openSplitBillModal() {
 }
 
 function toggleItemRowCheckbox(event, rowKey) {
-    if (event.target && (event.target.tagName === 'INPUT' || event.target.tagName === 'LABEL')) {
+    if (event.target && event.target.closest('input.split-item-checkbox, label[for]')) {
         return;
     }
     const cb = document.getElementById('split_row_' + rowKey);
     if (cb && !cb.disabled) {
         cb.checked = !cb.checked;
-        calculateItemSplitTotal();
+        cb.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+}
+
+function handleSplitRowKeydown(event, rowKey) {
+    if (event.key === ' ' || event.key === 'Enter') {
+        if (event.target && event.target.tagName === 'INPUT') {
+            return;
+        }
+        event.preventDefault();
+        const cb = document.getElementById('split_row_' + rowKey);
+        if (cb && !cb.disabled) {
+            cb.checked = !cb.checked;
+            cb.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+    }
+}
+
+function syncSplitRowVisualStates() {
+    document.querySelectorAll('.split-unit-row').forEach(row => {
+        const key = row.dataset.splitRowKey;
+        const cb = document.getElementById('split_row_' + key);
+        const isChecked = Boolean(cb && cb.checked);
+        row.classList.toggle('is-selected', isChecked);
+        row.setAttribute('aria-checked', isChecked ? 'true' : 'false');
+    });
+
+    const allCbs = document.querySelectorAll('.split-item-checkbox:not(:disabled)');
+    const btnAll = document.getElementById('btnToggleSelectAll');
+    if (btnAll && allCbs.length > 0) {
+        const anyUnchecked = Array.from(allCbs).some(cb => !cb.checked);
+        btnAll.innerText = anyUnchecked ? 'Marcar todos' : 'Desmarcar todos';
     }
 }
 
 function toggleSplitCreditMode(isCredit) {
     splitIsCredit = Boolean(isCredit);
+    const creditCard = document.getElementById('splitCreditCard');
     const creditFields = document.getElementById('splitCreditFields');
     const standardClientWrapper = document.getElementById('splitStandardClientWrapper');
-    const discountWrapper = document.getElementById('splitDiscountWrapper');
     const standardPayments = document.getElementById('splitStandardPaymentsSection');
+
+    if (creditCard) {
+        creditCard.classList.toggle('is-credit-active', splitIsCredit);
+    }
 
     if (splitIsCredit) {
         if (creditFields) creditFields.classList.remove('d-none');
         if (standardClientWrapper) standardClientWrapper.classList.add('d-none');
-        if (discountWrapper) {
-            discountWrapper.classList.remove('col-5');
-            discountWrapper.classList.add('col-12');
-        }
         if (standardPayments) standardPayments.classList.add('d-none');
         onSplitCreditCustomerChange();
     } else {
         if (creditFields) creditFields.classList.add('d-none');
         if (standardClientWrapper) standardClientWrapper.classList.remove('d-none');
-        if (discountWrapper) {
-            discountWrapper.classList.remove('col-12');
-            discountWrapper.classList.add('col-5');
-        }
         if (standardPayments) standardPayments.classList.remove('d-none');
     }
 
@@ -2486,21 +2670,26 @@ function isSplitCreditCustomerValid() {
     const sel = document.getElementById('splitCreditCustomerSelect');
     if (!sel || !sel.value) return false;
     const selectedOpt = sel.options[sel.selectedIndex];
-    const phone = selectedOpt ? (selectedOpt.dataset.phone || '').trim() : '';
     const doc = selectedOpt ? (selectedOpt.dataset.doc || '').trim() : '';
-    if (doc === '222222222222') return false;
-    return phone !== '';
+    return doc !== '222222222222';
 }
 
 function onSplitCreditCustomerChange() {
+    const sel = document.getElementById('splitCreditCustomerSelect');
     const err = document.getElementById('splitCreditCustomerError');
+    const phoneHint = document.getElementById('splitCreditPhoneHint');
+    const isValidCustomer = isSplitCreditCustomerValid();
+
     if (err) {
-        if (splitIsCredit && !isSplitCreditCustomerValid()) {
-            err.classList.remove('d-none');
-        } else {
-            err.classList.add('d-none');
-        }
+        err.classList.toggle('d-none', !splitIsCredit || isValidCustomer);
     }
+
+    if (phoneHint && sel) {
+        const selectedOpt = sel.options[sel.selectedIndex];
+        const phone = selectedOpt ? (selectedOpt.dataset.phone || '').trim() : '';
+        phoneHint.classList.toggle('d-none', !splitIsCredit || !isValidCustomer || phone !== '');
+    }
+
     updateSplitActionButtonState();
 }
 
@@ -2624,6 +2813,7 @@ function toggleSplitTax(checked) {
 
 function calculateItemSplitTotal() {
     const checkboxes = document.querySelectorAll('.split-item-checkbox:checked');
+    syncSplitRowVisualStates();
     let subtotal = 0;
     checkboxes.forEach(cb => {
         subtotal += parseFloat(cb.dataset.subtotal) || 0;
@@ -2757,11 +2947,11 @@ function renderSplitPaymentLines() {
         }
 
         div.innerHTML = `
-            <div class="row g-2 align-items-center">
+            <div class="row g-2 align-items-end">
                 {{-- Columna 1: Método de Pago --}}
-                <div class="col-12 col-sm-4">
+                <div class="col-12 col-sm-4 min-w-0">
                     <label class="form-label d-block text-muted mb-1 text-uppercase" style="font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em;">MÉTODO</label>
-                    <select class="form-select form-select-sm fw-semibold" onchange="updateSplitMethod(${idx}, this.value)">
+                    <select class="form-select form-select-sm fw-semibold" style="min-height: 38px;" onchange="updateSplitMethod(${idx}, this.value)">
                         <option value="cash" ${line.method === 'cash' ? 'selected' : ''}>💵 Efectivo</option>
                         <option value="nequi" ${line.method === 'nequi' || (line.method === 'transfer' && (!line.reference || !line.reference.includes('Daviplata'))) ? 'selected' : ''}>📲 Nequi</option>
                         <option value="daviplata" ${line.method === 'daviplata' || (line.reference && line.reference.includes('Daviplata')) ? 'selected' : ''}>📱 Daviplata</option>
@@ -2772,11 +2962,11 @@ function renderSplitPaymentLines() {
                 </div>
 
                 {{-- Columna 2: Monto a Cobrar --}}
-                <div class="col-6 col-sm-4">
-                    <label class="form-label d-block text-muted mb-1 text-uppercase" style="font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em;">MONTO A COBRAR</label>
+                <div class="col-6 col-sm-4 min-w-0">
+                    <label class="form-label d-block text-muted mb-1 text-uppercase" style="font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em;">MONTO</label>
                     <div class="input-group input-group-sm">
                         <span class="input-group-text bg-light fw-bold text-success">$</span>
-                        <input type="number" class="form-control text-end fw-bold text-dark split-amount-input no-spinners" 
+                        <input type="number" class="form-control text-end fw-bold text-dark split-amount-input no-spinners" style="min-height: 38px;"
                                data-idx="${idx}"
                                value="${line.amount}" step="0.01" min="0" placeholder="0" 
                                oninput="updateSplitAmount(${idx}, this.value)" 
@@ -2785,12 +2975,12 @@ function renderSplitPaymentLines() {
                 </div>
 
                 {{-- Columna 3: Recibido / Soporte + Botón Eliminar --}}
-                <div class="col-6 col-sm-4">
-                    <div class="d-flex justify-content-between align-items-center mb-1">
-                        <label class="form-label text-muted mb-0 text-uppercase" style="font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em;">RECIBIDO / SOPORTE</label>
+                <div class="col-6 col-sm-4 min-w-0">
+                    <div class="d-flex justify-content-between align-items-center mb-1 gap-1">
+                        <label class="form-label text-muted mb-0 text-uppercase text-truncate" style="font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em;">RECIBIDO / REF.</label>
                         ${splitPaymentLines.length > 1 ? `
-                            <button type="button" class="btn btn-outline-danger btn-xs p-0 rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 22px; height: 22px;" onclick="removeSplitLine(${idx})" title="Eliminar método">
-                                <i class="bi bi-trash" style="font-size: 0.68rem;"></i>
+                            <button type="button" class="btn btn-outline-danger btn-xs p-0 rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0" style="width: 24px; height: 24px;" onclick="removeSplitLine(${idx})" title="Eliminar método">
+                                <i class="bi bi-trash" style="font-size: 0.7rem;"></i>
                             </button>
                         ` : ''}
                     </div>
@@ -3062,25 +3252,16 @@ async function submitItemSplit() {
     if (splitIsCredit) {
         const creditSel = document.getElementById('splitCreditCustomerSelect');
         const selectedOpt = creditSel ? creditSel.options[creditSel.selectedIndex] : null;
-
-        if (!creditSel || !creditSel.value) {
-            califitNotify('Debe seleccionar un cliente registrado con teléfono para otorgar crédito.', 'warning', 'Cliente Obligatorio');
-            return;
-        }
-        const phone = selectedOpt ? (selectedOpt.dataset.phone || '').trim() : '';
         const doc = selectedOpt ? (selectedOpt.dataset.doc || '').trim() : '';
-        if (doc === '222222222222') {
-            califitNotify('Está prohibido otorgar crédito al Consumidor Final genérico.', 'danger', 'Validación Crédito');
-            return;
-        }
-        if (!phone) {
-            califitNotify('El cliente seleccionado no cuenta con teléfono registrado. Actualice sus datos antes de otorgar crédito.', 'danger', 'Validación Crédito');
+
+        if (!creditSel || !creditSel.value || doc === '222222222222') {
+            califitNotify('Debe seleccionar un cliente registrado distinto a Consumidor Final para otorgar crédito.', 'warning', 'Cliente Obligatorio');
             return;
         }
 
         payload.customer_id = parseInt(creditSel.value);
         payload.customer_name = selectedOpt.dataset.name;
-        payload.customer_document = doc;
+        payload.customer_document = doc || null;
         payload.credit_due_date = document.getElementById('splitCreditDueDate')?.value || null;
         payload.payments = [];
     } else {
@@ -3098,10 +3279,11 @@ async function submitItemSplit() {
 
         const custSel = document.getElementById('splitItemCustomerSelect');
         const custOpt = custSel ? custSel.options[custSel.selectedIndex] : null;
+        const custIdVal = custSel && custSel.value ? parseInt(custSel.value) : null;
 
-        payload.customer_id = custSel && custSel.value ? parseInt(custSel.value) : null;
+        payload.customer_id = custIdVal;
         payload.customer_name = custOpt ? custOpt.dataset.name : 'Consumidor Final';
-        payload.customer_document = custOpt ? custOpt.dataset.doc : '222222222222';
+        payload.customer_document = custIdVal ? ((custOpt?.dataset.doc || '').trim() || null) : '222222222222';
         payload.payments = splitPaymentLines.map(p => {
             let method = p.method;
             let ref = p.reference ? p.reference.trim() : null;

@@ -225,7 +225,9 @@
                 <div><strong>MESERO:</strong> {{ $sale->waiter_name }}</div>
             @endif
             <div><strong>CLIENTE:</strong> {{ $sale->customer_name }}</div>
-            <div><strong>DOC/NIT:</strong> {{ $sale->customer_document }}</div>
+            @if($sale->customer_document)
+                <div><strong>DOC/NIT:</strong> {{ $sale->customer_document }}</div>
+            @endif
             <div><strong>CANAL:</strong> {{ $canalLabel }}</div>
 
             @if($effectiveOrderType === 'delivery' && $ro)

@@ -3,12 +3,30 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UpdateCustomerRequest extends FormRequest
 {
     public function authorize(): bool
     {
         return true;
+    }
+
+    protected function prepareForValidation(): void
+    {
+        $merge = [];
+
+        foreach (['document', 'document_number', 'phone', 'telefono', 'email', 'address', 'direccion', 'name', 'nombre'] as $field) {
+            if ($this->has($field)) {
+                $val = $this->input($field);
+                $trimmed = is_string($val) ? trim($val) : $val;
+                $merge[$field] = ($trimmed === '' || $trimmed === null) ? null : $trimmed;
+            }
+        }
+
+        if (! empty($merge)) {
+            $this->merge($merge);
+        }
     }
 
     public function rules(): array
@@ -19,8 +37,8 @@ class UpdateCustomerRequest extends FormRequest
         return [
             'nombre' => ['required_without:name', 'nullable', 'string', 'min:3', 'max:100', 'regex:/^[\pL\s]+$/u'],
             'name' => ['required_without:nombre', 'nullable', 'string', 'min:3', 'max:100', 'regex:/^[\pL\s]+$/u'],
-            'document' => ['required', 'string', 'regex:/^[0-9]{5,12}$/', 'unique:customers,document,' . $customerId, 'not_in:222222222222'],
-            'document_number' => ['nullable', 'string', 'regex:/^[0-9]{5,12}$/', 'unique:customers,document,' . $customerId, 'not_in:222222222222'],
+            'document' => ['nullable', 'string', 'regex:/^[0-9]{5,12}$/', Rule::unique('customers', 'document')->ignore($customerId), 'not_in:222222222222'],
+            'document_number' => ['nullable', 'string', 'regex:/^[0-9]{5,12}$/', Rule::unique('customers', 'document')->ignore($customerId), 'not_in:222222222222'],
             'email' => ['nullable', 'email', 'max:150'],
             'telefono' => ['nullable', 'string', 'regex:/^[0-9]{7,10}$/'],
             'phone' => ['nullable', 'string', 'regex:/^[0-9]{7,10}$/'],
@@ -57,7 +75,8 @@ class UpdateCustomerRequest extends FormRequest
     {
         $data = $this->validated();
         $name = trim((string) ($data['nombre'] ?? $data['name'] ?? ''));
-        $doc = trim((string) ($data['document'] ?? $data['document_number'] ?? ''));
+        $rawDoc = $data['document'] ?? $data['document_number'] ?? null;
+        $doc = ($rawDoc !== null && trim((string) $rawDoc) !== '') ? trim((string) $rawDoc) : null;
         $phone = $data['telefono'] ?? $data['phone'] ?? null;
         $address = $data['direccion'] ?? $data['address'] ?? null;
 
@@ -65,8 +84,8 @@ class UpdateCustomerRequest extends FormRequest
             'name' => $name,
             'document' => $doc,
             'email' => $data['email'] ?? null,
-            'phone' => $phone ? trim((string) $phone) : null,
-            'address' => $address ? trim((string) $address) : null,
+            'phone' => ($phone !== null && trim((string) $phone) !== '') ? trim((string) $phone) : null,
+            'address' => ($address !== null && trim((string) $address) !== '') ? trim((string) $address) : null,
         ];
     }
 }
