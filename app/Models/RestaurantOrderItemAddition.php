@@ -16,6 +16,7 @@ class RestaurantOrderItemAddition extends Model
         'order_item_id',
         'adicion_id',
         'quantity',
+        'paid_quantity',
         'unit_price',
         'subtotal',
     ];
@@ -24,9 +25,15 @@ class RestaurantOrderItemAddition extends Model
     {
         return [
             'quantity' => 'decimal:3',
+            'paid_quantity' => 'decimal:3',
             'unit_price' => 'decimal:2',
             'subtotal' => 'decimal:2',
         ];
+    }
+
+    public function getPendingQuantityAttribute(): float
+    {
+        return max(0.0, round((float) $this->quantity - (float) ($this->paid_quantity ?? 0), 3));
     }
 
     public function orderItem(): BelongsTo

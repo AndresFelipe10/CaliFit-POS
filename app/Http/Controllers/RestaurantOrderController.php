@@ -252,7 +252,16 @@ class RestaurantOrderController extends Controller
      */
     public function show(RestaurantOrder $order): View
     {
-        $order->load(['table', 'user', 'customer', 'items.product', 'items.additions.addition']);
+        $order->load([
+            'table',
+            'user',
+            'customer',
+            'items.product',
+            'items.additions.addition',
+            'splits.sale.customer',
+            'splits.user',
+            'splits.customer',
+        ]);
         $batches = $order->items->groupBy('batch_number');
 
         $products = Product::where('activo', true)
@@ -273,21 +282,38 @@ class RestaurantOrderController extends Controller
 
         $pendingSubtotal = 0.0;
         foreach ($unpaidItemsList as $pi) {
-            $pendingSubtotal += (float) $pi->subtotal;
+            $pendingSubtotal += $pi->pending_subtotal;
         }
+        $pendingSubtotal = round($pendingSubtotal, 2);
 
         $pendingDeliveryFee = ($order->order_type === 'delivery') ? (float) $order->delivery_fee : 0.0;
         $pendingTotal = round($pendingSubtotal + $pendingDeliveryFee, 2);
 
         $orderItemsData = $unpaidItemsList
-            ->map(fn ($item) => [
-                'product_id' => $item->product_id,
-                'quantity' => (float) $item->quantity,
-                'additions' => $item->additions->map(fn ($a) => [
-                    'addition_id' => $a->adicion_id,
-                    'quantity' => (float) $a->quantity,
-                ])->values()->all(),
-            ])->values()->all();
+            ->map(function ($item) {
+                $pendingQty = $item->pending_quantity;
+                if ($pendingQty <= 0.0001) {
+                    return null;
+                }
+
+                return [
+                    'product_id' => $item->product_id,
+                    'quantity' => $pendingQty,
+                    'additions' => $item->additions->map(function ($a) {
+                        $pendingAddQty = $a->pending_quantity;
+                        if ($pendingAddQty <= 0.0001) {
+                            return null;
+                        }
+
+                        return [
+                            'addition_id' => $a->adicion_id,
+                            'quantity' => $pendingAddQty,
+                        ];
+                    })->filter()->values()->all(),
+                ];
+            })->filter()->values()->all();
+
+        $splitUnitRows = $this->orderService->buildSplitUnitsViewData($order);
 
         $availableTables = RestaurantTable::where('status', 'available')
             ->where('is_active', true)
@@ -295,7 +321,20 @@ class RestaurantOrderController extends Controller
             ->orderBy('name')
             ->get();
 
-        return view('restaurant.orders.show', compact('order', 'batches', 'products', 'platos', 'suplementos', 'adiciones', 'customers', 'orderItemsData', 'availableTables', 'pendingSubtotal', 'pendingTotal'));
+        return view('restaurant.orders.show', compact(
+            'order',
+            'batches',
+            'products',
+            'platos',
+            'suplementos',
+            'adiciones',
+            'customers',
+            'orderItemsData',
+            'splitUnitRows',
+            'availableTables',
+            'pendingSubtotal',
+            'pendingTotal'
+        ));
     }
 
     /**
@@ -408,8 +447,12 @@ class RestaurantOrderController extends Controller
             }
         }
 
-        // Encolar automáticamente la pre-cuenta informativa para el agente térmico ESC/POS
-        app(\App\Services\Printing\PrintQueueService::class)->enqueuePreBill($order);
+        // Encolar automáticamente la pre-cuenta informativa para el agente térmico ESC/POS (no bloqueante)
+        try {
+            app(\App\Services\Printing\PrintQueueService::class)->enqueuePreBill($order);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('No se pudo encolar la pre-cuenta ESC/POS: ' . $e->getMessage());
+        }
 
         if (request()->wantsJson() || request()->ajax()) {
             return response()->json([
@@ -459,8 +502,8 @@ class RestaurantOrderController extends Controller
                 $shareNumber = (int) ($data['share_number'] ?? 1);
                 $sale = $this->orderService->settleEqualShare($order, $shareNumber, $data, $user);
             } else {
-                $itemIds = $data['item_ids'] ?? [];
-                $sale = $this->orderService->settlePartialItems($order, $itemIds, $data, $user);
+                $selection = ! empty($data['items']) ? $data['items'] : ($data['item_ids'] ?? []);
+                $sale = $this->orderService->settlePartialItems($order, $selection, $data, $user);
             }
         } catch (\App\Exceptions\InsufficientInventoryException|\DomainException|\InvalidArgumentException|\Illuminate\Validation\ValidationException $e) {
             return response()->json([
@@ -471,14 +514,22 @@ class RestaurantOrderController extends Controller
 
         $freshOrder = $order->fresh(['table', 'splits']);
         $isClosed = $freshOrder->status === 'closed';
+        $isCredit = (bool) $sale->is_credit;
+
+        $message = $isClosed
+            ? ($isCredit
+                ? 'Todos los platos han sido liquidados (despacho a crédito registrado): comanda cerrada y mesa liberada exitosamente.'
+                : 'Todos los platos han sido liquidados: comanda cerrada y mesa liberada exitosamente.')
+            : ($isCredit
+                ? 'Venta a crédito parcial registrada con éxito. Mesa permanece con saldo pendiente.'
+                : 'Pago parcial liquidado con éxito. Mesa permanece con saldo pendiente.');
 
         return response()->json([
             'success' => true,
-            'message' => $isClosed
-                ? 'Todos los platos han sido liquidados: comanda cerrada y mesa liberada exitosamente.'
-                : 'Pago parcial liquidado con éxito. Mesa permanece con saldo pendiente.',
+            'message' => $message,
             'sale_id' => $sale->id,
             'invoice_number' => $sale->invoice_number,
+            'is_credit' => $isCredit,
             'is_order_closed' => $isClosed,
             'table_status' => $freshOrder->table?->status ?? 'available',
             'order_status' => $freshOrder->status,
@@ -490,24 +541,30 @@ class RestaurantOrderController extends Controller
     }
 
     /**
-     * Emite la pre-cuenta térmica de 80 mm para platos seleccionados de la comanda (división por platos).
+     * Emite la pre-cuenta térmica de 80 mm para platos/unidades seleccionadas de la comanda (división por platos).
      */
-    public function printPartialPreBill(Request $request, RestaurantOrder $order): View
+    public function printPartialPreBill(Request $request, RestaurantOrder $order)
     {
-        $rawItems = $request->input('item_ids') ?? $request->input('items') ?? [];
-        $itemIds = is_array($rawItems) ? $rawItems : array_filter(explode(',', (string) $rawItems));
+        $rawSelection = $request->input('selection');
+        if (is_string($rawSelection) && $rawSelection !== '') {
+            $decoded = json_decode($rawSelection, true);
+            $rawSelection = is_array($decoded) ? $decoded : null;
+        }
 
-        if (empty($itemIds)) {
+        if (is_array($rawSelection) && ! empty($rawSelection)) {
+            $selection = $rawSelection;
+        } else {
+            $rawItems = $request->input('item_ids') ?? $request->input('items') ?? [];
+            $selection = is_array($rawItems) ? $rawItems : array_filter(explode(',', (string) $rawItems));
+        }
+
+        if (empty($selection)) {
             abort(422, 'Debe seleccionar al menos un plato de la comanda para imprimir la pre-cuenta individual.');
         }
 
         $order->load(['table', 'user', 'customer']);
 
-        $items = $order->items()
-            ->whereIn('id', $itemIds)
-            ->where('status', '!=', 'cancelled')
-            ->with(['product', 'additions.addition'])
-            ->get();
+        $items = $this->orderService->buildVirtualItemsForPreBill($order, $selection);
 
         if ($items->isEmpty()) {
             abort(404, 'No se encontraron platos activos para los IDs seleccionados.');
@@ -517,9 +574,14 @@ class RestaurantOrderController extends Controller
         foreach ($items as $item) {
             $subtotal += (float) $item->subtotal;
         }
+        $subtotal = round($subtotal, 2);
 
-        // Encolar trabajo de pre-cuenta parcial para el agente térmico ESC/POS
-        app(\App\Services\Printing\PrintQueueService::class)->enqueuePreBill($order, $items);
+        // Encolar trabajo de pre-cuenta parcial para el agente térmico ESC/POS (no bloqueante)
+        try {
+            app(\App\Services\Printing\PrintQueueService::class)->enqueuePreBill($order, $items);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('No se pudo encolar la pre-cuenta parcial ESC/POS: ' . $e->getMessage());
+        }
 
         if ($request->wantsJson() || $request->ajax()) {
             return response()->json([

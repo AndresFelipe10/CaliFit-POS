@@ -31,7 +31,9 @@ Este sistema NO utiliza multi-tenancy. No existe columna `business_id` ni tabla 
 | `inventory_movements` | Trazabilidad de movimientos de stock con tipos de operación |
 | `restaurant_tables` | Catálogo y estado de mesas de salón |
 | `restaurant_orders` | Comandas y pedidos (salón/domicilio/para llevar) |
-| `restaurant_order_items` | Platos y productos por tanda de comanda |
+| `restaurant_order_items` | Platos y productos por tanda de comanda (con tracking `paid_quantity`) |
+| `restaurant_order_item_additions` | Adiciones vinculadas a ítems de comanda (con tracking `paid_quantity`) |
+| `restaurant_order_splits` | Trazabilidad de divisiones de cuenta y despachos parciales a crédito |
 
 ---
 
@@ -266,12 +268,45 @@ Este sistema NO utiliza multi-tenancy. No existe columna `business_id` ni tabla 
 | `order_id` | FK restaurant_orders CASCADE | Comanda padre |
 | `product_id` | FK productos RESTRICT | Plato/producto |
 | `quantity` | DECIMAL(12,3) | Cantidad (CHECK > 0) |
+| `paid_quantity` | DECIMAL(12,3) DEFAULT 0.000 | Cantidad ya liquidada en cobros/créditos parciales por unidad |
 | `unit_price` | DECIMAL(12,2) | Precio unitario |
-| `subtotal` | DECIMAL(12,2) | quantity × unit_price |
+| `subtotal` | DECIMAL(12,2) | quantity × unit_price + adiciones |
 | `notes` | VARCHAR(255) NULLABLE | Observaciones de preparación |
 | `status` | ENUM('pending', 'kitchen', 'served', 'cancelled') DEFAULT 'pending' | Estado |
 | `printed_to_kitchen` | BOOLEAN DEFAULT false | Ya impreso en cocina |
 | `batch_number` | INT UNSIGNED DEFAULT 1 | Tanda de cocina |
+| `is_paid` | BOOLEAN DEFAULT false | True cuando `paid_quantity >= quantity` |
+| `sale_id` | FK sales NULLABLE | Última venta parcial asociada |
+| `timestamps` | — | created_at, updated_at |
+
+### `restaurant_order_item_additions`
+| Campo | Tipo | Descripción |
+|---|---|---|
+| `id` | BIGINT UNSIGNED PK | Identificador único |
+| `order_item_id` | FK restaurant_order_items CASCADE | Ítem de comanda |
+| `adicion_id` | FK adiciones RESTRICT | Adición agregada |
+| `quantity` | DECIMAL(12,3) | Cantidad total ordenada |
+| `paid_quantity` | DECIMAL(12,3) DEFAULT 0.000 | Cantidad de adición liquidada en divisiones parciales |
+| `unit_price` | DECIMAL(12,2) | Precio unitario congelado |
+| `subtotal` | DECIMAL(12,2) | quantity × unit_price |
+| `timestamps` | — | created_at, updated_at |
+
+### `restaurant_order_splits`
+| Campo | Tipo | Descripción |
+|---|---|---|
+| `id` | BIGINT UNSIGNED PK | Identificador único |
+| `restaurant_order_id` | FK restaurant_orders CASCADE | Comanda dividida |
+| `share_number` | INT UNSIGNED | Número consecutivo del corte/liquidación parcial |
+| `total_shares` | INT UNSIGNED | Total de cortes registrados |
+| `amount` | DECIMAL(12,2) | Monto total liquidado en el corte |
+| `status` | ENUM('pending', 'paid') | Estado de pago del corte |
+| `is_credit` | BOOLEAN DEFAULT false | Indica si la división parcial fue despachada a crédito/fiado |
+| `payment_method` | VARCHAR(30) NULLABLE | Método de pago aplicado (`credit`, `cash`, `mixed`, etc.) |
+| `customer_id` | FK customers NULLABLE | Cliente asociado al corte (obligatorio si `is_credit = true`) |
+| `sale_id` | FK sales NULLABLE | Factura/venta generada para el corte |
+| `user_id` | FK users NULLABLE | Cajero/mesero que procesó el corte |
+| `items_summary` | JSON NULLABLE | Detalle inmutable de platos, unidades y adiciones liquidadas |
+| `paid_at` | TIMESTAMP NULLABLE | Fecha/hora de liquidación del corte |
 | `timestamps` | — | created_at, updated_at |
 
 ---

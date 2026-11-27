@@ -12,6 +12,7 @@ use App\Models\Sale;
 use App\Models\User;
 use App\Services\Sales\SaleService;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
@@ -441,8 +442,8 @@ class RestaurantOrderService
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            if ($lockedItem->is_paid) {
-                throw new \DomainException('No se puede eliminar un producto que ya ha sido pagado o liquidado.');
+            if ($lockedItem->is_paid || (float) ($lockedItem->paid_quantity ?? 0) > 0) {
+                throw new \DomainException('No se puede eliminar un producto que ya tiene unidades pagadas o liquidadas.');
             }
 
             if ($lockedItem->status === 'cancelled') {
@@ -723,18 +724,288 @@ class RestaurantOrderService
     }
 
     /**
-     * Liquida una fracción de ítems específicos de una comanda, genera su comprobante independiente,
-     * descuenta dichos platos del consumo pendiente y actualiza la mesa.
+     * Construye las filas desagregadas por unidad para la vista de "División de Cuenta por Platos".
+     * Cada ítem pendiente con cantidad entera > 1 se desagrega en filas individuales de 1 unidad.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function buildSplitUnitsViewData(RestaurantOrder $order): array
+    {
+        $rows = [];
+        $activeItems = $order->items
+            ->where('status', '!=', 'cancelled')
+            ->where('is_paid', false)
+            ->sortBy('id');
+
+        foreach ($activeItems as $item) {
+            $pendingQty = $item->pending_quantity;
+            if ($pendingQty <= 0.0001) {
+                continue;
+            }
+
+            $totalQty = (float) $item->quantity;
+            $paidQty = (float) ($item->paid_quantity ?? 0);
+            $unitPrice = round((float) $item->unit_price, 2);
+            $productName = $item->product->nombre ?? 'Producto';
+
+            $isWholePending = abs($pendingQty - round($pendingQty)) < 0.0001 && $pendingQty >= 1;
+
+            if ($isWholePending) {
+                $unitCount = (int) round($pendingQty);
+
+                // Preparar adiciones pendientes distribuidas enteramente entre las $unitCount filas
+                $perRowAdditions = array_fill(0, $unitCount, []);
+
+                foreach ($item->additions as $add) {
+                    $pendingAddQty = $add->pending_quantity;
+                    if ($pendingAddQty <= 0.0001) {
+                        continue;
+                    }
+
+                    $addName = $add->addition->nombre ?? 'Adición';
+                    $addUnitPrice = round((float) $add->unit_price, 2);
+
+                    if (abs($pendingAddQty - round($pendingAddQty)) < 0.0001) {
+                        $intAdd = (int) round($pendingAddQty);
+                        $basePerUnit = intdiv($intAdd, $unitCount);
+                        $remainder = $intAdd % $unitCount;
+
+                        for ($i = 0; $i < $unitCount; $i++) {
+                            $qtyForUnit = $basePerUnit + ($i < $remainder ? 1 : 0);
+                            if ($qtyForUnit > 0) {
+                                $perRowAdditions[$i][] = [
+                                    'addition_id' => (int) $add->adicion_id,
+                                    'name' => $addName,
+                                    'quantity' => $qtyForUnit,
+                                    'unit_price' => $addUnitPrice,
+                                    'subtotal' => round($qtyForUnit * $addUnitPrice, 2),
+                                ];
+                            }
+                        }
+                    } else {
+                        // Adición fraccionaria: asignar a la primera fila pendiente
+                        $perRowAdditions[0][] = [
+                            'addition_id' => (int) $add->adicion_id,
+                            'name' => $addName,
+                            'quantity' => $pendingAddQty,
+                            'unit_price' => $addUnitPrice,
+                            'subtotal' => round($pendingAddQty * $addUnitPrice, 2),
+                        ];
+                    }
+                }
+
+                $startOffset = (int) round($paidQty);
+                $totalDisplayQty = abs($totalQty - round($totalQty)) < 0.0001 ? (int) round($totalQty) : $totalQty;
+
+                for ($i = 0; $i < $unitCount; $i++) {
+                    $rowAdds = $perRowAdditions[$i];
+                    $addsTotal = array_sum(array_column($rowAdds, 'subtotal'));
+                    $rowSubtotal = round($unitPrice + $addsTotal, 2);
+
+                    $unitNumber = $startOffset + $i + 1;
+                    $unitLabel = $totalDisplayQty > 1
+                        ? "Unidad {$unitNumber} de {$totalDisplayQty}"
+                        : null;
+
+                    $rows[] = [
+                        'row_key' => $item->id . '_u' . ($i + 1),
+                        'item_id' => (int) $item->id,
+                        'product_name' => $productName,
+                        'unit_label' => $unitLabel,
+                        'quantity' => 1,
+                        'unit_price' => $unitPrice,
+                        'additions' => $rowAdds,
+                        'subtotal' => $rowSubtotal,
+                        'notes' => $item->notes,
+                        'is_fractional' => false,
+                    ];
+                }
+            } else {
+                // Cantidad fraccionaria: mantener como una fila seleccionable por su cantidad pendiente
+                $rowAdds = [];
+                $addsTotal = 0.0;
+                foreach ($item->additions as $add) {
+                    $pendingAddQty = $add->pending_quantity;
+                    if ($pendingAddQty <= 0.0001) {
+                        continue;
+                    }
+                    $addUnitPrice = round((float) $add->unit_price, 2);
+                    $addSub = round($pendingAddQty * $addUnitPrice, 2);
+                    $addsTotal += $addSub;
+                    $rowAdds[] = [
+                        'addition_id' => (int) $add->adicion_id,
+                        'name' => $add->addition->nombre ?? 'Adición',
+                        'quantity' => $pendingAddQty,
+                        'unit_price' => $addUnitPrice,
+                        'subtotal' => $addSub,
+                    ];
+                }
+
+                $rows[] = [
+                    'row_key' => $item->id . '_frac',
+                    'item_id' => (int) $item->id,
+                    'product_name' => $productName,
+                    'unit_label' => null,
+                    'quantity' => $pendingQty,
+                    'unit_price' => $unitPrice,
+                    'additions' => $rowAdds,
+                    'subtotal' => round(($pendingQty * $unitPrice) + $addsTotal, 2),
+                    'notes' => $item->notes,
+                    'is_fractional' => true,
+                ];
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Normaliza selecciones mixtas (legacy item_ids o items por cantidad) consolidando por item_id.
+     *
+     * @return array<int, array{item_id: int, quantity: float|null, additions: array<int, float>|null}>
+     */
+    protected function normalizePartialSelection(array $selection): array
+    {
+        $consolidated = [];
+
+        foreach ($selection as $entry) {
+            if (is_numeric($entry)) {
+                $itemId = (int) $entry;
+                if ($itemId <= 0) {
+                    continue;
+                }
+                if (! isset($consolidated[$itemId])) {
+                    $consolidated[$itemId] = [
+                        'item_id' => $itemId,
+                        'quantity' => null, // Modo legacy: toda la cantidad pendiente
+                        'additions' => null,
+                    ];
+                }
+                continue;
+            }
+
+            if (! is_array($entry) || empty($entry['item_id'])) {
+                continue;
+            }
+
+            $itemId = (int) $entry['item_id'];
+            $qty = round((float) ($entry['quantity'] ?? 1), 3);
+            if ($itemId <= 0 || $qty <= 0) {
+                continue;
+            }
+
+            if (! isset($consolidated[$itemId])) {
+                $consolidated[$itemId] = [
+                    'item_id' => $itemId,
+                    'quantity' => $qty,
+                    'additions' => array_key_exists('additions', $entry) ? [] : null,
+                ];
+            } else {
+                $consolidated[$itemId]['quantity'] = round((float) ($consolidated[$itemId]['quantity'] ?? 0) + $qty, 3);
+                if (array_key_exists('additions', $entry) && $consolidated[$itemId]['additions'] === null) {
+                    $consolidated[$itemId]['additions'] = [];
+                }
+            }
+
+            if (! empty($entry['additions']) && is_array($entry['additions'])) {
+                foreach ($entry['additions'] as $add) {
+                    $addId = (int) ($add['addition_id'] ?? $add['adicion_id'] ?? 0);
+                    $addQty = round((float) ($add['quantity'] ?? 0), 3);
+                    if ($addId > 0 && $addQty > 0) {
+                        $consolidated[$itemId]['additions'][$addId] = round(
+                            ($consolidated[$itemId]['additions'][$addId] ?? 0.0) + $addQty,
+                            3
+                        );
+                    }
+                }
+            }
+        }
+
+        return $consolidated;
+    }
+
+    /**
+     * Construye colección virtual de ítems con cantidades y adiciones exactas para Pre-cuenta parcial.
+     */
+    public function buildVirtualItemsForPreBill(RestaurantOrder $order, array $selection): SupportCollection
+    {
+        $consolidated = $this->normalizePartialSelection($selection);
+        if (empty($consolidated)) {
+            return new SupportCollection();
+        }
+
+        $orderItems = $order->items()
+            ->whereIn('id', array_keys($consolidated))
+            ->where('status', '!=', 'cancelled')
+            ->with(['product', 'additions.addition'])
+            ->get()
+            ->keyBy('id');
+
+        $virtualItems = new SupportCollection();
+
+        foreach ($consolidated as $itemId => $req) {
+            /** @var \App\Models\RestaurantOrderItem|null $item */
+            $item = $orderItems->get($itemId);
+            if (! $item) {
+                continue;
+            }
+
+            $pendingQty = $item->pending_quantity > 0 ? $item->pending_quantity : (float) $item->quantity;
+            $qty = $req['quantity'] !== null ? min((float) $req['quantity'], $pendingQty) : $pendingQty;
+            if ($qty <= 0) {
+                continue;
+            }
+
+            $clone = $item->replicate();
+            $clone->id = $item->id;
+            $clone->quantity = $qty;
+            $baseSub = round($qty * (float) $item->unit_price, 2);
+            $addsSub = 0.0;
+            $virtualAdds = new SupportCollection();
+
+            foreach ($item->additions as $add) {
+                $pendingAddQty = $add->pending_quantity > 0 ? $add->pending_quantity : (float) $add->quantity;
+                if ($req['additions'] !== null) {
+                    $addQty = min((float) ($req['additions'][$add->adicion_id] ?? 0.0), $pendingAddQty);
+                } else {
+                    $ratio = $pendingQty > 0 ? ($qty / $pendingQty) : 1.0;
+                    $addQty = round($pendingAddQty * $ratio, 3);
+                }
+
+                if ($addQty > 0) {
+                    $addClone = $add->replicate();
+                    $addClone->quantity = $addQty;
+                    $addClone->subtotal = round($addQty * (float) $add->unit_price, 2);
+                    $addClone->setRelation('addition', $add->addition);
+                    $addsSub += $addClone->subtotal;
+                    $virtualAdds->push($addClone);
+                }
+            }
+
+            $clone->subtotal = round($baseSub + $addsSub, 2);
+            $clone->setRelation('product', $item->product);
+            $clone->setRelation('additions', $virtualAdds);
+
+            $virtualItems->push($clone);
+        }
+
+        return $virtualItems;
+    }
+
+    /**
+     * Liquida una fracción de ítems (por cantidad exacta o ítems completos) de una comanda,
+     * soporta contado o crédito/fiado, genera comprobante independiente, registra traza en
+     * restaurant_order_splits, descuenta inventario y actualiza estado de mesa/orden.
      *
      * @param  RestaurantOrder  $order
-     * @param  array            $itemIds
+     * @param  array            $selection
      * @param  array            $paymentData
      * @param  User             $seller
      * @return Sale
      */
-    public function settlePartialItems(RestaurantOrder $order, array $itemIds, array $paymentData, User $seller): Sale
+    public function settlePartialItems(RestaurantOrder $order, array $selection, array $paymentData, User $seller): Sale
     {
-        return DB::transaction(function () use ($order, $itemIds, $paymentData, $seller) {
+        return DB::transaction(function () use ($order, $selection, $paymentData, $seller) {
             /** @var RestaurantOrder $lockedOrder */
             $lockedOrder = RestaurantOrder::where('id', $order->id)->lockForUpdate()->firstOrFail();
 
@@ -746,53 +1017,153 @@ class RestaurantOrderService
                 throw new InvalidArgumentException("No se puede liquidar una comanda en estado {$lockedOrder->status}.");
             }
 
-            if (empty($itemIds)) {
+            $consolidated = $this->normalizePartialSelection($selection);
+
+            if (empty($consolidated)) {
                 throw new InvalidArgumentException('Debe seleccionar al menos un plato de la comanda para liquidar.');
             }
 
-            $itemIds = array_values(array_unique(array_map('intval', (array) $itemIds)));
-            sort($itemIds);
+            $requestedItemIds = array_keys($consolidated);
+            sort($requestedItemIds);
 
             $selectedItems = $lockedOrder->items()
-                ->whereIn('id', $itemIds)
+                ->whereIn('id', $requestedItemIds)
                 ->where('status', '!=', 'cancelled')
                 ->where('is_paid', false)
-                ->with(['additions', 'product'])
+                ->with(['additions.addition', 'product'])
                 ->orderBy('id')
                 ->lockForUpdate()
-                ->get();
+                ->get()
+                ->keyBy('id');
 
             if ($selectedItems->isEmpty()) {
                 throw new InvalidArgumentException('Los platos seleccionados ya fueron pagados o no pertenecen a esta comanda.');
             }
 
-            // Construir el array de items con adiciones para SaleService
             $saleItems = [];
-            foreach ($selectedItems as $item) {
-                $adds = [];
-                foreach ($item->additions as $a) {
-                    $adds[] = [
-                        'addition_id' => $a->adicion_id,
-                        'quantity' => (float) $a->quantity,
-                    ];
+            $itemsToUpdate = [];
+            $itemsSummary = [];
+
+            foreach ($consolidated as $itemId => $req) {
+                /** @var \App\Models\RestaurantOrderItem|null $item */
+                $item = $selectedItems->get($itemId);
+                if (! $item) {
+                    throw new InvalidArgumentException('Los platos seleccionados ya fueron pagados o no pertenecen a esta comanda.');
+                }
+
+                $pendingQty = $item->pending_quantity;
+                if ($pendingQty <= 0.0001) {
+                    throw new InvalidArgumentException("El plato '{$item->product->nombre}' ya fue liquidado en su totalidad.");
+                }
+
+                $qtyToPay = $req['quantity'] !== null ? round((float) $req['quantity'], 3) : $pendingQty;
+
+                if ($qtyToPay <= 0 || $qtyToPay > ($pendingQty + 0.0001)) {
+                    throw new InvalidArgumentException(
+                        "La cantidad seleccionada ({$qtyToPay}) para '{$item->product->nombre}' excede la cantidad pendiente ({$pendingQty})."
+                    );
+                }
+
+                $completesItem = ($pendingQty - $qtyToPay) <= 0.0001;
+                if ($completesItem) {
+                    $qtyToPay = $pendingQty;
+                }
+
+                $addsPayload = [];
+                $additionsPaidMap = [];
+                $addsSummary = [];
+                $addsSubtotal = 0.0;
+
+                foreach ($item->additions as $orderAdd) {
+                    $pendingAddQty = $orderAdd->pending_quantity;
+                    if ($pendingAddQty <= 0.0001) {
+                        continue;
+                    }
+
+                    if ($completesItem) {
+                        // Al completar la última unidad del ítem, absorber todas las adiciones pendientes del ítem
+                        $addQtyToPay = $pendingAddQty;
+                    } elseif ($req['additions'] !== null) {
+                        $requestedAddQty = round((float) ($req['additions'][$orderAdd->adicion_id] ?? 0.0), 3);
+                        if ($requestedAddQty > ($pendingAddQty + 0.0001)) {
+                            throw new InvalidArgumentException(
+                                "La cantidad de adición solicitada para '{$item->product->nombre}' excede la pendiente."
+                            );
+                        }
+                        $addQtyToPay = min($requestedAddQty, $pendingAddQty);
+                    } else {
+                        $ratio = $pendingQty > 0 ? ($qtyToPay / $pendingQty) : 1.0;
+                        $addQtyToPay = round($pendingAddQty * $ratio, 3);
+                    }
+
+                    if ($addQtyToPay > 0.0001) {
+                        $addsPayload[] = [
+                            'addition_id' => $orderAdd->adicion_id,
+                            'quantity' => $addQtyToPay,
+                        ];
+                        $additionsPaidMap[$orderAdd->adicion_id] = $addQtyToPay;
+                        $addSub = round($addQtyToPay * (float) $orderAdd->unit_price, 2);
+                        $addsSubtotal += $addSub;
+                        $addsSummary[] = [
+                            'name' => $orderAdd->addition->nombre ?? 'Adición',
+                            'quantity' => $addQtyToPay,
+                            'subtotal' => $addSub,
+                        ];
+                    }
                 }
 
                 $saleItems[] = [
                     'product_id' => $item->product_id,
-                    'quantity' => (float) $item->quantity,
-                    'additions' => $adds,
+                    'quantity' => $qtyToPay,
+                    'additions' => $addsPayload,
                     'notes' => $item->notes,
+                ];
+
+                $itemsToUpdate[] = [
+                    'item' => $item,
+                    'qty_paid' => $qtyToPay,
+                    'completes_item' => $completesItem,
+                    'additions_paid' => $additionsPaidMap,
+                ];
+
+                $itemsSummary[] = [
+                    'order_item_id' => $item->id,
+                    'product_name' => $item->product->nombre ?? 'Producto',
+                    'quantity' => $qtyToPay,
+                    'subtotal' => round(($qtyToPay * (float) $item->unit_price) + $addsSubtotal, 2),
+                    'additions' => $addsSummary,
                 ];
             }
 
-            // Determinar si tras esta liquidación quedan platos pendientes en la comanda
-            $remainingUnpaidCount = $lockedOrder->items()
-                ->whereNotIn('id', $itemIds)
+            // Determinar si tras esta liquidación quedan unidades pendientes en la comanda
+            $allUnpaidItems = $lockedOrder->items()
                 ->where('status', '!=', 'cancelled')
                 ->where('is_paid', false)
-                ->count();
+                ->lockForUpdate()
+                ->get();
 
-            $isLastPayment = ($remainingUnpaidCount === 0);
+            $hasRemainingPending = false;
+            foreach ($allUnpaidItems as $uItem) {
+                $paidNow = 0.0;
+                foreach ($itemsToUpdate as $entry) {
+                    if ($entry['item']->id === $uItem->id) {
+                        $paidNow = $entry['qty_paid'];
+                        break;
+                    }
+                }
+                $remainingForItem = round($uItem->pending_quantity - $paidNow, 3);
+                if ($remainingForItem > 0.0001) {
+                    $hasRemainingPending = true;
+                    break;
+                }
+            }
+
+            $isLastPayment = ! $hasRemainingPending;
+            $isCredit = (bool) ($paymentData['is_credit'] ?? false);
+
+            $defaultNote = $isCredit
+                ? "Liquidación parcial a crédito/fiado - Comanda {$lockedOrder->order_number}"
+                : "Liquidación parcial de platos - Comanda {$lockedOrder->order_number}";
 
             $salePayload = [
                 'customer_id' => $paymentData['customer_id'] ?? $lockedOrder->customer_id,
@@ -807,25 +1178,70 @@ class RestaurantOrderService
                 'discount' => (float) ($paymentData['discount'] ?? 0.00),
                 'tax_inc' => (float) ($paymentData['tax_inc'] ?? 0.00),
                 'tip' => (float) ($paymentData['tip'] ?? 0.00),
-                'notes' => $paymentData['notes'] ?? "Liquidación parcial de platos - Comanda {$lockedOrder->order_number}",
+                'notes' => ! empty($paymentData['notes']) ? $paymentData['notes'] : $defaultNote,
                 'items' => $saleItems,
-                'payments' => $paymentData['payments'] ?? [],
+                'is_credit' => $isCredit,
+                'credit_due_date' => $paymentData['credit_due_date'] ?? null,
+                'payments' => $isCredit ? [] : ($paymentData['payments'] ?? []),
                 'close_restaurant_order' => $isLastPayment,
             ];
 
             // 1. Procesar venta atómica (descuenta inventario bajo lockForUpdate)
             $sale = $this->saleService->processSale($salePayload, $seller);
 
-            // 2. Marcar items seleccionados como pagados y vincular a la venta
-            $lockedOrder->items()
-                ->whereIn('id', $selectedItems->pluck('id'))
-                ->update([
-                    'is_paid' => true,
+            // 2. Actualizar cantidades pagadas / estado en items y adiciones
+            foreach ($itemsToUpdate as $entry) {
+                /** @var \App\Models\RestaurantOrderItem $item */
+                $item = $entry['item'];
+                $newPaidQty = round((float) ($item->paid_quantity ?? 0) + $entry['qty_paid'], 3);
+                $fullyPaid = $entry['completes_item'] || ($newPaidQty >= ((float) $item->quantity - 0.0001));
+
+                $item->update([
+                    'paid_quantity' => $fullyPaid ? $item->quantity : $newPaidQty,
+                    'is_paid' => $fullyPaid,
                     'sale_id' => $sale->id,
                 ]);
 
-            // 3. Marcar split_type
-            $lockedOrder->update(['split_type' => 'items']);
+                foreach ($entry['additions_paid'] as $addId => $addQtyPaid) {
+                    $orderAdd = $item->additions->firstWhere('adicion_id', $addId);
+                    if ($orderAdd) {
+                        $newAddPaid = round((float) ($orderAdd->paid_quantity ?? 0) + $addQtyPaid, 3);
+                        $addFullyPaid = $newAddPaid >= ((float) $orderAdd->quantity - 0.0001);
+                        $orderAdd->update([
+                            'paid_quantity' => $addFullyPaid ? $orderAdd->quantity : $newAddPaid,
+                        ]);
+                    }
+                }
+            }
+
+            // 3. Registrar corte en restaurant_order_splits para trazabilidad completa
+            $nextShareNumber = ((int) ($lockedOrder->splits()->max('share_number') ?? 0)) + 1;
+            $firstPayment = $sale->payments->first();
+
+            RestaurantOrderSplit::create([
+                'restaurant_order_id' => $lockedOrder->id,
+                'share_number' => $nextShareNumber,
+                'total_shares' => $nextShareNumber,
+                'amount' => (float) $sale->total,
+                'status' => 'paid',
+                'is_credit' => $isCredit,
+                'payment_method' => $sale->payment_method,
+                'cash_received' => $firstPayment?->cash_received,
+                'change_given' => $firstPayment?->change_given,
+                'reference' => $isCredit ? 'Crédito / Fiado' : ($firstPayment?->reference),
+                'items_summary' => $itemsSummary,
+                'user_id' => $seller->id,
+                'customer_id' => $sale->customer_id,
+                'sale_id' => $sale->id,
+                'paid_at' => now(),
+            ]);
+
+            $paidSplitsCount = $lockedOrder->splits()->where('status', 'paid')->count();
+            $lockedOrder->update([
+                'split_type' => 'items',
+                'paid_shares' => $paidSplitsCount,
+                'total_shares' => $lockedOrder->splits()->count(),
+            ]);
 
             // 4. Recalcular totales pendientes de la comanda
             $lockedOrder->recalculateTotals();
@@ -838,7 +1254,14 @@ class RestaurantOrderService
                 ]);
 
                 if ($lockedOrder->table) {
-                    $lockedOrder->table->update(['status' => 'available']);
+                    $otherActive = RestaurantOrder::where('table_id', $lockedOrder->table->id)
+                        ->where('id', '!=', $lockedOrder->id)
+                        ->whereIn('status', RestaurantOrder::ACTIVE_STATUSES)
+                        ->exists();
+
+                    if (! $otherActive) {
+                        $lockedOrder->table->update(['status' => 'available']);
+                    }
                 }
             } else {
                 $lockedOrder->update(['status' => 'billed']);
@@ -901,17 +1324,25 @@ class RestaurantOrderService
 
                 $saleItems = [];
                 foreach ($unpaidItems as $item) {
+                    $pendingQty = $item->pending_quantity;
+                    if ($pendingQty <= 0.0001) {
+                        continue;
+                    }
+
                     $adds = [];
                     foreach ($item->additions as $a) {
-                        $adds[] = [
-                            'addition_id' => $a->adicion_id,
-                            'quantity' => (float) $a->quantity,
-                        ];
+                        $pendingAddQty = $a->pending_quantity;
+                        if ($pendingAddQty > 0.0001) {
+                            $adds[] = [
+                                'addition_id' => $a->adicion_id,
+                                'quantity' => $pendingAddQty,
+                            ];
+                        }
                     }
 
                     $saleItems[] = [
                         'product_id' => $item->product_id,
-                        'quantity' => (float) $item->quantity,
+                        'quantity' => $pendingQty,
                         'additions' => $adds,
                         'notes' => $item->notes,
                     ];
@@ -950,14 +1381,20 @@ class RestaurantOrderService
             // Procesar la venta atómica con deducción de stock exclusiva para los ítems no pagados
             $sale = $this->saleService->processSale($salePayload, $seller);
 
-            // Marcar todos los ítems liquidados como pagados si provienen de la comanda
+            // Marcar todos los ítems liquidados y sus adiciones como pagados si provienen de la comanda
             if ($unpaidItems->isNotEmpty()) {
-                $lockedOrder->items()
-                    ->whereIn('id', $unpaidItems->pluck('id'))
-                    ->update([
+                foreach ($unpaidItems as $uItem) {
+                    $uItem->update([
+                        'paid_quantity' => $uItem->quantity,
                         'is_paid' => true,
                         'sale_id' => $sale->id,
                     ]);
+                    foreach ($uItem->additions as $uAdd) {
+                        $uAdd->update([
+                            'paid_quantity' => $uAdd->quantity,
+                        ]);
+                    }
+                }
             }
 
             // Actualizar estado de comanda y mesa

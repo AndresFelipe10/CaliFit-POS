@@ -114,12 +114,13 @@ class RestaurantOrder extends Model
         $activeItems = $this->items()
             ->where('status', '!=', 'cancelled')
             ->where('is_paid', false)
+            ->with('additions')
             ->get();
 
         $subtotal = 0.0;
 
         foreach ($activeItems as $item) {
-            $subtotal += round((float) $item->subtotal, 2);
+            $subtotal += $item->pending_subtotal;
         }
 
         $this->subtotal = round($subtotal, 2);

@@ -189,11 +189,15 @@
                                         @else
                                             <tr>
                                                 <td class="ps-3">
-                                                    <div class="fw-bold text-dark d-flex align-items-center">
+                                                    <div class="fw-bold text-dark d-flex align-items-center flex-wrap gap-1">
                                                         {{ $item->product->nombre }}
                                                         @if($item->is_paid)
-                                                            <span class="badge bg-success-subtle text-success border border-success border-opacity-25 ms-2 py-0.5" style="font-size: 0.72rem;">
+                                                            <span class="badge bg-success-subtle text-success border border-success border-opacity-25 ms-1 py-0.5" style="font-size: 0.72rem;">
                                                                 <i class="bi bi-check2-all me-1"></i>Pagado
+                                                            </span>
+                                                        @elseif((float)($item->paid_quantity ?? 0) > 0)
+                                                            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning border-opacity-50 ms-1 py-0.5" style="font-size: 0.72rem;">
+                                                                <i class="bi bi-pie-chart-fill me-1"></i>{{ (float)$item->paid_quantity }}/{{ (float)$item->quantity }} Liquidado ({{ $item->pending_quantity }} pend.)
                                                             </span>
                                                         @endif
                                                     </div>
@@ -221,6 +225,10 @@
                                                         <span class="badge bg-success-subtle text-success border border-success border-opacity-25 py-1 px-2 small" style="font-size: 0.7rem;">
                                                             <i class="bi bi-check2-all me-0.5"></i>Pagado
                                                         </span>
+                                                    @elseif((float)($item->paid_quantity ?? 0) > 0)
+                                                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning border-opacity-50 py-1 px-2 small" style="font-size: 0.7rem;">
+                                                            Parcial
+                                                        </span>
                                                     @elseif(!in_array($order->status, ['closed', 'cancelled']))
                                                         <button type="button" 
                                                                 class="btn btn-outline-danger btn-sm rounded-circle d-inline-flex align-items-center justify-content-center shadow-sm" 
@@ -241,6 +249,91 @@
                         </div>
                     </div>
                 @endforeach
+            @endif
+
+            {{-- HISTORIAL DE DIVISIONES Y COBROS PARCIALES --}}
+            @if($order->splits && $order->splits->where('status', 'paid')->isNotEmpty())
+                <div class="card border-0 shadow-sm rounded-3 mb-3">
+                    <div class="card-header bg-white py-2.5 px-3 border-bottom d-flex justify-content-between align-items-center">
+                        <h6 class="fw-bold mb-0 text-dark">
+                            <i class="bi bi-pie-chart-fill text-success me-1"></i> Historial de Divisiones y Cobros Parciales
+                        </h6>
+                        <span class="badge bg-light text-secondary border small">
+                            {{ $order->splits->where('status', 'paid')->count() }} liquidación(es)
+                        </span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead class="table-light small">
+                                <tr>
+                                    <th class="ps-3">Factura</th>
+                                    <th>Platos / Detalle</th>
+                                    <th>Cliente</th>
+                                    <th>Modalidad / Estado</th>
+                                    <th class="text-end pe-3">Monto</th>
+                                </tr>
+                            </thead>
+                            <tbody class="small">
+                                @foreach($order->splits->where('status', 'paid')->sortBy('share_number') as $split)
+                                    @php
+                                        $splitSale = $split->sale;
+                                        $splitIsCredit = (bool) ($split->is_credit || ($splitSale && $splitSale->is_credit));
+                                        $splitCustomerName = $split->customer?->name ?? $splitSale?->customer_name ?? 'Consumidor Final';
+                                    @endphp
+                                    <tr>
+                                        <td class="ps-3 font-monospace fw-semibold">
+                                            @if($splitSale)
+                                                <a href="{{ route('prints.sales.receipt', $splitSale) }}" target="_blank" class="text-decoration-none text-dark" title="Ver/Reimprimir Comprobante">
+                                                    <i class="bi bi-printer text-success me-1"></i>{{ $splitSale->invoice_number }}
+                                                </a>
+                                            @else
+                                                Corte #{{ $split->share_number }}
+                                            @endif
+                                        </td>
+                                        <td>
+                                            @if(!empty($split->items_summary))
+                                                @foreach($split->items_summary as $sumItem)
+                                                    <div>
+                                                        <strong>{{ (float)($sumItem['quantity'] ?? 1) }}x</strong> {{ $sumItem['product_name'] ?? 'Plato' }}
+                                                        @if(!empty($sumItem['additions']))
+                                                            <span class="text-muted">
+                                                                (+{{ collect($sumItem['additions'])->pluck('name')->implode(', ') }})
+                                                            </span>
+                                                        @endif
+                                                    </div>
+                                                @endforeach
+                                            @elseif($splitSale && $splitSale->details->isNotEmpty())
+                                                @foreach($splitSale->details as $det)
+                                                    <div><strong>{{ (float)$det->quantity }}x</strong> {{ $det->product->nombre ?? 'Plato' }}</div>
+                                                @endforeach
+                                            @else
+                                                <span class="text-muted">Parte {{ $split->share_number }}/{{ $split->total_shares }}</span>
+                                            @endif
+                                        </td>
+                                        <td>{{ $splitCustomerName }}</td>
+                                        <td>
+                                            @if($splitIsCredit)
+                                                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">
+                                                    <i class="bi bi-wallet2 me-1"></i>A Crédito / Fiado
+                                                </span>
+                                                @if($splitSale && $splitSale->credit_status === 'paid')
+                                                    <span class="badge bg-success-subtle text-success border border-success-subtle ms-1">Pagado en Cartera</span>
+                                                @else
+                                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle ms-1">Pendiente</span>
+                                                @endif
+                                            @else
+                                                <span class="badge bg-success-subtle text-success border border-success-subtle">
+                                                    <i class="bi bi-check2-circle me-1"></i>Pagado ({{ strtoupper($split->payment_method ?? 'CONTADO') }})
+                                                </span>
+                                            @endif
+                                        </td>
+                                        <td class="text-end pe-3 fw-bold font-monospace">${{ number_format($split->amount, 0, ',', '.') }}</td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             @endif
         </div>
 
@@ -983,58 +1076,102 @@
                                 </thead>
                                 <tbody id="splitItemsTbody">
                                     @php
-                                        $unpaidCount = 0;
+                                        $unpaidCount = count($splitUnitRows ?? []);
                                     @endphp
-                                    @foreach($order->items->where('status', '!=', 'cancelled') as $item)
-                                        @if(!$item->is_paid)
-                                            @php $unpaidCount++; @endphp
-                                            <tr style="cursor: pointer;" onclick="toggleItemRowCheckbox(event, {{ $item->id }})">
-                                                <td class="text-center" onclick="event.stopPropagation()">
-                                                    <input type="checkbox" class="form-check-input split-item-checkbox" 
-                                                           id="split_item_{{ $item->id }}"
-                                                           value="{{ $item->id }}" 
-                                                           data-subtotal="{{ (float)$item->subtotal }}" 
-                                                           onchange="calculateItemSplitTotal()"
-                                                           style="width: 1.25rem; height: 1.25rem; cursor: pointer;">
-                                                </td>
-                                                <td>
-                                                    <label for="split_item_{{ $item->id }}" class="fw-bold text-dark mb-0 d-block" style="cursor: pointer;">
-                                                        {{ $item->product->nombre }}
-                                                    </label>
-                                                    @if($item->additions && $item->additions->count() > 0)
-                                                        <div class="small text-muted ps-2 border-start border-2 border-success mt-1">
-                                                            @foreach($item->additions as $uAdd)
-                                                                <div>+ {{ $uAdd->addition->nombre ?? 'Adición' }} (x{{ (int)$uAdd->quantity }})</div>
-                                                            @endforeach
-                                                        </div>
+                                    @forelse(($splitUnitRows ?? []) as $row)
+                                        <tr style="cursor: pointer;" onclick="toggleItemRowCheckbox(event, '{{ $row['row_key'] }}')">
+                                            <td class="text-center" onclick="event.stopPropagation()">
+                                                <input type="checkbox" class="form-check-input split-item-checkbox" 
+                                                       id="split_row_{{ $row['row_key'] }}"
+                                                       value="{{ $row['row_key'] }}" 
+                                                       data-item-id="{{ $row['item_id'] }}"
+                                                       data-quantity="{{ $row['quantity'] }}"
+                                                       data-subtotal="{{ $row['subtotal'] }}" 
+                                                       data-additions='@json($row['additions'])'
+                                                       onchange="calculateItemSplitTotal()"
+                                                       style="width: 1.25rem; height: 1.25rem; cursor: pointer;">
+                                            </td>
+                                            <td>
+                                                <label for="split_row_{{ $row['row_key'] }}" class="fw-bold text-dark mb-0 d-flex align-items-center flex-wrap gap-1" style="cursor: pointer;">
+                                                    <span>{{ $row['product_name'] }}</span>
+                                                    @if(!empty($row['unit_label']))
+                                                        <span class="badge bg-light text-secondary border fw-normal" style="font-size: 0.7rem;">
+                                                            {{ $row['unit_label'] }}
+                                                        </span>
                                                     @endif
-                                                </td>
-                                                <td class="text-center font-monospace">{{ (float)$item->quantity }}</td>
-                                                <td class="text-end fw-bold text-dark font-monospace">${{ number_format($item->subtotal, 0, ',', '.') }}</td>
-                                            </tr>
-                                        @else
+                                                </label>
+                                                @if(!empty($row['additions']))
+                                                    <div class="small text-muted ps-2 border-start border-2 border-success mt-1">
+                                                        @foreach($row['additions'] as $uAdd)
+                                                            <div>+ {{ $uAdd['name'] }} (x{{ (float)$uAdd['quantity'] }})</div>
+                                                        @endforeach
+                                                    </div>
+                                                @endif
+                                            </td>
+                                            <td class="text-center font-monospace">{{ (float)$row['quantity'] }}</td>
+                                            <td class="text-end fw-bold text-dark font-monospace">${{ number_format($row['subtotal'], 0, ',', '.') }}</td>
+                                        </tr>
+                                    @empty
+                                        <tr>
+                                            <td colspan="4" class="text-center py-4 text-muted">
+                                                <i class="bi bi-check-circle text-success fs-2 d-block mb-1"></i>
+                                                ¡Todos los platos de la comanda ya han sido liquidados!
+                                            </td>
+                                        </tr>
+                                    @endforelse
+
+                                    {{-- Resumen de liquidaciones parciales previas (trazabilidad en modal) --}}
+                                    @if($order->splits && $order->splits->where('status', 'paid')->isNotEmpty())
+                                        @foreach($order->splits->where('status', 'paid')->sortBy('share_number') as $prevSplit)
+                                            @php
+                                                $prevSale = $prevSplit->sale;
+                                                $prevIsCredit = (bool) ($prevSplit->is_credit || ($prevSale && $prevSale->is_credit));
+                                                $prevCust = $prevSplit->customer?->name ?? $prevSale?->customer_name ?? 'Consumidor Final';
+                                                $prevItemsSummary = $prevSplit->items_summary ?? [];
+                                            @endphp
+                                            @if(!empty($prevItemsSummary))
+                                                @foreach($prevItemsSummary as $pItem)
+                                                    <tr class="table-light opacity-75">
+                                                        <td class="text-center">
+                                                            <input type="checkbox" class="form-check-input" checked disabled style="width: 1.25rem; height: 1.25rem;">
+                                                        </td>
+                                                        <td>
+                                                            <div class="text-muted text-decoration-line-through">{{ $pItem['product_name'] ?? 'Plato' }}</div>
+                                                            <div class="d-flex flex-wrap align-items-center gap-1 mt-0.5">
+                                                                @if($prevIsCredit)
+                                                                    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle rounded-pill px-2 py-0.5" style="font-size: 0.68rem;">
+                                                                        <i class="bi bi-wallet2 me-1"></i>A Crédito / Fiado
+                                                                    </span>
+                                                                @else
+                                                                    <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2 py-0.5" style="font-size: 0.68rem;">
+                                                                        <i class="bi bi-check2-all me-1"></i>Pagado
+                                                                    </span>
+                                                                @endif
+                                                                <small class="text-muted" style="font-size: 0.7rem;">{{ $prevCust }}{{ $prevSale ? ' • ' . $prevSale->invoice_number : '' }}</small>
+                                                            </div>
+                                                        </td>
+                                                        <td class="text-center text-muted font-monospace">{{ (float)($pItem['quantity'] ?? 1) }}</td>
+                                                        <td class="text-end text-muted font-monospace">${{ number_format($pItem['subtotal'] ?? 0, 0, ',', '.') }}</td>
+                                                    </tr>
+                                                @endforeach
+                                            @endif
+                                        @endforeach
+                                    @else
+                                        @foreach($order->items->where('status', '!=', 'cancelled')->where('is_paid', true) as $paidItem)
                                             <tr class="table-light opacity-75">
                                                 <td class="text-center">
                                                     <input type="checkbox" class="form-check-input" checked disabled style="width: 1.25rem; height: 1.25rem;">
                                                 </td>
                                                 <td>
-                                                    <div class="text-muted text-decoration-line-through">{{ $item->product->nombre }}</div>
+                                                    <div class="text-muted text-decoration-line-through">{{ $paidItem->product->nombre }}</div>
                                                     <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2 py-0.5 mt-1" style="font-size: 0.7rem;">
                                                         <i class="bi bi-check2-all me-1"></i>Pagado
                                                     </span>
                                                 </td>
-                                                <td class="text-center text-muted font-monospace">{{ (float)$item->quantity }}</td>
-                                                <td class="text-end text-muted font-monospace">${{ number_format($item->subtotal, 0, ',', '.') }}</td>
+                                                <td class="text-center text-muted font-monospace">{{ (float)$paidItem->quantity }}</td>
+                                                <td class="text-end text-muted font-monospace">${{ number_format($paidItem->subtotal, 0, ',', '.') }}</td>
                                             </tr>
-                                        @endif
-                                    @endforeach
-                                    @if($unpaidCount === 0)
-                                        <tr>
-                                            <td colspan="4" class="text-center py-4 text-muted">
-                                                <i class="bi bi-check-circle text-success fs-2 d-block mb-1"></i>
-                                                ¡Todos los platos de la comanda ya han sido pagados!
-                                            </td>
-                                        </tr>
+                                        @endforeach
                                     @endif
                                 </tbody>
                             </table>
@@ -1044,15 +1181,70 @@
                     {{-- COLUMNA DERECHA: LIQUIDACIÓN Y COBRO --}}
                     <div class="col-lg-5">
                         <div class="card p-3.5 border-0 rounded-4 bg-light h-100 d-flex flex-column justify-content-between shadow-sm">
-                            <div style="max-height: 520px; overflow-y: auto; padding-right: 4px;">
+                            <div style="max-height: 560px; overflow-y: auto; padding-right: 4px;">
                                 <div class="border-bottom pb-2 mb-2.5">
                                     <h6 class="fw-bold text-dark mb-0.5"><i class="bi bi-receipt-cutoff text-success me-1"></i>Liquidación de Platos Seleccionados</h6>
                                     <small class="text-muted" id="splitItemsCountDisplay" style="font-size: 0.74rem;">0 plato(s) / ítem(s) seleccionados</small>
                                 </div>
 
-                                {{-- 1. Cliente y Descuento (%) --}}
+                                {{-- 0. Opción Venta a Crédito / Fiado --}}
+                                <div class="card p-2.5 border rounded-3 mb-2.5 bg-white">
+                                    <div class="form-check form-switch d-flex align-items-center justify-content-between ps-0 mb-0">
+                                        <label class="form-check-label small fw-bold text-dark cursor-pointer mb-0" for="splitCreditSwitch">
+                                            <i class="bi bi-wallet2 text-danger me-1"></i> Despachar bajo Venta a Crédito / Fiado
+                                        </label>
+                                        <input class="form-check-input ms-2" type="checkbox" id="splitCreditSwitch" onchange="toggleSplitCreditMode(this.checked)" autocomplete="off" style="width: 2.3em; height: 1.25em; cursor: pointer;">
+                                    </div>
+                                    <div id="splitCreditFields" class="mt-2.5 pt-2.5 border-top d-none">
+                                        <div class="alert alert-warning py-2 px-2.5 rounded-3 small mb-2 d-flex align-items-center" style="font-size: 0.76rem;">
+                                            <i class="bi bi-exclamation-triangle-fill text-warning me-2 fs-5 flex-shrink-0"></i>
+                                            <div>
+                                                <strong>Aislamiento de Caja:</strong> El inventario se descontará inmediatamente, pero no sumará dinero en caja hoy.
+                                            </div>
+                                        </div>
+
+                                        <div class="mb-2">
+                                            <label class="form-label small fw-bold text-dark mb-1">Cliente Registrado Obligatorio: <span class="text-danger">*</span></label>
+                                            <div class="input-group input-group-sm mb-1">
+                                                <span class="input-group-text bg-light text-muted"><i class="bi bi-search"></i></span>
+                                                <input type="text" class="form-control" placeholder="Filtrar por cédula, nombre o teléfono..." oninput="filterCustomerSelectBox(this.value, 'splitCreditCustomerSelect')" autocomplete="off">
+                                            </div>
+                                            <div class="input-group input-group-sm">
+                                                <select id="splitCreditCustomerSelect" class="form-select form-select-sm" onchange="onSplitCreditCustomerChange()">
+                                                    <option value="">-- Seleccione un cliente registrado --</option>
+                                                    @foreach($customers as $c)
+                                                        @if($c->document !== '222222222222')
+                                                            <option value="{{ $c->id }}" data-doc="{{ $c->document }}" data-phone="{{ $c->phone }}" data-name="{{ $c->name }}" {{ $order->customer_id == $c->id ? 'selected' : '' }}>
+                                                                {{ $c->name }} ({{ $c->document ?: 'Sin doc' }} - Tel: {{ $c->phone ?: 'Sin tel' }})
+                                                            </option>
+                                                        @endif
+                                                    @endforeach
+                                                </select>
+                                                <button type="button" class="btn btn-outline-success" onclick="openQuickCustomerModal('split_credit')" title="Crear Cliente Rápido">
+                                                    <i class="bi bi-person-plus-fill"></i>
+                                                </button>
+                                            </div>
+                                            <div id="splitCreditCustomerError" class="text-danger small mt-1 d-none fw-semibold" style="font-size: 0.74rem;">
+                                                <i class="bi bi-x-circle me-1"></i>El cliente debe tener teléfono registrado para otorgar crédito.
+                                            </div>
+                                        </div>
+
+                                        <div class="row g-2">
+                                            <div class="col-6">
+                                                <label class="form-label small fw-bold text-dark mb-1" style="font-size: 0.74rem;">Fecha Límite de Pago:</label>
+                                                <input type="date" id="splitCreditDueDate" class="form-control form-control-sm" value="{{ now()->addDays(15)->format('Y-m-d') }}">
+                                            </div>
+                                            <div class="col-6">
+                                                <label class="form-label small fw-bold text-dark mb-1" style="font-size: 0.74rem;">Estado de Cartera:</label>
+                                                <input type="text" class="form-control form-control-sm bg-light fw-bold text-warning-emphasis" readonly value="PENDIENTE DE COBRO">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {{-- 1. Cliente (Contado) y Descuento (%) --}}
                                 <div class="row g-2 mb-2.5">
-                                    <div class="col-7">
+                                    <div class="col-7" id="splitStandardClientWrapper">
                                         <label class="form-label small fw-bold text-dark mb-1">
                                             <i class="bi bi-person text-success me-1"></i>Cliente / Comprador:
                                         </label>
@@ -1065,7 +1257,7 @@
                                                 <option value="" data-name="Consumidor Final" data-doc="222222222222">Consumidor Final (222222222222)</option>
                                                 @foreach($customers as $c)
                                                     @if($c->document !== '222222222222')
-                                                        <option value="{{ $c->id }}" data-name="{{ $c->name }}" data-doc="{{ $c->document }}">
+                                                        <option value="{{ $c->id }}" data-name="{{ $c->name }}" data-doc="{{ $c->document }}" data-phone="{{ $c->phone }}">
                                                             {{ $c->name }} ({{ $c->document ?: 'Sin doc' }})
                                                         </option>
                                                     @endif
@@ -1076,7 +1268,7 @@
                                             </button>
                                         </div>
                                     </div>
-                                    <div class="col-5">
+                                    <div class="col-5" id="splitDiscountWrapper">
                                         <label class="form-label small fw-bold text-dark mb-1">
                                             <i class="bi bi-tag text-danger me-1"></i>Descuento (%):
                                         </label>
@@ -1148,7 +1340,7 @@
                                 </div>
 
                                 {{-- 4. Métodos de Pago Mixtos y Atajos de Efectivo --}}
-                                <div class="mb-2.5">
+                                <div class="mb-2.5" id="splitStandardPaymentsSection">
                                     <div class="d-flex justify-content-between align-items-center mb-1.5">
                                         <label class="form-label small fw-bold text-dark mb-0">
                                             <i class="bi bi-wallet2 text-success me-1"></i>Métodos de Pago:
@@ -1547,13 +1739,14 @@ async function submitQuickCustomer(e) {
         if (res.ok && data.success && data.customer) {
             const newCust = data.customer;
             const splitSelect = document.getElementById('splitItemCustomerSelect');
+            const splitCreditSelect = document.getElementById('splitCreditCustomerSelect');
             const settleSelect = document.getElementById('settleCustomerSelect');
             const settleCreditSelect = document.getElementById('settleCreditCustomerSelect');
 
             const docVal = newCust.document_number || newCust.document || '';
             const phoneVal = newCust.phone || '';
 
-            // 1. Selector en división de platos (#splitBillModal)
+            // 1. Selector en división de platos (#splitBillModal - contado)
             if (splitSelect) {
                 const optTextSplit = `${newCust.name} (${docVal || 'S/D'}) - Tel: ${phoneVal || 'S/T'}`;
                 const newOptSplit = new Option(optTextSplit, newCust.id, true, true);
@@ -1561,6 +1754,16 @@ async function submitQuickCustomer(e) {
                 newOptSplit.dataset.doc = docVal || '222222222222';
                 newOptSplit.dataset.phone = phoneVal;
                 splitSelect.add(newOptSplit);
+            }
+
+            // 1b. Selector de crédito obligatorio en división de platos (#splitBillModal)
+            if (splitCreditSelect) {
+                const optTextSplitCredit = `${newCust.name} (${docVal || 'Sin doc'} - Tel: ${phoneVal || 'Sin tel'})`;
+                const newOptSplitCredit = new Option(optTextSplitCredit, newCust.id, true, true);
+                newOptSplitCredit.dataset.doc = docVal;
+                newOptSplitCredit.dataset.phone = phoneVal;
+                newOptSplitCredit.dataset.name = newCust.name;
+                splitCreditSelect.add(newOptSplitCredit);
             }
 
             // 2. Selector de facturación en liquidación (#settlementModal)
@@ -1587,6 +1790,16 @@ async function submitQuickCustomer(e) {
             if (quickCustomerTarget === 'split' && splitSelect) {
                 splitSelect.value = newCust.id;
                 splitSelect.dispatchEvent(new Event('change'));
+            } else if (quickCustomerTarget === 'split_credit' && splitCreditSelect) {
+                splitCreditSelect.value = newCust.id;
+                splitCreditSelect.dispatchEvent(new Event('change'));
+                if (typeof onSplitCreditCustomerChange === 'function') {
+                    onSplitCreditCustomerChange();
+                }
+                if (splitSelect) {
+                    splitSelect.value = newCust.id;
+                    splitSelect.dispatchEvent(new Event('change'));
+                }
             } else if (quickCustomerTarget === 'credit' && settleCreditSelect) {
                 settleCreditSelect.value = newCust.id;
                 settleCreditSelect.dispatchEvent(new Event('change'));
@@ -2197,6 +2410,7 @@ let splitDiscountPercent = 0;
 let splitTipActive = false;
 let splitTipAmount = 0;
 let splitTaxActive = false;
+let splitIsCredit = false;
 
 let splitSubtotal = 0;
 let splitDiscount = 0;
@@ -2217,21 +2431,141 @@ function openSplitBillModal() {
     const taxSw = document.getElementById('splitItemTaxSwitch');
     if (taxSw) taxSw.checked = false;
 
+    const splitCreditSw = document.getElementById('splitCreditSwitch');
+    if (splitCreditSw) {
+        splitCreditSw.checked = false;
+    }
+    toggleSplitCreditMode(false);
     calculateItemSplitTotal();
 
     const modal = new bootstrap.Modal(document.getElementById('splitBillModal'));
     modal.show();
 }
 
-function toggleItemRowCheckbox(event, itemId) {
+function toggleItemRowCheckbox(event, rowKey) {
     if (event.target && (event.target.tagName === 'INPUT' || event.target.tagName === 'LABEL')) {
         return;
     }
-    const cb = document.getElementById('split_item_' + itemId);
+    const cb = document.getElementById('split_row_' + rowKey);
     if (cb && !cb.disabled) {
         cb.checked = !cb.checked;
         calculateItemSplitTotal();
     }
+}
+
+function toggleSplitCreditMode(isCredit) {
+    splitIsCredit = Boolean(isCredit);
+    const creditFields = document.getElementById('splitCreditFields');
+    const standardClientWrapper = document.getElementById('splitStandardClientWrapper');
+    const discountWrapper = document.getElementById('splitDiscountWrapper');
+    const standardPayments = document.getElementById('splitStandardPaymentsSection');
+
+    if (splitIsCredit) {
+        if (creditFields) creditFields.classList.remove('d-none');
+        if (standardClientWrapper) standardClientWrapper.classList.add('d-none');
+        if (discountWrapper) {
+            discountWrapper.classList.remove('col-5');
+            discountWrapper.classList.add('col-12');
+        }
+        if (standardPayments) standardPayments.classList.add('d-none');
+        onSplitCreditCustomerChange();
+    } else {
+        if (creditFields) creditFields.classList.add('d-none');
+        if (standardClientWrapper) standardClientWrapper.classList.remove('d-none');
+        if (discountWrapper) {
+            discountWrapper.classList.remove('col-12');
+            discountWrapper.classList.add('col-5');
+        }
+        if (standardPayments) standardPayments.classList.remove('d-none');
+    }
+
+    updateSplitActionButtonState();
+}
+
+function isSplitCreditCustomerValid() {
+    const sel = document.getElementById('splitCreditCustomerSelect');
+    if (!sel || !sel.value) return false;
+    const selectedOpt = sel.options[sel.selectedIndex];
+    const phone = selectedOpt ? (selectedOpt.dataset.phone || '').trim() : '';
+    const doc = selectedOpt ? (selectedOpt.dataset.doc || '').trim() : '';
+    if (doc === '222222222222') return false;
+    return phone !== '';
+}
+
+function onSplitCreditCustomerChange() {
+    const err = document.getElementById('splitCreditCustomerError');
+    if (err) {
+        if (splitIsCredit && !isSplitCreditCustomerValid()) {
+            err.classList.remove('d-none');
+        } else {
+            err.classList.add('d-none');
+        }
+    }
+    updateSplitActionButtonState();
+}
+
+function updateSplitActionButtonState() {
+    const btn = document.getElementById('btnSubmitItemSplit');
+    if (!btn) return;
+
+    const selectedCount = document.querySelectorAll('.split-item-checkbox:checked').length;
+
+    if (splitIsCredit) {
+        btn.innerHTML = '<i class="bi bi-wallet2 fs-5"></i> <span>Confirmar Venta a Crédito (Platos Seleccionados)</span>';
+        btn.style.backgroundColor = '#D97706';
+        btn.style.borderColor = '#D97706';
+        btn.disabled = (selectedCount === 0 || splitSubtotal <= 0 || !isSplitCreditCustomerValid());
+    } else {
+        btn.innerHTML = '<i class="bi bi-cash-stack fs-5"></i> <span>Cobrar Platos e Imprimir Factura</span>';
+        btn.style.backgroundColor = '#10B981';
+        btn.style.borderColor = '#10B981';
+        btn.disabled = false;
+    }
+}
+
+function getSelectedSplitSelectionPayload() {
+    const checkboxes = document.querySelectorAll('.split-item-checkbox:checked');
+    const grouped = {};
+
+    checkboxes.forEach(cb => {
+        const itemId = parseInt(cb.dataset.itemId);
+        const qty = parseFloat(cb.dataset.quantity) || 1;
+        let rowAdds = [];
+        try {
+            rowAdds = JSON.parse(cb.dataset.additions || '[]');
+        } catch (e) {
+            rowAdds = [];
+        }
+
+        if (!grouped[itemId]) {
+            grouped[itemId] = {
+                item_id: itemId,
+                quantity: 0,
+                additionsMap: {}
+            };
+        }
+
+        grouped[itemId].quantity = Math.round((grouped[itemId].quantity + qty) * 1000) / 1000;
+
+        if (Array.isArray(rowAdds)) {
+            rowAdds.forEach(a => {
+                const addId = parseInt(a.addition_id);
+                const addQty = parseFloat(a.quantity) || 0;
+                if (addId > 0 && addQty > 0) {
+                    grouped[itemId].additionsMap[addId] = Math.round(((grouped[itemId].additionsMap[addId] || 0) + addQty) * 1000) / 1000;
+                }
+            });
+        }
+    });
+
+    return Object.values(grouped).map(entry => ({
+        item_id: entry.item_id,
+        quantity: entry.quantity,
+        additions: Object.entries(entry.additionsMap).map(([addId, qty]) => ({
+            addition_id: parseInt(addId),
+            quantity: qty
+        }))
+    }));
 }
 
 function toggleSelectAllUnpaidItems() {
@@ -2360,6 +2694,7 @@ function calculateItemSplitTotal() {
         if (container) container.innerHTML = '';
         splitPaymentLines = [];
         recalculateSplitPaymentSummary();
+        updateSplitActionButtonState();
         return;
     } else {
         if (alertEl) alertEl.classList.add('d-none');
@@ -2383,6 +2718,8 @@ function calculateItemSplitTotal() {
     } else {
         recalculateSplitPaymentSummary();
     }
+
+    updateSplitActionButtonState();
 }
 
 function renderSplitPaymentLines() {
@@ -2674,24 +3011,24 @@ async function handlePreBillSubmit(e, form) {
 }
 
 async function printPartialPreBill() {
-    const checkboxes = document.querySelectorAll('.split-item-checkbox:checked');
-    if (!checkboxes.length) {
+    const selectionPayload = getSelectedSplitSelectionPayload();
+    if (!selectionPayload.length) {
         califitNotify('Debe seleccionar al menos un plato pendiente para imprimir la pre-cuenta individual.', 'warning', 'Platos Requeridos');
         return;
     }
 
-    const itemIds = Array.from(checkboxes).map(cb => cb.value);
-    const url = "{{ route('restaurant.orders.pre-bill-partial', $order) }}?items=" + itemIds.join(',');
+    const encodedSelection = encodeURIComponent(JSON.stringify(selectionPayload));
+    const url = "{{ route('restaurant.orders.pre-bill-partial', $order) }}?selection=" + encodedSelection;
 
     try {
-        const res = await fetch(url, {
+        const res = await fetch("{{ route('restaurant.orders.pre-bill-partial', $order) }}", {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}'
             },
-            body: JSON.stringify({ items: itemIds, enqueue: 1 })
+            body: JSON.stringify({ selection: selectionPayload, enqueue: 1 })
         });
         const data = await res.json();
         if (data.success) {
@@ -2705,40 +3042,67 @@ async function printPartialPreBill() {
 }
 
 async function submitItemSplit() {
-    const checkboxes = document.querySelectorAll('.split-item-checkbox:checked');
-    if (!checkboxes.length || splitSubtotal <= 0) {
+    const selectionPayload = getSelectedSplitSelectionPayload();
+    if (!selectionPayload.length || splitSubtotal <= 0) {
         califitNotify('Debe seleccionar al menos un plato pendiente en la columna izquierda para liquidar.', 'warning', 'Platos Requeridos');
         return;
     }
 
-    const covered = splitPaymentLines.reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
-    if (Math.abs(splitFinalTotal - covered) > 0.01) {
-        califitNotify(`La suma de los métodos de pago ($${covered.toLocaleString('es-CO')}) debe coincidir exactamente con el Total a Liquidar ($${splitFinalTotal.toLocaleString('es-CO')}).`, 'warning', 'Descuadre en Pagos');
-        return;
-    }
-
-    const cashLine = splitPaymentLines.find(p => p.method === 'cash');
-    if (cashLine && (parseFloat(cashLine.cash_received) || 0) < cashLine.amount) {
-        califitNotify('El efectivo entregado no puede ser menor al monto asignado en la línea de efectivo.', 'warning', 'Efectivo Insuficiente');
-        return;
-    }
-
-    const itemIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
-    const custSel = document.getElementById('splitItemCustomerSelect');
-    const custOpt = custSel ? custSel.options[custSel.selectedIndex] : null;
-
     const payload = {
         split_type: 'items',
-        item_ids: itemIds,
-        customer_id: custSel && custSel.value ? parseInt(custSel.value) : null,
-        customer_name: custOpt ? custOpt.dataset.name : 'Consumidor Final',
-        customer_document: custOpt ? custOpt.dataset.doc : '222222222222',
+        items: selectionPayload,
         discount_percentage: splitDiscountPercent,
         discount: splitDiscount,
         tip: splitTip,
         tax_inc: splitTax,
         notes: document.getElementById('splitItemNotes').value || null,
-        payments: splitPaymentLines.map(p => {
+        is_credit: splitIsCredit
+    };
+
+    if (splitIsCredit) {
+        const creditSel = document.getElementById('splitCreditCustomerSelect');
+        const selectedOpt = creditSel ? creditSel.options[creditSel.selectedIndex] : null;
+
+        if (!creditSel || !creditSel.value) {
+            califitNotify('Debe seleccionar un cliente registrado con teléfono para otorgar crédito.', 'warning', 'Cliente Obligatorio');
+            return;
+        }
+        const phone = selectedOpt ? (selectedOpt.dataset.phone || '').trim() : '';
+        const doc = selectedOpt ? (selectedOpt.dataset.doc || '').trim() : '';
+        if (doc === '222222222222') {
+            califitNotify('Está prohibido otorgar crédito al Consumidor Final genérico.', 'danger', 'Validación Crédito');
+            return;
+        }
+        if (!phone) {
+            califitNotify('El cliente seleccionado no cuenta con teléfono registrado. Actualice sus datos antes de otorgar crédito.', 'danger', 'Validación Crédito');
+            return;
+        }
+
+        payload.customer_id = parseInt(creditSel.value);
+        payload.customer_name = selectedOpt.dataset.name;
+        payload.customer_document = doc;
+        payload.credit_due_date = document.getElementById('splitCreditDueDate')?.value || null;
+        payload.payments = [];
+    } else {
+        const covered = splitPaymentLines.reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
+        if (Math.abs(splitFinalTotal - covered) > 0.01) {
+            califitNotify(`La suma de los métodos de pago ($${covered.toLocaleString('es-CO')}) debe coincidir exactamente con el Total a Liquidar ($${splitFinalTotal.toLocaleString('es-CO')}).`, 'warning', 'Descuadre en Pagos');
+            return;
+        }
+
+        const cashLine = splitPaymentLines.find(p => p.method === 'cash');
+        if (cashLine && (parseFloat(cashLine.cash_received) || 0) < cashLine.amount) {
+            califitNotify('El efectivo entregado no puede ser menor al monto asignado en la línea de efectivo.', 'warning', 'Efectivo Insuficiente');
+            return;
+        }
+
+        const custSel = document.getElementById('splitItemCustomerSelect');
+        const custOpt = custSel ? custSel.options[custSel.selectedIndex] : null;
+
+        payload.customer_id = custSel && custSel.value ? parseInt(custSel.value) : null;
+        payload.customer_name = custOpt ? custOpt.dataset.name : 'Consumidor Final';
+        payload.customer_document = custOpt ? custOpt.dataset.doc : '222222222222';
+        payload.payments = splitPaymentLines.map(p => {
             let method = p.method;
             let ref = p.reference ? p.reference.trim() : null;
             if (method === 'nequi') {
@@ -2754,12 +3118,14 @@ async function submitItemSplit() {
                 reference: ref,
                 cash_received: method === 'cash' ? p.cash_received : null
             };
-        })
-    };
+        });
+    }
 
     const btn = document.getElementById('btnSubmitItemSplit');
     btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Cobrando platos...';
+    btn.innerHTML = splitIsCredit
+        ? '<span class="spinner-border spinner-border-sm me-1"></span> Registrando crédito...'
+        : '<span class="spinner-border spinner-border-sm me-1"></span> Cobrando platos...';
 
     try {
         const res = await fetch("{{ route('restaurant.orders.split-settle', $order) }}", {
@@ -2776,21 +3142,28 @@ async function submitItemSplit() {
         if (res.ok && data.success) {
             window.open(`/prints/sales/${data.sale_id}/receipt`, '_blank', 'width=340,height=620');
             if (data.is_order_closed) {
-                califitNotify('Todos los platos han sido liquidados. La mesa ha sido liberada exitosamente.', 'success', 'Comanda Finalizada');
+                califitNotify(
+                    data.message || 'Todos los platos han sido liquidados. La mesa ha sido liberada exitosamente.',
+                    'success',
+                    'Comanda Finalizada'
+                );
                 setTimeout(() => window.location.href = "{{ route('restaurant.tables.index') }}", 1200);
             } else {
-                location.reload();
+                califitNotify(
+                    data.message || 'Liquidación parcial registrada exitosamente.',
+                    'success',
+                    splitIsCredit ? 'Crédito Registrado' : 'Pago Registrado'
+                );
+                setTimeout(() => location.reload(), 900);
             }
         } else {
-            califitNotify(data.message || 'Error al cobrar platos', 'danger', 'Inventario o Validación');
-            btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-cash-stack fs-5"></i> <span>Cobrar Platos e Imprimir Factura</span>';
+            califitNotify(data.message || 'Error al liquidar platos', 'danger', 'Inventario o Validación');
+            updateSplitActionButtonState();
         }
     } catch (err) {
         console.error(err);
         califitNotify('Ocurrió un error al liquidar los platos.', 'danger', 'Error de Servidor');
-        btn.disabled = false;
-        btn.innerHTML = '<i class="bi bi-cash-stack fs-5"></i> <span>Cobrar Platos e Imprimir Factura</span>';
+        updateSplitActionButtonState();
     }
 }
 
@@ -2814,6 +3187,17 @@ document.addEventListener('DOMContentLoaded', () => {
             if (creditSw) {
                 creditSw.checked = false;
                 toggleSettleCreditMode(false);
+            }
+        });
+    }
+
+    const splitModalEl = document.getElementById('splitBillModal');
+    if (splitModalEl) {
+        splitModalEl.addEventListener('hidden.bs.modal', () => {
+            const splitCreditSw = document.getElementById('splitCreditSwitch');
+            if (splitCreditSw) {
+                splitCreditSw.checked = false;
+                toggleSplitCreditMode(false);
             }
         });
     }

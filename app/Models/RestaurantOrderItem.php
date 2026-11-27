@@ -23,6 +23,7 @@ class RestaurantOrderItem extends Model
         'printed_to_kitchen',
         'batch_number',
         'is_paid',
+        'paid_quantity',
         'sale_id',
         'cancellation_reason',
         'cancelled_by',
@@ -33,6 +34,7 @@ class RestaurantOrderItem extends Model
     {
         return [
             'quantity' => 'decimal:3',
+            'paid_quantity' => 'decimal:3',
             'unit_price' => 'decimal:2',
             'subtotal' => 'decimal:2',
             'printed_to_kitchen' => 'boolean',
@@ -40,6 +42,39 @@ class RestaurantOrderItem extends Model
             'is_paid' => 'boolean',
             'cancelled_at' => 'datetime',
         ];
+    }
+
+    public function getPendingQuantityAttribute(): float
+    {
+        if ($this->is_paid || $this->status === 'cancelled') {
+            return 0.0;
+        }
+
+        return max(0.0, round((float) $this->quantity - (float) ($this->paid_quantity ?? 0), 3));
+    }
+
+    public function getPendingSubtotalAttribute(): float
+    {
+        $pendingQty = $this->pending_quantity;
+        if ($pendingQty <= 0.0001) {
+            return 0.0;
+        }
+
+        if ((float) ($this->paid_quantity ?? 0) <= 0.0001) {
+            return round((float) $this->subtotal, 2);
+        }
+
+        $baseSubtotal = round($pendingQty * (float) $this->unit_price, 2);
+        $additionsSubtotal = 0.0;
+
+        foreach ($this->additions as $add) {
+            $pendingAddQty = $add->pending_quantity;
+            if ($pendingAddQty > 0) {
+                $additionsSubtotal += round($pendingAddQty * (float) $add->unit_price, 2);
+            }
+        }
+
+        return round($baseSubtotal + $additionsSubtotal, 2);
     }
 
     public function cancelledByUser(): BelongsTo

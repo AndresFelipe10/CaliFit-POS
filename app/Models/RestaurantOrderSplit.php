@@ -18,11 +18,14 @@ class RestaurantOrderSplit extends Model
         'total_shares',
         'amount',
         'status',
+        'is_credit',
         'payment_method',
         'cash_received',
         'change_given',
         'reference',
+        'items_summary',
         'user_id',
+        'customer_id',
         'sale_id',
         'paid_at',
     ];
@@ -33,10 +36,17 @@ class RestaurantOrderSplit extends Model
             'share_number' => 'integer',
             'total_shares' => 'integer',
             'amount' => 'decimal:2',
+            'is_credit' => 'boolean',
             'cash_received' => 'decimal:2',
             'change_given' => 'decimal:2',
+            'items_summary' => 'array',
             'paid_at' => 'datetime',
         ];
+    }
+
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class);
     }
 
     public function order(): BelongsTo
